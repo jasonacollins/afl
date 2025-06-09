@@ -2,8 +2,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install cron
-RUN apk add --no-cache dcron
+# Install cron and Python
+RUN apk add --no-cache dcron python3 py3-pip py3-pandas py3-numpy py3-scipy
 
 # Copy package files and install dependencies
 COPY package*.json ./
