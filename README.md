@@ -26,6 +26,136 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Multi-Season Support**: Historical tracking of predictions across multiple years
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 
+## Architecture
+
+The AFL Predictions application follows a layered architecture pattern built on Node.js and Express.js, designed for maintainability, scalability, and clear separation of concerns.
+
+### Overall Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Web Browser   │◄──►│  Express Server  │◄──►│ Squiggle API    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌──────────────────┐
+                       │ SQLite Database  │
+                       └──────────────────┘
+```
+
+### Core Components
+
+#### **Presentation Layer (`/routes`)**
+- **Authentication Routes** (`auth.js`): User login/logout, session management
+- **Prediction Routes** (`predictions.js`): User prediction interface and submission
+- **Match Routes** (`matches.js`): Match viewing and management
+- **Admin Routes** (`admin.js`): Administrative functions, user management, database operations
+
+#### **Business Logic Layer (`/services`)**
+- **Predictor Service**: User account management and validation
+- **Prediction Service**: Prediction processing and retrieval
+- **Match Service**: Match data management and scheduling
+- **Round Service**: AFL round logic and ordering
+- **Scoring Service**: Prediction accuracy calculations (Brier, Bits, Tip Points)
+- **Featured Predictions Service**: Homepage content management
+- **Password Service**: Password validation and security
+
+#### **Data Access Layer (`/models`)**
+- **Database Module** (`db.js`): SQLite connection management, query helpers, schema initialisation
+- **Custom Query Interface**: Promise-based wrappers for database operations (`runQuery`, `getQuery`, `getOne`)
+
+#### **Utility Layer (`/utils`)**
+- **Error Handler**: Centralised error management with operational error classification
+- **Logger**: Winston-based logging with file rotation and structured logging
+
+#### **External Integration (`/scripts`)**
+- **API Refresh**: Automated synchronisation with Squiggle API for match data
+- **Data Import**: Database initialisation and team data setup
+- **ELO Model**: Machine learning prediction model training and execution
+
+### Technology Stack
+
+**Backend Framework:**
+- **Node.js** - Runtime environment
+- **Express.js** - Web application framework
+- **EJS** - Server-side templating engine
+
+**Database:**
+- **SQLite** - Embedded database for data persistence
+- **Custom ORM** - Promise-based database abstraction layer
+
+**Authentication & Security:**
+- **express-session** - Session management with SQLite store
+- **bcrypt** - Password hashing
+- **express-rate-limit** - Login attempt protection
+
+**External Integration:**
+- **Squiggle API** - AFL match data source
+- **node-fetch** - HTTP client for API requests
+
+**Logging & Monitoring:**
+- **Winston** - Structured logging with daily rotation
+- **Custom error handling** - Operational vs programmer error classification
+
+**Development & Deployment:**
+- **Docker** - Containerisation with multi-stage builds
+- **Cron** - Scheduled data synchronisation tasks
+
+### Data Flow
+
+#### **User Prediction Flow:**
+1. User authenticates via `/login` route
+2. Session established with SQLite-backed store
+3. User navigates to `/predictions` for current AFL round
+4. Prediction submitted via POST request
+5. Service layer validates and stores prediction
+6. Real-time scoring calculated when match results available
+
+#### **Data Synchronisation Flow:**
+1. Cron job triggers API refresh script
+2. Fetch latest match data from Squiggle API
+3. Compare with local database state
+4. Update match fixtures and scores
+5. Recalculate user prediction scores
+6. Log synchronisation results
+
+#### **Admin Management Flow:**
+1. Admin authentication with role verification
+2. Access to user management, database operations
+3. Database backup/restore functionality
+4. Featured predictor configuration
+5. System monitoring and logs access
+
+### Directory Structure
+
+```
+afl-predictions/
+├── routes/           # HTTP route handlers (presentation layer)
+├── services/         # Business logic and processing
+├── models/           # Database abstraction and queries
+├── utils/            # Shared utilities (logging, error handling)
+├── scripts/          # Background tasks and data management
+├── views/            # EJS template files
+├── public/           # Static assets (CSS, JS, images)
+├── data/             # SQLite database files and backups
+├── logs/             # Application log files
+└── docker/           # Docker configuration files
+```
+
+### Key Architectural Decisions
+
+**SQLite Choice**: Selected for simplicity, minimal administration, and sufficient performance for the prediction use case with embedded deployment.
+
+**Service Layer Pattern**: Business logic separated from route handlers to improve testability and maintainability.
+
+**Custom Database Layer**: Promise-based abstraction over SQLite to provide consistent error handling and logging.
+
+**Session-Based Authentication**: Simple session management suitable for the user base size and security requirements.
+
+**External API Integration**: Scheduled synchronisation rather than real-time to reduce API load and improve reliability.
+
+**Monolithic Deployment**: Single container deployment for operational simplicity while maintaining clear internal boundaries.
+
 ## Environment Details
 
 - **Production Environment**: `/var/www/afl-predictions`
