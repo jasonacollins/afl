@@ -8,7 +8,10 @@
     "dev": "nodemon app.js",
     "import": "node scripts/import-data.js",
     "sync-games": "node scripts/sync-games.js",
-    "daily-sync": "node scripts/daily-sync.js"
+    "daily-sync": "node scripts/daily-sync.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -31,6 +34,7 @@
     "winston-daily-rotate-file": "^4.7.1"
   },
   "devDependencies": {
+    "jest": "^30.0.0",
     "nodemon": "^3.1.9"
   }
 }
