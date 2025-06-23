@@ -19,8 +19,6 @@ module.exports = {
     '**/?(*.)+(spec|test).js'
   ],
   
-  // Transform files with Jest's default transformer
-  transform: {
-    '^.+\\.js$': ['babel-jest', { rootMode: 'upward' }]
-  }
+  // No transform needed for Node.js files
+  transform: {}
 };

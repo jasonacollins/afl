@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth');
 const predictionsRoutes = require('./routes/predictions');
 const matchesRoutes = require('./routes/matches');
 const adminRoutes = require('./routes/admin');
+const eloRoutes = require('./routes/elo');
 
 // Initialize express app
 const app = express();
@@ -69,6 +70,7 @@ app.use('/', authRoutes);
 app.use('/predictions', predictionsRoutes);
 app.use('/matches', matchesRoutes);
 app.use('/admin', adminRoutes);
+app.use('/api/elo', eloRoutes);
 
 // Home route - updated to show featured predictions
 app.get('/', catchAsync(async (req, res) => {
