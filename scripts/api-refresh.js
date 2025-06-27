@@ -48,6 +48,58 @@ async function refreshAPIData(year, options = {}) {
     const gamesFromAPI = data.games;
     logger.info(`Received ${gamesFromAPI.length} games from API for ${year}`);
 
+    // Update fixture information (dates, times, venues) for existing matches
+    logger.info('Processing fixture updates for date/time/venue changes...');
+    
+    const fixtureUpdateQuery = `
+      UPDATE matches
+      SET
+        match_date = ?,
+        venue = ?
+      WHERE
+        match_number = ?
+        AND (
+          match_date != ? OR
+          venue != ? OR
+          match_date IS NULL OR
+          venue IS NULL
+        )
+    `;
+
+    for (const game of gamesFromAPI) {
+      const squiggleGameId = game.id;
+      const apiDate = game.date || game.localtime;
+      const apiVenue = game.venue;
+
+      if (!squiggleGameId || !apiDate) {
+        continue; // Skip games without proper ID or date
+      }
+
+      try {
+        const result = await runQuery(fixtureUpdateQuery, [
+          apiDate,
+          apiVenue,
+          squiggleGameId,
+          apiDate,
+          apiVenue
+        ]);
+
+        if (result.changes > 0) {
+          updateCount++;
+          logger.debug(`Updated fixture info for match_number: ${squiggleGameId}`, {
+            date: apiDate,
+            venue: apiVenue
+          });
+        }
+      } catch (err) {
+        const errorMsg = `Error updating fixture info for match_number ${squiggleGameId}`;
+        logger.error(errorMsg, { error: err.message });
+        skippedFixtureUpdates.push(errorMsg);
+      }
+    }
+
+    logger.info(`Fixture updates complete. Updated ${updateCount} matches`);
+
     // Update Final Scores & Set Completion to 100 for Completed Games
     const completedGamesWithScores = gamesFromAPI.filter(game =>
       game.complete === 100 &&

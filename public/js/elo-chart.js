@@ -12,6 +12,7 @@ class EloChart {
     this.chartData = null;
     this.teams = [];
     this.highlightedTeams = new Set();
+    this.currentMode = 'year'; // 'year' or 'yearRange'
     
     // Chart colors - bold, vibrant colors that stand out against gray
     this.teamColors = [
@@ -29,8 +30,8 @@ class EloChart {
       await this.loadAvailableYears();
       console.log('Available years loaded:', this.availableYears);
       
-      this.createChartContainer();
-      console.log('Chart container created');
+      this.setupEventListeners();
+      console.log('Event listeners setup');
       
       await this.loadEloData(this.currentYear);
       console.log('ELO data loaded for year:', this.currentYear);
@@ -77,6 +78,7 @@ class EloChart {
         this.chartData = data.data;
         this.teams = data.teams;
         this.currentYear = year;
+        this.currentMode = 'year';
         console.log('Chart data assigned - length:', this.chartData.length);
         console.log('First 3 chart data points:', this.chartData.slice(0, 3));
         console.log('All rounds:', this.chartData.map(d => d.round));
@@ -89,38 +91,138 @@ class EloChart {
     }
   }
 
-  createChartContainer() {
-    this.container.innerHTML = `
-      <div class="elo-chart-section">
-        <div class="elo-chart-header">
-          <h2>AFL Team ELO Ratings</h2>
-          <div class="elo-chart-controls">
-            <label for="elo-year-select">Year:</label>
-            <select id="elo-year-select" class="elo-year-selector">
-              ${this.availableYears.map(year => 
-                `<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`
-              ).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="elo-chart-container">
-          <canvas id="elo-chart-canvas"></canvas>
-        </div>
-        <div class="elo-chart-legend" id="elo-chart-legend">
-          <!-- Legend will be populated dynamically -->
-        </div>
-        <div class="elo-chart-info">
-          <p><small>Click on team names in the legend to highlight/hide teams. ELO ratings show team strength over time.</small></p>
-        </div>
-      </div>
-    `;
+  async loadEloDataForYearRange(startYear, endYear) {
+    try {
+      console.log(`Loading ELO data for year range ${startYear} to ${endYear}`);
+      const response = await fetch(`/api/elo/ratings/range?startYear=${startYear}&endYear=${endYear}`);
+      const data = await response.json();
+      
+      console.log('API response data points:', data.data ? data.data.length : 'no data');
+      console.log('API response first 3 points:', data.data ? data.data.slice(0, 3) : 'no data');
+      
+      if (data.success) {
+        this.chartData = data.data;
+        this.teams = data.teams;
+        this.currentMode = 'yearRange';
+        this.currentStartYear = startYear;
+        this.currentEndYear = endYear;
+        console.log('Chart data assigned - length:', this.chartData.length);
+        console.log('First 3 chart data points:', this.chartData.slice(0, 3));
+        console.log('All periods:', this.chartData.map(d => d.label));
+      } else {
+        throw new Error(data.error || 'Failed to load ELO data for year range');
+      }
+    } catch (error) {
+      console.error('Error loading ELO data for year range:', error);
+      throw error;
+    }
+  }
 
-    // Add event listener for year selection
-    const yearSelect = document.getElementById('elo-year-select');
-    yearSelect.addEventListener('change', async (e) => {
-      const selectedYear = parseInt(e.target.value);
-      await this.changeYear(selectedYear);
+  setupEventListeners() {
+    // Populate year selector
+    const yearSelect = document.getElementById('year-selector');
+    if (yearSelect) {
+      yearSelect.innerHTML = this.availableYears.map(year => 
+        `<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`
+      ).join('');
+      
+      // Add event listener for year selection
+      yearSelect.addEventListener('change', async (e) => {
+        const selectedYear = parseInt(e.target.value);
+        await this.changeYear(selectedYear);
+      });
+    }
+
+    // Populate year range selectors
+    this.populateYearSelectors();
+
+    // Add event listeners for mode toggle
+    const modeRadios = document.querySelectorAll('input[name="chart-mode"]');
+    modeRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        this.handleModeChange(e.target.value);
+      });
     });
+
+    // Add event listener for apply year range button
+    const applyButton = document.getElementById('apply-year-range');
+    if (applyButton) {
+      applyButton.addEventListener('click', async () => {
+        await this.applyYearRange();
+      });
+    }
+  }
+
+  populateYearSelectors() {
+    const startYearSelect = document.getElementById('start-year');
+    const endYearSelect = document.getElementById('end-year');
+    
+    if (startYearSelect && endYearSelect) {
+      // Generate years from 1990 to current year
+      const currentYear = new Date().getFullYear();
+      const years = [];
+      for (let year = 1990; year <= currentYear; year++) {
+        years.push(year);
+      }
+      
+      const yearOptions = years.map(year => 
+        `<option value="${year}">${year}</option>`
+      ).join('');
+      
+      startYearSelect.innerHTML = yearOptions;
+      endYearSelect.innerHTML = yearOptions;
+      
+      // Set default values (last 5 years)
+      startYearSelect.value = Math.max(1990, currentYear - 4);
+      endYearSelect.value = currentYear;
+    }
+  }
+
+  handleModeChange(mode) {
+    const yearControls = document.getElementById('year-selector');
+    const rangeControls = document.querySelectorAll('#start-year, #end-year, #apply-year-range');
+    
+    if (mode === 'year') {
+      yearControls.disabled = false;
+      rangeControls.forEach(control => control.disabled = true);
+    } else {
+      yearControls.disabled = true;
+      rangeControls.forEach(control => control.disabled = false);
+    }
+  }
+
+  async applyYearRange() {
+    const startYear = parseInt(document.getElementById('start-year').value);
+    const endYear = parseInt(document.getElementById('end-year').value);
+    
+    if (!startYear || !endYear) {
+      alert('Please select both start and end years');
+      return;
+    }
+    
+    if (startYear > endYear) {
+      alert('Start year must be before or equal to end year');
+      return;
+    }
+    
+    try {
+      // Show loading state
+      this.showLoadingState();
+      
+      await this.loadEloDataForYearRange(startYear, endYear);
+      this.createChart();
+      this.createLegend();
+    } catch (error) {
+      console.error('Error applying year range:', error);
+      this.showError('Failed to load data for selected year range');
+    }
+  }
+
+  showLoadingState() {
+    const chartContainer = document.querySelector('.elo-chart-container');
+    if (chartContainer) {
+      chartContainer.innerHTML = '<div style="text-align: center; padding: 2rem;">Loading chart data...</div>';
+    }
   }
 
   async changeYear(year) {
@@ -146,24 +248,43 @@ class EloChart {
 
   createChart() {
     console.log('Creating chart...');
-    const canvas = document.getElementById('elo-chart-canvas');
+    
+    // Ensure chart container exists
+    let canvas = document.getElementById('elo-chart-canvas');
+    if (!canvas) {
+      const chartContainer = document.querySelector('.elo-chart-container');
+      if (chartContainer) {
+        chartContainer.innerHTML = '<canvas id="elo-chart-canvas"></canvas>';
+        canvas = document.getElementById('elo-chart-canvas');
+      } else {
+        console.error('Chart container not found');
+        return;
+      }
+    }
+    
     const ctx = canvas.getContext('2d');
 
     if (!this.chartData || this.chartData.length === 0) {
       console.error('No chart data available');
-      this.showError('No data available for the selected year');
+      this.showError('No data available for the selected period');
       return;
     }
 
-    console.log('Chart data available:', this.chartData.length, 'rounds');
+    console.log('Chart data available:', this.chartData.length, 'data points');
 
-    // Get all rounds for x-axis labels
-    const rounds = this.chartData.map(point => point.round);
-    console.log('Rounds:', rounds);
+    // Get labels for x-axis based on current mode
+    let labels;
+    if (this.currentMode === 'year') {
+      labels = this.chartData.map(point => point.round);
+      console.log('Rounds:', labels);
+    } else {
+      labels = this.chartData.map(point => point.label || point.period);
+      console.log('Year range labels:', labels);
+    }
 
     // Prepare datasets for each team
     const datasets = this.teams.map((team, index) => {
-      // Create data points for this team across all rounds
+      // Create data points for this team across all data points
       const teamData = this.chartData.map((point) => {
         return point[team] || null;
       });
@@ -180,7 +301,7 @@ class EloChart {
         borderWidth: 2,
         fill: false,
         tension: 0.1,
-        pointRadius: 3,
+        pointRadius: this.currentMode === 'yearRange' ? 2 : 3, // Smaller points for year range
         pointHoverRadius: 6,
         hidden: false,
         spanGaps: true // Connect points even if some data is missing
@@ -190,15 +311,20 @@ class EloChart {
     console.log('Created datasets:', datasets.length);
 
     console.log('Creating Chart.js instance with data:', {
-      labels: rounds,
+      labels: labels,
       datasets: datasets.length
     });
 
     try {
+      // Destroy existing chart if it exists
+      if (this.chart) {
+        this.chart.destroy();
+      }
+
       this.chart = new Chart(ctx, {
         type: 'line',
         data: { 
-          labels: rounds,
+          labels: labels,
           datasets 
         },
         options: {
@@ -214,7 +340,10 @@ class EloChart {
               type: 'category',
               title: {
                 display: true,
-                text: 'Round'
+                text: this.currentMode === 'year' ? 'Round' : 'Period'
+              },
+              ticks: {
+                maxTicksLimit: this.currentMode === 'yearRange' ? 15 : undefined
               }
             },
             y: {
@@ -239,7 +368,21 @@ class EloChart {
   }
 
   createLegend() {
-    const legendContainer = document.getElementById('elo-chart-legend');
+    // Create legend container if it doesn't exist
+    let legendContainer = document.getElementById('elo-chart-legend');
+    if (!legendContainer) {
+      const chartSection = document.querySelector('.elo-chart-section');
+      if (chartSection) {
+        const legendDiv = document.createElement('div');
+        legendDiv.id = 'elo-chart-legend';
+        legendDiv.className = 'elo-chart-legend';
+        chartSection.appendChild(legendDiv);
+        legendContainer = legendDiv;
+      } else {
+        console.error('Chart section not found for legend');
+        return;
+      }
+    }
     
     const legendItems = this.teams.map((team, index) => {
       const color = this.teamColors[index % this.teamColors.length];

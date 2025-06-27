@@ -41,7 +41,7 @@ async function getMatchesByRoundAndYear(round, year) {
     logger.debug(`Fetching matches for round ${round}, year ${year}`);
     
     const matches = await getMatchesWithTeams(
-      'WHERE m.round_number = ? AND m.year = ? ORDER BY m.match_number',
+      'WHERE m.round_number = ? AND m.year = ? ORDER BY m.match_date',
       [round, year]
     );
     

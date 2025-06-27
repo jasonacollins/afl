@@ -124,8 +124,16 @@ async function runEloPredictions() {
       logger.info(`Inserted ${insertCount} new ELO predictions`);
     }
     
-    // Clean up CSV file
+    // Clean up predictions CSV file (preserve rating history CSV for ELO chart)
     fs.unlinkSync(csvPath);
+    
+    // Verify that rating history file exists for the ELO chart
+    const ratingHistoryPath = path.join(outputDir, `afl_elo_rating_history_from_${currentYear}.csv`);
+    if (fs.existsSync(ratingHistoryPath)) {
+      logger.info(`ELO rating history preserved at: ${ratingHistoryPath}`);
+    } else {
+      logger.warn(`ELO rating history file not found at: ${ratingHistoryPath}`);
+    }
     
     return {
       success: true,

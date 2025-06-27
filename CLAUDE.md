@@ -16,6 +16,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run sync-games` - Sync match data from Squiggle API (`scripts/sync-games.js`)
 - `npm run daily-sync` - Run daily synchronization tasks (`scripts/daily-sync.js`)
 
+### ELO Model Scripts
+- `python3 scripts/afl_elo_training.py` - Train ELO model with optimal parameters
+- `python3 scripts/afl_elo_predictions.py` - Generate ELO predictions for future matches
+- `python3 scripts/afl_elo_history_generator.py` - Generate comprehensive historical ELO data for charting
+
 ### Docker Commands
 - `docker-compose up -d` - Start containerized application
 - `docker-compose down` - Stop containers
@@ -44,9 +49,10 @@ This is an AFL predictions web application built with Node.js/Express and SQLite
 
 - **scoring-service.js**: Brier score, Bits score, and tip point calculations (client/server compatible)
 - **prediction-service.js**: User prediction management and validation
-- **match-service.js**: AFL match data handling and scheduling
+- **match-service.js**: AFL match data handling and scheduling (now orders matches chronologically)
 - **round-service.js**: AFL season and round logic
 - **predictor-service.js**: User account management
+- **elo-service.js**: ELO rating data processing, supports both single-year and year-range filtering
 - **featured-predictions.js**: Homepage content management
 - **password-service.js**: Password validation with security rules
 
@@ -62,7 +68,12 @@ Database queries use structured logging through Winston, with all operations log
 
 **Squiggle API**: Primary data source for AFL fixtures and results. Scripts handle automated synchronization with caching in `data/cache/`.
 
-**ELO Model**: Python-based prediction model (`scripts/afl_elo_*.py`) that can be trained on historical data and generate predictions for future matches.
+**ELO Model**: Python-based prediction model (`scripts/afl_elo_*.py`) that can be trained on historical data and generate predictions for future matches. Includes comprehensive history generation for charting purposes.
+
+**ELO Chart**: Interactive visualization on homepage with dual modes:
+- Single Year: Round-by-round ELO progression for individual seasons
+- Year Range: Multi-year ELO trends using historical data (1990-present)
+- Features team selection, highlighting, and responsive design
 
 ## Testing Framework
 
@@ -90,6 +101,21 @@ The scoring service is served to browsers via Express route - any changes must m
 - Database path: `DB_PATH` environment variable (defaults to `data/afl_predictions.db`)
 - Session configuration via environment variables
 - See `example-env-production-file.txt` for production setup
+
+### Recent Key Updates
+
+**ELO Predictions Enhancement (June 2025)**:
+- Enhanced `scripts/elo-predictions.js` with better logging and verification of rating history file preservation
+- Updated `scripts/api-refresh.js` to handle fixture updates (dates, times, venues) for existing matches
+- Modified `services/match-service.js` to order matches chronologically instead of by match ID
+- Created `scripts/afl_elo_history_generator.py` for comprehensive historical ELO data generation
+
+**ELO Chart Enhancement (June 2025)**:
+- Added year range filtering capability to ELO chart (1990-present)
+- Updated `services/elo-service.js` with `getEloRatingsForYearRange()` method
+- Added new API endpoint: `GET /api/elo/ratings/range?startYear=YYYY&endYear=YYYY`
+- Enhanced frontend with dual-mode toggle (Year vs Year Range)
+- Improved chart container sizing and legend positioning
 
 ## AI/LLM Specific Instructions
 
