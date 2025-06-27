@@ -51,21 +51,6 @@ async function refreshAPIData(year, options = {}) {
     // Update fixture information (dates, times, venues) for existing matches
     logger.info('Processing fixture updates for date/time/venue changes...');
     
-    const fixtureUpdateQuery = `
-      UPDATE matches
-      SET
-        match_date = ?,
-        venue = ?
-      WHERE
-        match_number = ?
-        AND (
-          match_date != ? OR
-          venue != ? OR
-          match_date IS NULL OR
-          venue IS NULL
-        )
-    `;
-
     for (const game of gamesFromAPI) {
       const squiggleGameId = game.id;
       const apiDate = game.date || game.localtime;
@@ -76,20 +61,38 @@ async function refreshAPIData(year, options = {}) {
       }
 
       try {
-        const result = await runQuery(fixtureUpdateQuery, [
-          apiDate,
-          apiVenue,
-          squiggleGameId,
-          apiDate,
-          apiVenue
-        ]);
+        // First, get the current values for this match
+        const currentMatch = await getOne(
+          'SELECT match_date, venue FROM matches WHERE match_number = ?',
+          [squiggleGameId]
+        );
 
-        if (result.changes > 0) {
-          updateCount++;
-          logger.debug(`Updated fixture info for match_number: ${squiggleGameId}`, {
-            date: apiDate,
-            venue: apiVenue
-          });
+        if (!currentMatch) {
+          continue; // Skip if match doesn't exist in database
+        }
+
+        // Check if there are actual differences
+        const dateChanged = currentMatch.match_date !== apiDate;
+        const venueChanged = currentMatch.venue !== apiVenue;
+
+        if (dateChanged || venueChanged) {
+          // Only update if there are actual differences
+          const result = await runQuery(
+            'UPDATE matches SET match_date = ?, venue = ? WHERE match_number = ?',
+            [apiDate, apiVenue, squiggleGameId]
+          );
+
+          if (result.changes > 0) {
+            updateCount++;
+            logger.debug(`Updated fixture info for match_number: ${squiggleGameId}`, {
+              oldDate: currentMatch.match_date,
+              newDate: apiDate,
+              dateChanged,
+              oldVenue: currentMatch.venue,
+              newVenue: apiVenue,
+              venueChanged
+            });
+          }
         }
       } catch (err) {
         const errorMsg = `Error updating fixture info for match_number ${squiggleGameId}`;
