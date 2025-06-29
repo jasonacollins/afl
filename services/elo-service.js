@@ -14,7 +14,7 @@ class EloService {
    */
   async getEloRatingsForYear(year) {
     try {
-      const csvPath = this.getEloDataPath(year);
+      const csvPath = this.getEloDataPath();
       
       logger.info(`ELO data path resolved for year ${year}`, { 
         csvPath,
@@ -47,7 +47,7 @@ class EloService {
   }
 
   /**
-   * Get ELO ratings data for a year range using historical CSV files
+   * Get ELO ratings data for a year range using the complete historical CSV file
    * @param {number} startYear - Start year
    * @param {number} endYear - End year  
    * @returns {Promise<Object>} Processed ELO data with teams and ratings over time
@@ -59,22 +59,22 @@ class EloService {
         endYear 
       });
 
-      // Use the historical CSV files we generated
-      const historicalCsvPath = this.getHistoricalDataPath(startYear, endYear);
+      // Use the single complete historical CSV file
+      const csvPath = this.getEloDataPath();
       
-      if (!fs.existsSync(historicalCsvPath)) {
+      if (!fs.existsSync(csvPath)) {
         return { 
           teams: [], 
           data: [], 
           startYear, 
           endYear,
-          error: `No historical ELO data available for year range ${startYear} to ${endYear}` 
+          error: `No ELO data available for year range ${startYear} to ${endYear}` 
         };
       }
 
-      const rawData = await this.readEloCSV(historicalCsvPath);
-      logger.info(`Loaded historical CSV data for year range`, {
-        csvPath: historicalCsvPath,
+      const rawData = await this.readEloCSV(csvPath);
+      logger.info(`Loaded complete CSV data for year range`, {
+        csvPath,
         totalRecords: rawData.length
       });
       
@@ -94,52 +94,14 @@ class EloService {
     }
   }
 
-  /**
-   * Get the path to historical ELO data CSV file for a year range
-   * @param {number} startYear - Start year
-   * @param {number} endYear - End year
-   * @returns {string} Path to the historical CSV file
-   */
-  getHistoricalDataPath(startYear, endYear) {
-    // Try different historical file patterns
-    const possiblePaths = [
-      path.join(__dirname, `../scripts/afl_elo_full_history_${startYear}_to_${endYear}.csv`),
-      path.join(__dirname, `../scripts/afl_elo_complete_history_${startYear}_to_${endYear}.csv`),
-      path.join(__dirname, '../scripts/afl_elo_full_history_1990_to_2025.csv'), // Default full history
-      path.join(__dirname, '../scripts/afl_elo_complete_history_2020_to_2025.csv') // Recent history
-    ];
-
-    for (const csvPath of possiblePaths) {
-      if (fs.existsSync(csvPath)) {
-        return csvPath;
-      }
-    }
-
-    // Return the most likely path even if it doesn't exist
-    return possiblePaths[0];
-  }
 
   /**
-   * Get the path to the ELO data CSV file for a given year
-   * @param {number} year - The year
-   * @returns {string} Path to the CSV file
+   * Get the path to the complete ELO data CSV file
+   * @returns {string} Path to the complete CSV file
    */
-  getEloDataPath(year) {
-    // Try multiple possible locations for ELO data
-    const possiblePaths = [
-      path.join(__dirname, `../scripts/afl_elo_rating_history_from_${year}.csv`),
-      path.join(__dirname, `../data/temp/afl_elo_rating_history_from_${year}.csv`),
-      path.join(__dirname, `../scripts/afl_elo_rating_history_${year}.csv`)
-    ];
-
-    for (const csvPath of possiblePaths) {
-      if (fs.existsSync(csvPath)) {
-        return csvPath;
-      }
-    }
-
-    // Return the most likely path even if it doesn't exist
-    return possiblePaths[0];
+  getEloDataPath() {
+    // Use single complete historical CSV file
+    return path.join(__dirname, '../data/afl_elo_complete_history.csv');
   }
 
   /**
@@ -164,16 +126,16 @@ class EloService {
   }
 
   /**
-   * Process raw ELO data for year range into chart-friendly format
+   * Process raw ELO data for year range into step-pattern chart format
    * @param {Array} rawData - Raw CSV data
    * @param {number} startYear - Start year
    * @param {number} endYear - End year
-   * @returns {Object} Processed data with teams and rating progression over time
+   * @returns {Object} Processed data with teams and step-pattern rating progression
    */
   processEloDataForYearRange(rawData, startYear, endYear) {
-    // Filter for the year range and only match events
+    // Filter for the year range (no event column anymore)
     const filteredData = rawData.filter(row => {
-      if (row.event !== 'match' || !row.year) return false;
+      if (!row.year) return false;
       
       const year = parseInt(row.year);
       return year >= startYear && year <= endYear;
@@ -195,26 +157,28 @@ class EloService {
     // Get unique teams
     const teams = [...new Set(filteredData.map(row => row.team))].sort();
     
-    // Group matches by year and round to create meaningful chart data points
-    const matchesByPeriod = new Map();
+    logger.info(`Processing step-pattern ELO data for year range ${startYear}-${endYear}: ${teams.length} teams, ${filteredData.length} match records`);
+    
+    // Group matches by year and round for vertical alignment
+    const matchesByYearRound = new Map();
     filteredData.forEach(row => {
-      const periodKey = `${row.year}-${row.round}`;
-      if (!matchesByPeriod.has(periodKey)) {
-        matchesByPeriod.set(periodKey, []);
+      const groupKey = `${row.year}-${row.round}`;
+      if (!matchesByYearRound.has(groupKey)) {
+        matchesByYearRound.set(groupKey, []);
       }
-      matchesByPeriod.get(periodKey).push(row);
+      matchesByYearRound.get(groupKey).push(row);
     });
 
-    // Sort periods chronologically
-    const sortedPeriods = Array.from(matchesByPeriod.keys()).sort((a, b) => {
-      const [yearA, roundA] = a.split('-');
-      const [yearB, roundB] = b.split('-');
+    // Sort groups chronologically with season gaps
+    const sortedYearRounds = Array.from(matchesByYearRound.keys()).sort((a, b) => {
+      const [yearA, roundA] = a.split('-', 2);
+      const [yearB, roundB] = b.split('-', 2);
       
-      if (yearA !== yearB) {
-        return parseInt(yearA) - parseInt(yearB);
-      }
+      // First sort by year
+      const yearCompare = parseInt(yearA) - parseInt(yearB);
+      if (yearCompare !== 0) return yearCompare;
       
-      // Sort rounds properly (handle numbers and finals)
+      // Then by round within the same year
       return this.compareRounds(roundA, roundB);
     });
     
@@ -232,35 +196,119 @@ class EloService {
       }
     });
 
-    // Process each period (year-round combination)
-    sortedPeriods.forEach(periodKey => {
-      const [year, round] = periodKey.split('-');
-      const periodMatches = matchesByPeriod.get(periodKey);
-      const dataPoint = { 
-        period: periodKey,
-        year: parseInt(year),
+    let stepIndex = 0;
+    let previousYear = null;
+
+    sortedYearRounds.forEach(yearRoundKey => {
+      const [year, round] = yearRoundKey.split('-', 2);
+      const currentYear = parseInt(year);
+      const roundMatches = matchesByYearRound.get(yearRoundKey);
+      
+      // Check for season gap - create gap by incrementing stepIndex without adding data point
+      if (previousYear !== null && currentYear !== previousYear) {
+        // Create gap by skipping x-coordinates (no data point, just increment stepIndex)
+        stepIndex += 5; // Create a visual gap of 5 units between seasons
+        
+        // Update team ratings to reflect season carryover for ALL teams in the new year
+        // We need to find the first match for each team in this year to get their carryover rating
+        teams.forEach(team => {
+          // Find the first match for this team in the current year (any round)
+          const firstMatchInYear = filteredData.find(match => 
+            match.team === team && parseInt(match.year) === currentYear
+          );
+          if (firstMatchInYear) {
+            teamRatings[team] = parseFloat(firstMatchInYear.rating_before);
+          }
+        });
+      }
+      
+      // Get teams that actually play in this round
+      const teamsInThisRound = new Set(roundMatches.map(match => match.team));
+      
+      // Create "before" data point - only for teams that play in this round  
+      const roundXCoordinate = stepIndex++;
+      const beforePoint = {
+        x: roundXCoordinate,
+        step: stepIndex,
+        year: currentYear,
         round: round,
-        label: `${year} R${round}`
+        type: 'before',
+        label: `${year} ${round} (Start)`
       };
       
-      // Set ratings before any matches in this period
-      teams.forEach(team => {
-        dataPoint[team] = teamRatings[team];
-      });
-      
-      // Update ratings based on matches in this period
-      periodMatches.forEach(match => {
-        const team = match.team;
-        const ratingAfter = parseFloat(match.rating_after);
-        if (!isNaN(ratingAfter)) {
-          teamRatings[team] = ratingAfter;
+      // Only add ratings for teams that actually play in this round
+      // Use the actual rating_before from the CSV data, not the tracking variable
+      teamsInThisRound.forEach(team => {
+        const teamMatch = roundMatches.find(match => match.team === team);
+        if (teamMatch) {
+          beforePoint[team] = parseFloat(teamMatch.rating_before);
         }
       });
+      chartData.push(beforePoint);
+
+      // Sort matches within round by date, then by team for consistent ordering
+      roundMatches.sort((a, b) => {
+        const dateCompare = new Date(a.date) - new Date(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.team.localeCompare(b.team);
+      });
+
+      // Group matches by individual games within this round
+      const gameGroups = new Map();
+      roundMatches.forEach(match => {
+        const gameKey = `${match.date}-${match.match_id}`;
+        if (!gameGroups.has(gameKey)) {
+          gameGroups.set(gameKey, []);
+        }
+        gameGroups.get(gameKey).push(match);
+      });
+
+      // Sort games by date within the round
+      const sortedGames = Array.from(gameGroups.entries()).sort((a, b) => {
+        const [dateA] = a[0].split('-', 1);
+        const [dateB] = b[0].split('-', 1);
+        return new Date(dateA) - new Date(dateB);
+      });
+
+      // Process each individual game within this round - all use same x-coordinate
+      sortedGames.forEach(([gameKey, gameMatches], gameIndex) => {
+        // Use the same x-coordinate that was set for the "before" point
+        
+        // Process all teams in this game and update their ratings
+        gameMatches.forEach(match => {
+          const team = match.team;
+          const ratingAfter = parseFloat(match.rating_after);
+          if (!isNaN(ratingAfter)) {
+            teamRatings[team] = ratingAfter;
+          }
+        });
+
+        // Create data point after this game - same x-coordinate for perfect alignment
+        const afterGamePoint = {
+          x: roundXCoordinate, // Same x-coordinate for all games in this round
+          step: stepIndex,
+          year: currentYear,
+          round: round,
+          type: 'after_game',
+          label: `${year} ${round} (Game ${gameIndex + 1})`,
+          gameIndex: gameIndex
+        };
+        
+        // Only add ratings for teams that actually play in this round
+        // Use the actual rating_after from the CSV data, not the tracking variable
+        teamsInThisRound.forEach(team => {
+          const teamMatch = gameMatches.find(match => match.team === team);
+          if (teamMatch) {
+            afterGamePoint[team] = parseFloat(teamMatch.rating_after);
+          }
+        });
+        chartData.push(afterGamePoint);
+      });
       
-      chartData.push(dataPoint);
+      previousYear = currentYear;
     });
 
-    logger.info(`Processed year range ELO data: ${teams.length} teams, ${chartData.length} data points, periods: ${sortedPeriods[0]} to ${sortedPeriods[sortedPeriods.length - 1]}`);
+    logger.info(`Generated step-pattern ELO data for year range: ${chartData.length} data points`);
 
     return {
       teams,
@@ -268,7 +316,9 @@ class EloService {
       startYear,
       endYear,
       yearRange: `${startYear} to ${endYear}`,
+      isStepPattern: true,
       totalMatches: filteredData.length / 2, // Divide by 2 since each match has 2 entries
+      totalSteps: chartData.length
     };
   }
 
@@ -279,8 +329,12 @@ class EloService {
    * @returns {number} Comparison result
    */
   compareRounds(roundA, roundB) {
+    // Handle opening round first
+    if (roundA === 'OR' && roundB !== 'OR') return -1;
+    if (roundB === 'OR' && roundA !== 'OR') return 1;
+    if (roundA === 'OR' && roundB === 'OR') return 0;
+
     const finalsOrder = {
-      'OR': 0,
       'Elimination Final': 100,
       'Qualifying Final': 101, 
       'Semi Final': 102,
@@ -308,34 +362,33 @@ class EloService {
   }
 
   /**
-   * Process raw ELO data into chart-friendly format
+   * Process raw ELO data into step-pattern chart format
    * @param {Array} rawData - Raw CSV data
    * @param {number} year - The year being processed
-   * @returns {Object} Processed data with teams and rating progression by round
+   * @returns {Object} Processed data with teams and step-pattern rating progression
    */
   processEloData(rawData, year) {
-    // Filter for the specific year and only match events
+    // Filter for the specific year (no event column anymore)
     const yearData = rawData.filter(row => 
-      row.year == year && row.event === 'match'
+      row.year == year
     );
 
     if (yearData.length === 0) {
       return { teams: [], data: [], year, error: `No match data found for ${year}` };
     }
 
+    // Sort by date to ensure chronological order within rounds
+    yearData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
     // Get unique teams
     const teams = [...new Set(yearData.map(row => row.team))].sort();
     
-    // Get unique rounds and sort them properly (handle finals)
-    const rounds = [...new Set(yearData.map(row => row.round))];
-    const sortedRounds = this.sortRounds(rounds);
+    logger.info(`Processing step-pattern ELO data for ${year}: ${teams.length} teams, ${yearData.length} match records`);
     
-    logger.info(`Processing ${sortedRounds.length} rounds for ${year}:`, sortedRounds.join(', '));
-    
-    // Create data structure for chart - one point per team per round
+    // Create step-pattern data structure - before and after points for each match
     const chartData = [];
     
-    // Track each team's rating throughout the season
+    // Track each team's current rating
     const teamRatings = {};
     
     // Initialize with first known ratings for each team
@@ -343,77 +396,117 @@ class EloService {
       const firstMatch = yearData.find(row => row.team === team);
       if (firstMatch) {
         teamRatings[team] = parseFloat(firstMatch.rating_before);
+      } else {
+        teamRatings[team] = 1500; // Default ELO rating
       }
     });
 
-    // For each round, get the rating at the START of that round
-    sortedRounds.forEach(round => {
-      const dataPoint = { round };
-      
-      teams.forEach(team => {
-        // Find this team's match in this round
-        const teamMatchInRound = yearData.find(row => 
-          row.team === team && row.round === round
-        );
-        
-        if (teamMatchInRound) {
-          // Update rating from this match
-          const ratingBefore = parseFloat(teamMatchInRound.rating_before);
-          const ratingAfter = parseFloat(teamMatchInRound.rating_after);
-          
-          if (!isNaN(ratingBefore)) {
-            teamRatings[team] = ratingBefore;
-            dataPoint[team] = ratingBefore;
-            
-            // Update for next round
-            if (!isNaN(ratingAfter)) {
-              teamRatings[team] = ratingAfter;
-            }
-          }
-        } else {
-          // Team didn't play this round, use their current rating
-          if (teamRatings[team] !== undefined) {
-            dataPoint[team] = teamRatings[team];
-          }
-        }
-      });
-      
-      chartData.push(dataPoint);
+    // Group matches by round only (ignore date for vertical alignment)
+    const matchesByRound = new Map();
+    yearData.forEach(match => {
+      const round = match.round;
+      if (!matchesByRound.has(round)) {
+        matchesByRound.set(round, []);
+      }
+      matchesByRound.get(round).push(match);
     });
 
-    // Add final round with post-season ratings (rating_after from last match)
-    // Show as the next upcoming round instead of "Final"
-    if (sortedRounds.length > 0) {
-      const lastRound = sortedRounds[sortedRounds.length - 1];
-      const nextRound = this.getNextRound(lastRound);
-      const finalDataPoint = { round: nextRound };
+    // Sort rounds properly
+    const sortedRounds = Array.from(matchesByRound.keys()).sort((a, b) => {
+      return this.compareRounds(a, b);
+    });
+
+    let stepIndex = 0;
+
+    sortedRounds.forEach((round, roundIndex) => {
+      const roundMatches = matchesByRound.get(round);
       
-      teams.forEach(team => {
-        // Find this team's last match to get their final rating
-        const teamMatches = yearData
-          .filter(row => row.team === team)
-          .sort((a, b) => new Date(a.date) - new Date(b.date));
-        
-        if (teamMatches.length > 0) {
-          const lastMatch = teamMatches[teamMatches.length - 1];
-          const finalRating = parseFloat(lastMatch.rating_after);
-          if (!isNaN(finalRating)) {
-            finalDataPoint[team] = finalRating;
-          }
+      // Sort matches within round by date, then by team to ensure consistent ordering
+      roundMatches.sort((a, b) => {
+        const dateCompare = new Date(a.date) - new Date(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.team.localeCompare(b.team);
+      });
+
+      // Group matches by individual games (same date, paired teams)
+      const gameGroups = new Map();
+      roundMatches.forEach(match => {
+        const gameKey = `${match.date}-${match.match_id}`;
+        if (!gameGroups.has(gameKey)) {
+          gameGroups.set(gameKey, []);
+        }
+        gameGroups.get(gameKey).push(match);
+      });
+
+      // Sort games by date within the round
+      const sortedGames = Array.from(gameGroups.entries()).sort((a, b) => {
+        const [dateA] = a[0].split('-', 1);
+        const [dateB] = b[0].split('-', 1);
+        return new Date(dateA) - new Date(dateB);
+      });
+
+      // Get teams that actually play in this round
+      const teamsInThisRound = new Set(roundMatches.map(match => match.team));
+      
+      // Create "before" data point - only for teams that play in this round
+      const beforePoint = {
+        x: roundIndex,
+        round: round,
+        type: 'before',
+        label: `${round} (Start)`
+      };
+      
+      // Only add ratings for teams that actually play in this round
+      // Use the actual rating_before from the CSV data, not the tracking variable
+      teamsInThisRound.forEach(team => {
+        const teamMatch = roundMatches.find(match => match.team === team);
+        if (teamMatch) {
+          beforePoint[team] = parseFloat(teamMatch.rating_before);
         }
       });
-      
-      chartData.push(finalDataPoint);
-    }
+      chartData.push(beforePoint);
 
-    logger.info(`Final ELO data: ${teams.length} teams, ${chartData.length} data points, rounds: ${chartData.map(d => d.round).join(', ')}`);
+      // Process each individual game within this round - all use EXACT same x-coordinate
+      sortedGames.forEach(([gameKey, gameMatches], gameIndex) => {
+        // Process all teams in this game and update their ratings
+        gameMatches.forEach(match => {
+          const team = match.team;
+          const ratingAfter = parseFloat(match.rating_after);
+          if (!isNaN(ratingAfter)) {
+            teamRatings[team] = ratingAfter;
+          }
+        });
+
+        // Create data point after this game - EXACT same x-coordinate for perfect alignment
+        const afterGamePoint = {
+          x: roundIndex, // Exact same x-coordinate as round for perfect vertical alignment
+          round: round,
+          type: 'after_game',
+          label: `${round} (Game ${gameIndex + 1})`,
+          gameIndex: gameIndex
+        };
+        
+        // Only add ratings for teams that actually play in this round
+        // Use the actual rating_after from the CSV data, not the tracking variable
+        teamsInThisRound.forEach(team => {
+          const teamMatch = gameMatches.find(match => match.team === team);
+          if (teamMatch) {
+            afterGamePoint[team] = parseFloat(teamMatch.rating_after);
+          }
+        });
+        chartData.push(afterGamePoint);
+      });
+    });
+
+    logger.info(`Generated step-pattern ELO data: ${chartData.length} data points for ${year}`);
 
     return {
       teams,
       data: chartData,
       year,
-      rounds: sortedRounds,
+      isStepPattern: true,
       totalMatches: yearData.length / 2, // Divide by 2 since each match has 2 entries
+      totalSteps: chartData.length
     };
   }
 
@@ -490,29 +583,31 @@ class EloService {
   }
 
   /**
-   * Get available years for ELO data
+   * Get available years for ELO data by reading the complete CSV file
    * @returns {Array<number>} Array of available years
    */
-  getAvailableYears() {
-    const scriptsDir = path.join(__dirname, '../scripts');
-    const dataDir = path.join(__dirname, '../data/temp');
-    
-    const years = new Set();
-    
-    // Check both directories for ELO files
-    [scriptsDir, dataDir].forEach(dir => {
-      if (fs.existsSync(dir)) {
-        const files = fs.readdirSync(dir);
-        files.forEach(file => {
-          const match = file.match(/afl_elo_rating_history.*?(\d{4})\.csv$/);
-          if (match) {
-            years.add(parseInt(match[1]));
-          }
-        });
+  async getAvailableYears() {
+    try {
+      const csvPath = this.getEloDataPath();
+      
+      if (!fs.existsSync(csvPath)) {
+        return [];
       }
-    });
-    
-    return Array.from(years).sort((a, b) => b - a); // Sort descending (newest first)
+      
+      const rawData = await this.readEloCSV(csvPath);
+      const years = new Set();
+      
+      rawData.forEach(row => {
+        if (row.year) {
+          years.add(parseInt(row.year));
+        }
+      });
+      
+      return Array.from(years).sort((a, b) => b - a); // Sort descending (newest first)
+    } catch (error) {
+      logger.error('Error getting available years', { error: error.message });
+      return [];
+    }
   }
 }
 

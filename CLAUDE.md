@@ -110,12 +110,14 @@ The scoring service is served to browsers via Express route - any changes must m
 - Modified `services/match-service.js` to order matches chronologically instead of by match ID
 - Created `scripts/afl_elo_history_generator.py` for comprehensive historical ELO data generation
 
-**ELO Chart Enhancement (June 2025)**:
-- Added year range filtering capability to ELO chart (1990-present)
-- Updated `services/elo-service.js` with `getEloRatingsForYearRange()` method
-- Added new API endpoint: `GET /api/elo/ratings/range?startYear=YYYY&endYear=YYYY`
-- Enhanced frontend with dual-mode toggle (Year vs Year Range)
-- Improved chart container sizing and legend positioning
+**ELO System Architecture**:
+- Single consolidated CSV file (`data/afl_elo_complete_history.csv`) containing all historical ELO data from 1897-present
+- ELO service uses actual CSV values (`rating_before`/`rating_after`) ensuring data integrity
+- Clean match-only data structure with no redundant season carryover entries or event columns
+- Interactive chart with dual-mode visualization (single year vs year range from 1990-present)
+- Smart team rendering: teams only appear in rounds where they actually play
+- Enhanced team highlighting with gray fading, z-order management, and clean season boundary visualization
+- API endpoints: `/api/elo/ratings/:year` and `/api/elo/ratings/range?startYear=YYYY&endYear=YYYY`
 
 ## AI/LLM Specific Instructions
 
@@ -127,3 +129,10 @@ When working on this codebase, follow the comprehensive guidelines in `ai-instru
 - Follow systematic debugging approach
 - Add meaningful comments that explain "why" not just "what"
 - Include security considerations for any changes involving user input or external data
+
+### ELO Data Handling Rules
+- **ASK BEFORE regenerating `data/afl_elo_complete_history.csv`** - explain why regeneration is needed
+- CSV data is authoritative source - chart issues are usually in processing logic (`services/elo-service.js`), not data
+- Chart rendering bugs should typically be fixed in frontend/service layer, not by regenerating historical data
+- The ELO calculation script (`scripts/afl_elo_history_generator.py`) should be run when ELO model parameters change
+- Always distinguish between data generation issues vs data presentation issues

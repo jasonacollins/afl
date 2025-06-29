@@ -100,7 +100,6 @@ class AFLEloHistoryGenerator:
         # Record complete rating history for both teams
         # Home team record
         self.rating_history.append({
-            'event': 'match',
             'match_id': match_id,
             'date': match_date,
             'year': year,
@@ -118,7 +117,6 @@ class AFLEloHistoryGenerator:
         
         # Away team record
         self.rating_history.append({
-            'event': 'match',
             'match_id': match_id,
             'date': match_date,
             'year': year,
@@ -135,35 +133,14 @@ class AFLEloHistoryGenerator:
         })
     
     def apply_season_carryover(self, new_year):
-        """Apply regression to mean between seasons and record it"""
+        """Apply regression to mean between seasons (no longer recorded in history)"""
         print(f"Applying season carryover for {new_year}...")
         
-        # Store ratings before carryover
-        ratings_before = self.team_ratings.copy()
-        
-        # Apply carryover to each team
+        # Apply carryover to each team (without recording in history)
         for team in self.team_ratings:
             old_rating = self.team_ratings[team]
             new_rating = self.base_rating + self.season_carryover * (old_rating - self.base_rating)
             self.team_ratings[team] = new_rating
-            
-            # Record the carryover as an event in the history
-            self.rating_history.append({
-                'event': 'season_carryover',
-                'match_id': None,
-                'date': f"{new_year}-01-01",  # Use start of year as date
-                'year': new_year,
-                'round': None,
-                'team': team,
-                'opponent': None,
-                'score': None,
-                'opponent_score': None,
-                'result': None,
-                'rating_before': old_rating,
-                'rating_after': new_rating,
-                'rating_change': new_rating - old_rating,
-                'venue': None
-            })
     
     def save_history_to_csv(self, filename):
         """Save complete rating history to CSV file"""
@@ -192,8 +169,6 @@ class AFLEloHistoryGenerator:
         summary = {}
         
         for record in self.rating_history:
-            if record['event'] != 'match':
-                continue
                 
             team = record['team']
             if team not in summary:
