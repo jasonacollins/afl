@@ -144,7 +144,7 @@ router.get('/ratings/:year', catchAsync(async (req, res) => {
  */
 router.get('/years', catchAsync(async (req, res) => {
   try {
-    const availableYears = eloService.getAvailableYears();
+    const availableYears = await eloService.getAvailableYears();
     
     logger.info('Available ELO years requested', { 
       yearsCount: availableYears.length,

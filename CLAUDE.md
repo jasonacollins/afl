@@ -129,6 +129,7 @@ When working on this codebase, follow the comprehensive guidelines in `ai-instru
 - Follow systematic debugging approach
 - Add meaningful comments that explain "why" not just "what"
 - Include security considerations for any changes involving user input or external data
+- **ALWAYS ASK BEFORE testing or running any development commands** - user will handle testing
 
 ### ELO Data Handling Rules
 - **ASK BEFORE regenerating `data/afl_elo_complete_history.csv`** - explain why regeneration is needed

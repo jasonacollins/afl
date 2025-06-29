@@ -103,11 +103,13 @@ class EloChart {
       if (data.success) {
         this.chartData = data.data;
         this.teams = data.teams;
+        this.yearLabels = data.yearLabels; // Store year labels for x-axis
         this.currentMode = 'yearRange';
         this.currentStartYear = startYear;
         this.currentEndYear = endYear;
         console.log('Chart data assigned - length:', this.chartData.length);
         console.log('First 3 chart data points:', this.chartData.slice(0, 3));
+        console.log('Year labels:', this.yearLabels);
         console.log('All periods:', this.chartData.map(d => d.label));
       } else {
         throw new Error(data.error || 'Failed to load ELO data for year range');
@@ -291,6 +293,7 @@ class EloChart {
       // Create x,y data points for this team with proper vertical alignment
       const teamData = this.chartData.map((point, pointIndex) => {
         const rating = point[team];
+        // Only include data points where the team actually has a rating (played a game)
         if (rating === undefined || rating === null) {
           return null;
         }
@@ -391,22 +394,20 @@ class EloChart {
               display: false // We'll create a custom legend
             },
             tooltip: {
-              mode: 'index',
-              intersect: false,
-              filter: function(tooltipItem, index, tooltipItems, data) {
-                // Only show one tooltip per team (avoid duplicates from same x-coordinate)
-                const teamName = tooltipItem.dataset.label;
-                const existingIndex = tooltipItems.findIndex(item => 
-                  item.dataset.label === teamName && item.dataIndex < tooltipItem.dataIndex
-                );
-                return existingIndex === -1;
-              },
+              mode: 'nearest',
+              intersect: true,
               callbacks: {
                 title: function(context) {
                   if (context.length === 0) return '';
                   const dataPoint = context[0];
-                  const roundIndex = Math.floor(dataPoint.parsed.x);
-                  return `Round ${rounds[roundIndex] || roundIndex + 1}`;
+                  if (this.currentMode === 'yearRange') {
+                    // Find the year from the chart data
+                    const chartPoint = this.chartData[Math.floor(dataPoint.parsed.x)];
+                    return chartPoint ? `Year ${chartPoint.year}` : 'Year Range';
+                  } else {
+                    const roundIndex = Math.floor(dataPoint.parsed.x);
+                    return `Round ${rounds[roundIndex] || roundIndex + 1}`;
+                  }
                 }.bind(this),
                 label: function(context) {
                   const teamName = context.dataset.label;
@@ -423,13 +424,38 @@ class EloChart {
                 display: true,
                 text: this.currentMode === 'year' ? 'Round' : 'Season Progress'
               },
-              ticks: {
-                stepSize: 1,
-                callback: function(value, index, ticks) {
-                  // Show round labels at integer positions
-                  const roundIndex = Math.floor(value);
-                  return rounds[roundIndex] || '';
+              grid: {
+                display: this.currentMode === 'year' // Hide grid lines for year range mode
+              },
+              afterBuildTicks: function(axis) {
+                if (this.currentMode === 'yearRange' && this.yearLabels && this.yearLabels.length > 0) {
+                  // Override ticks to use exact year center positions
+                  axis.ticks = this.yearLabels.map(([position, year]) => ({
+                    value: position,
+                    label: year.toString()
+                  }));
                 }
+              }.bind(this),
+              ticks: {
+                stepSize: this.currentMode === 'yearRange' ? 10 : 1,
+                callback: function(value, index, ticks) {
+                  if (this.currentMode === 'yearRange') {
+                    // For year range mode, labels are set by afterBuildTicks
+                    // This callback shouldn't be needed, but if called, check exact matches
+                    if (this.yearLabels && this.yearLabels.length > 0) {
+                      for (const [position, year] of this.yearLabels) {
+                        if (Math.abs(value - position) < 0.1) {
+                          return year.toString();
+                        }
+                      }
+                    }
+                    return '';
+                  } else {
+                    // Show round labels at integer positions
+                    const roundIndex = Math.floor(value);
+                    return rounds[roundIndex] || '';
+                  }
+                }.bind(this)
               }
             },
             y: {
@@ -573,50 +599,206 @@ class EloChart {
   updateChartHighlights() {
     console.log('updateChartHighlights called with highlighted teams:', Array.from(this.highlightedTeams));
     
-    if (this.highlightedTeams.size === 0) {
-      // No highlights - show all teams normally
-      console.log('No highlights - showing all teams normally');
-      this.chart.data.datasets.forEach(dataset => {
-        dataset.borderWidth = 2;
-        dataset.borderColor = dataset.originalBorderColor;
-        dataset.backgroundColor = dataset.originalBorderColor + '20';
-      });
-    } else {
-      // Highlight selected teams, fade others to gray
-      console.log('Applying highlights...');
-      
-      // First, apply styling to all datasets
-      this.chart.data.datasets.forEach(dataset => {
-        if (this.highlightedTeams.has(dataset.label)) {
-          console.log('Highlighting team:', dataset.label);
-          dataset.borderWidth = 4; // Thicker for prominence
-          dataset.borderColor = dataset.originalBorderColor;
-          dataset.backgroundColor = dataset.originalBorderColor + '30';
-        } else {
-          console.log('Fading team to gray:', dataset.label);
-          dataset.borderWidth = 1;
-          dataset.borderColor = '#cccccc'; // More prominent gray
-          dataset.backgroundColor = '#cccccc10'; // Very light gray with transparency
-        }
-      });
-      
-      // Move highlighted teams to the front by reordering datasets
-      const datasets = this.chart.data.datasets;
-      const highlightedDatasets = [];
-      const fadedDatasets = [];
-      
-      datasets.forEach(dataset => {
-        if (this.highlightedTeams.has(dataset.label)) {
-          highlightedDatasets.push(dataset);
-        } else {
-          fadedDatasets.push(dataset);
-        }
-      });
-      
-      // Reorder: faded teams first (back), highlighted teams last (front)
-      this.chart.data.datasets = [...fadedDatasets, ...highlightedDatasets];
+    // Store current chart configuration
+    const currentData = this.chartData;
+    const currentTeams = this.teams;
+    
+    // Destroy and recreate chart to ensure proper z-order
+    this.destroyChart();
+    
+    // Temporarily store highlight state
+    const highlightedTeams = new Set(this.highlightedTeams);
+    
+    // Recreate chart with proper ordering
+    this.createChartWithHighlights(currentData, currentTeams, highlightedTeams);
+  }
+
+  createChartWithHighlights(chartData, teams, highlightedTeams) {
+    if (!chartData || !teams) {
+      console.error('No chart data available for highlighting');
+      return;
     }
-    this.chart.update();
+
+    // Ensure chart container exists
+    let canvas = document.getElementById('elo-chart-canvas');
+    if (!canvas) {
+      const chartContainer = document.querySelector('.elo-chart-container');
+      if (chartContainer) {
+        chartContainer.innerHTML = '<canvas id="elo-chart-canvas"></canvas>';
+        canvas = document.getElementById('elo-chart-canvas');
+      } else {
+        console.error('Chart container not found');
+        return;
+      }
+    }
+    
+    const ctx = canvas.getContext('2d');
+
+    // Create rounds for x-axis labels
+    const rounds = [...new Set(chartData.map(point => point.round))].filter(r => r);
+
+    // Separate teams into highlighted and faded, with highlighted teams last (front)
+    const fadedTeams = teams.filter(team => !highlightedTeams.has(team));
+    const highlightedTeamsList = teams.filter(team => highlightedTeams.has(team));
+    // Put highlighted teams FIRST so they render last (on top)
+    const orderedTeams = [...highlightedTeamsList, ...fadedTeams];
+
+    // Create datasets with proper z-order
+    const datasets = orderedTeams.map((team, index) => {
+      const teamData = chartData.map((point, pointIndex) => {
+        const rating = point[team];
+        // Only include data points where the team actually has a rating (played a game)
+        if (rating === undefined || rating === null) {
+          return null;
+        }
+        
+        const isSeasonStart = this.isSeasonStart(point, pointIndex);
+        
+        return {
+          x: point.x !== undefined ? point.x : point.step || 0,
+          y: rating,
+          isSeasonStart: isSeasonStart
+        };
+      }).filter(point => point !== null);
+
+      const originalColor = this.teamColors[teams.indexOf(team) % this.teamColors.length];
+      const isHighlighted = highlightedTeams.has(team);
+      
+      return {
+        label: team,
+        data: teamData,
+        borderColor: isHighlighted ? originalColor : '#cccccc',
+        backgroundColor: isHighlighted ? (originalColor + '30') : '#cccccc10',
+        originalBorderColor: originalColor,
+        borderWidth: isHighlighted ? 4 : 1,
+        fill: false,
+        stepped: 'after',
+        tension: 0,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointBackgroundColor: isHighlighted ? originalColor : '#cccccc',
+        pointBorderColor: isHighlighted ? originalColor : '#cccccc',
+        hidden: false,
+        spanGaps: false,
+        order: isHighlighted ? 0 : 10, // Lower order = rendered on top
+        segment: {
+          borderColor: (ctx) => {
+            const currentPoint = teamData[ctx.p0DataIndex];
+            const nextPoint = teamData[ctx.p1DataIndex];
+            
+            if (this.shouldHideCarryoverSegment(currentPoint, nextPoint)) {
+              return 'transparent';
+            }
+            
+            if (nextPoint && nextPoint.isSeasonStart) {
+              return 'transparent';
+            }
+            
+            return isHighlighted ? originalColor : '#cccccc';
+          }
+        }
+      };
+    });
+
+    // Create new chart
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        datasets: {
+          line: {
+            order: 1 // Default order for all line datasets
+          }
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            mode: 'nearest',
+            intersect: true,
+            callbacks: {
+              title: function(context) {
+                if (context.length === 0) return '';
+                const dataPoint = context[0];
+                if (this.currentMode === 'yearRange') {
+                  // Find the year from the chart data
+                  const chartPoint = chartData[Math.floor(dataPoint.parsed.x)];
+                  return chartPoint ? `Year ${chartPoint.year}` : 'Year Range';
+                } else {
+                  const roundIndex = Math.floor(dataPoint.parsed.x);
+                  return `Round ${rounds[roundIndex] || roundIndex + 1}`;
+                }
+              }.bind(this),
+              label: function(context) {
+                const teamName = context.dataset.label;
+                const rating = Math.round(context.parsed.y * 10) / 10;
+                return `${teamName}: ${rating}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            title: {
+              display: true,
+              text: this.currentMode === 'year' ? 'Round' : 'Season Progress'
+            },
+            grid: {
+              display: this.currentMode === 'year' // Hide grid lines for year range mode
+            },
+            afterBuildTicks: function(axis) {
+              if (this.currentMode === 'yearRange' && this.yearLabels && this.yearLabels.length > 0) {
+                // Override ticks to use exact year center positions
+                axis.ticks = this.yearLabels.map(([position, year]) => ({
+                  value: position,
+                  label: year.toString()
+                }));
+              }
+            }.bind(this),
+            ticks: {
+              stepSize: this.currentMode === 'yearRange' ? 10 : 1,
+              callback: function(value, index, ticks) {
+                if (this.currentMode === 'yearRange') {
+                  // For year range mode, labels are set by afterBuildTicks
+                  // This callback shouldn't be needed, but if called, check exact matches
+                  if (this.yearLabels && this.yearLabels.length > 0) {
+                    for (const [position, year] of this.yearLabels) {
+                      if (Math.abs(value - position) < 0.1) {
+                        return year.toString();
+                      }
+                    }
+                  }
+                  return '';
+                } else {
+                  // Show round labels at integer positions
+                  const roundIndex = Math.floor(value);
+                  return rounds[roundIndex] || '';
+                }
+              }.bind(this)
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'ELO Rating'
+            },
+            beginAtZero: false
+          }
+        },
+        interaction: {
+          mode: 'nearest',
+          intersect: false
+        }
+      }
+    });
+
+    // Restore highlight state
+    this.highlightedTeams = highlightedTeams;
+    this.createLegend();
   }
 
   showError(message) {

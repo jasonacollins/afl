@@ -196,21 +196,35 @@ class EloService {
       }
     });
 
-    let stepIndex = 0;
     let previousYear = null;
-
+    let stepIndex = 0;
+    
+    // Count total rounds per year for proper spacing
+    const roundsPerYear = new Map();
+    sortedYearRounds.forEach(yearRoundKey => {
+      const [year] = yearRoundKey.split('-', 2);
+      const currentYear = parseInt(year);
+      roundsPerYear.set(currentYear, (roundsPerYear.get(currentYear) || 0) + 1);
+    });
+    
+    const yearPositions = new Map(); // Track position within each year
+    
     sortedYearRounds.forEach(yearRoundKey => {
       const [year, round] = yearRoundKey.split('-', 2);
       const currentYear = parseInt(year);
       const roundMatches = matchesByYearRound.get(yearRoundKey);
       
-      // Check for season gap - create gap by incrementing stepIndex without adding data point
+      // Initialize year position tracking
+      if (!yearPositions.has(currentYear)) {
+        yearPositions.set(currentYear, 0);
+      }
+      
+      // Check for season change
       if (previousYear !== null && currentYear !== previousYear) {
-        // Create gap by skipping x-coordinates (no data point, just increment stepIndex)
-        stepIndex += 5; // Create a visual gap of 5 units between seasons
+        // Add gap between years
+        stepIndex += 2;
         
         // Update team ratings to reflect season carryover for ALL teams in the new year
-        // We need to find the first match for each team in this year to get their carryover rating
         teams.forEach(team => {
           // Find the first match for this team in the current year (any round)
           const firstMatchInYear = filteredData.find(match => 
@@ -225,11 +239,13 @@ class EloService {
       // Get teams that actually play in this round
       const teamsInThisRound = new Set(roundMatches.map(match => match.team));
       
-      // Create "before" data point - only for teams that play in this round  
+      // Use sequential step index for x-coordinate
       const roundXCoordinate = stepIndex++;
+      yearPositions.set(currentYear, yearPositions.get(currentYear) + 1);
+      
+      // Create "before" data point - only for teams that play in this round  
       const beforePoint = {
         x: roundXCoordinate,
-        step: stepIndex,
         year: currentYear,
         round: round,
         type: 'before',
@@ -286,7 +302,6 @@ class EloService {
         // Create data point after this game - same x-coordinate for perfect alignment
         const afterGamePoint = {
           x: roundXCoordinate, // Same x-coordinate for all games in this round
-          step: stepIndex,
           year: currentYear,
           round: round,
           type: 'after_game',
@@ -308,7 +323,32 @@ class EloService {
       previousYear = currentYear;
     });
 
+    // Create year label mapping for x-axis based on actual x-coordinates
+    const yearLabels = new Map();
+    const yearRanges = new Map();
+    
+    // Track the x-coordinate ranges for each year
+    chartData.forEach(point => {
+      const year = point.year;
+      const x = point.x;
+      
+      if (!yearRanges.has(year)) {
+        yearRanges.set(year, { min: x, max: x });
+      } else {
+        const range = yearRanges.get(year);
+        range.min = Math.min(range.min, x);
+        range.max = Math.max(range.max, x);
+      }
+    });
+    
+    // Calculate center positions for year labels
+    yearRanges.forEach((range, year) => {
+      const center = (range.min + range.max) / 2;
+      yearLabels.set(center, year);
+    });
+
     logger.info(`Generated step-pattern ELO data for year range: ${chartData.length} data points`);
+    logger.info(`Year labels created:`, Array.from(yearLabels.entries()));
 
     return {
       teams,
@@ -316,6 +356,7 @@ class EloService {
       startYear,
       endYear,
       yearRange: `${startYear} to ${endYear}`,
+      yearLabels: Array.from(yearLabels.entries()), // [[position, year], ...]
       isStepPattern: true,
       totalMatches: filteredData.length / 2, // Divide by 2 since each match has 2 entries
       totalSteps: chartData.length
