@@ -4,28 +4,8 @@ const path = require('path');
 const { logger } = require('../utils/logger');
 
 class PasswordService {
-  constructor() {
-    this.commonPasswords = new Set();
-    this.loadCommonPasswords();
-  }
-
-  loadCommonPasswords() {
-    try {
-      const filePath = path.join(__dirname, '../data/common-passwords.txt');
-      if (fs.existsSync(filePath)) {
-        const passwords = fs.readFileSync(filePath, 'utf-8')
-          .split('\n')
-          .map(p => p.trim().toLowerCase())
-          .filter(p => p.length > 0);
-        
-        this.commonPasswords = new Set(passwords);
-        logger.info(`Loaded ${this.commonPasswords.size} common passwords`);
-      } else {
-        logger.warn('Common passwords file not found');
-      }
-    } catch (error) {
-      logger.error('Error loading common passwords', { error: error.message });
-    }
+  constructor(commonPasswords = new Set()) {
+    this.commonPasswords = commonPasswords;
   }
 
   isCommonPassword(password) {
@@ -69,4 +49,32 @@ class PasswordService {
   }
 }
 
-module.exports = new PasswordService();
+const loadCommonPasswordsFromFile = (filePath) => {
+  try {
+    if (fs.existsSync(filePath)) {
+      const passwords = fs.readFileSync(filePath, 'utf-8')
+        .split('\n')
+        .map(p => p.trim().toLowerCase())
+        .filter(p => p.length > 0);
+      
+      const commonPasswords = new Set(passwords);
+      logger.info(`Loaded ${commonPasswords.size} common passwords`);
+      return commonPasswords;
+    } else {
+      logger.warn('Common passwords file not found');
+      return new Set();
+    }
+  } catch (error) {
+    logger.error('Error loading common passwords', { error: error.message });
+    return new Set();
+  }
+};
+
+const commonPasswordsFilePath = path.join(__dirname, '../data/common-passwords.txt');
+const commonPasswords = loadCommonPasswordsFromFile(commonPasswordsFilePath);
+
+// Export a singleton instance for the app to use
+module.exports = new PasswordService(commonPasswords);
+// Also export the class and loader function for testing purposes
+module.exports.PasswordService = PasswordService;
+module.exports.loadCommonPasswordsFromFile = loadCommonPasswordsFromFile;
