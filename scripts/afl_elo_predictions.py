@@ -295,6 +295,83 @@ class AFLEloPredictor:
         df.to_csv(filename, index=False)
         print(f"Saved {len(df)} predictions to {filename}")
     
+    def save_predictions_to_database(self, db_path, predictor_id=6):
+        """
+        Save predictions directly to the database
+        
+        Parameters:
+        -----------
+        db_path: str
+            Path to SQLite database
+        predictor_id: int
+            ID of the ELO predictor (default: 6)
+        """
+        import sqlite3
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get only future match predictions (no scores)
+            future_predictions = [p for p in self.predictions if 'actual_result' not in p]
+            
+            if not future_predictions:
+                print("No future match predictions to save")
+                return
+            
+            print(f"Saving {len(future_predictions)} predictions to database for predictor {predictor_id}")
+            
+            # Begin transaction
+            cursor.execute("BEGIN TRANSACTION")
+            
+            # Delete existing ELO predictions for these matches
+            match_ids = [p['match_id'] for p in future_predictions]
+            placeholders = ','.join(['?' for _ in match_ids])
+            cursor.execute(
+                f"DELETE FROM predictions WHERE predictor_id = ? AND match_id IN ({placeholders})",
+                [predictor_id] + match_ids
+            )
+            deleted_count = cursor.rowcount
+            print(f"Deleted {deleted_count} existing ELO predictions")
+            
+            # Insert new predictions
+            insert_count = 0
+            for pred in future_predictions:
+                # Convert probability to percentage (0-100)
+                home_prob_pct = int(round(pred['home_win_probability'] * 100))
+                
+                # Determine tipped team
+                if home_prob_pct >= 50:
+                    tipped_team = 'home'
+                else:
+                    tipped_team = 'away'
+                
+                # Handle exact 50% predictions - default to home
+                if home_prob_pct == 50:
+                    tipped_team = 'home'
+                
+                cursor.execute(
+                    """INSERT INTO predictions 
+                       (match_id, predictor_id, home_win_probability, tipped_team) 
+                       VALUES (?, ?, ?, ?)""",
+                    (pred['match_id'], 
+                     predictor_id, 
+                     home_prob_pct,
+                     tipped_team)
+                )
+                insert_count += 1
+            
+            # Commit transaction
+            cursor.execute("COMMIT")
+            print(f"Successfully saved {insert_count} predictions to database")
+            
+        except Exception as e:
+            cursor.execute("ROLLBACK")
+            print(f"Error saving predictions to database: {e}")
+            raise
+        finally:
+            conn.close()
+    
     def save_rating_history_to_csv(self, filename):
         """Save rating history to CSV file"""
         if not self.rating_history:
@@ -423,7 +500,7 @@ def fetch_matches(db_path, start_year):
     return matches
 
 
-def predict_matches(model_path, db_path, start_year, output_dir='.'):
+def predict_matches(model_path, db_path, start_year, output_dir='.', save_to_db=True, predictor_id=6):
     """
     Make predictions for matches starting from specified year
     
@@ -437,6 +514,10 @@ def predict_matches(model_path, db_path, start_year, output_dir='.'):
         Year to start predictions from
     output_dir: str
         Directory to save output files
+    save_to_db: bool
+        Whether to save predictions directly to database (default: True)
+    predictor_id: int
+        Predictor ID for database storage (default: 6 for ELO)
         
     Returns:
     --------
@@ -499,13 +580,19 @@ def predict_matches(model_path, db_path, start_year, output_dir='.'):
                 venue=match['venue']
             )
     
-    # Save predictions and rating history
+    # Save predictions
     os.makedirs(output_dir, exist_ok=True)
     
-    predictions_file = os.path.join(output_dir, f"afl_elo_predictions_from_{start_year}.csv")
-    history_file = os.path.join(output_dir, f"afl_elo_rating_history_from_{start_year}.csv")
+    if save_to_db:
+        # Save predictions directly to database
+        predictor.save_predictions_to_database(db_path, predictor_id)
+    else:
+        # Keep CSV output as fallback/debugging option
+        predictions_file = os.path.join(output_dir, f"afl_elo_predictions_from_{start_year}.csv")
+        predictor.save_predictions_to_csv(predictions_file)
     
-    predictor.save_predictions_to_csv(predictions_file)
+    # Always save rating history for charts
+    history_file = os.path.join(output_dir, f"afl_elo_rating_history_from_{start_year}.csv")
     predictor.save_rating_history_to_csv(history_file)
     
     # Evaluate the model on completed matches
@@ -537,26 +624,24 @@ def main():
                         help='Path to the SQLite database')
     parser.add_argument('--output-dir', type=str, default='.',
                         help='Directory to save output files')
+    parser.add_argument('--save-to-db', action='store_true', default=True,
+                        help='Save predictions directly to database (default: True)')
+    parser.add_argument('--no-save-to-db', dest='save_to_db', action='store_false',
+                        help='Disable database saving, use CSV output instead')
+    parser.add_argument('--predictor-id', type=int, default=6,
+                        help='Predictor ID for database storage (default: 6 for ELO)')
     
     args = parser.parse_args()
     
-    print("AFL ELO Model Predictions")
-    print("========================")
-    print(f"Making predictions for matches from year {args.start_year} onwards")
-    print(f"Using model: {args.model_path}")
-    
-    # Check if files exist
-    if not os.path.exists(args.db_path):
-        print(f"Error: Database not found at {args.db_path}")
-        return
-    
-    if not os.path.exists(args.model_path):
-        print(f"Error: Model file not found at {args.model_path}")
-        return
-    
-    # Make predictions
-    predict_matches(args.model_path, args.db_path, args.start_year, args.output_dir)
+    predict_matches(
+        model_path=args.model_path,
+        db_path=args.db_path,
+        start_year=args.start_year,
+        output_dir=args.output_dir,
+        save_to_db=args.save_to_db,
+        predictor_id=args.predictor_id
+    )
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

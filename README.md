@@ -46,35 +46,10 @@ The AFL Predictions application follows a layered architecture pattern built on 
 
 ### Core Components
 
-#### **Presentation Layer (`/routes`)**
-- **Authentication Routes** (`auth.js`): User login/logout, session management
-- **Prediction Routes** (`predictions.js`): User prediction interface and submission
-- **Match Routes** (`matches.js`): Match viewing and management
-- **ELO Routes** (`elo.js`): ELO rating data API endpoints for chart visualization
-- **Admin Routes** (`admin.js`): Administrative functions, user management, database operations
-
-#### **Business Logic Layer (`/services`)**
-- **Predictor Service**: User account management and validation
-- **Prediction Service**: Prediction processing and retrieval
-- **Match Service**: Match data management and scheduling
-- **Round Service**: AFL round logic and ordering
-- **Scoring Service**: Prediction accuracy calculations (Brier, Bits, Tip Points)
-- **ELO Service**: ELO rating data processing and chart generation (consolidated single-file architecture)
-- **Featured Predictions Service**: Homepage content management
-- **Password Service**: Password validation and security
-
-#### **Data Access Layer (`/models`)**
-- **Database Module** (`db.js`): SQLite connection management, query helpers, schema initialisation
-- **Custom Query Interface**: Promise-based wrappers for database operations (`runQuery`, `getQuery`, `getOne`)
-
-#### **Utility Layer (`/utils`)**
-- **Error Handler**: Centralised error management with operational error classification
-- **Logger**: Winston-based logging with file rotation and structured logging
-
-#### **External Integration (`/scripts`)**
-- **API Refresh**: Automated synchronisation with Squiggle API for match data
-- **Data Import**: Database initialisation and team data setup
-- **ELO Model**: Machine learning prediction model training and execution
+- **Routes**: Authentication, predictions, matches, ELO data, admin functions
+- **Services**: Business logic for predictions, scoring, ELO calculations, user management
+- **Models**: Database abstraction with Promise-based ORM and structured logging
+- **Scripts**: Background tasks for data sync, ELO model training, and API integration
 
 ### Technology Stack
 
@@ -106,30 +81,9 @@ The AFL Predictions application follows a layered architecture pattern built on 
 
 ### Data Flow
 
-#### **User Prediction Flow:**
-1. User authenticates via `/login` route
-2. Session established with SQLite-backed store
-3. User navigates to `/predictions` for current AFL round
-4. Prediction submitted via POST request
-5. Service layer validates and stores prediction
-6. Real-time scoring calculated when match results available
-
-#### **Data Synchronisation Flow:**
-1. Cron job triggers comprehensive daily sync process
-2. Fetch latest match data from Squiggle API
-3. Compare with local database state
-4. Update match fixtures and scores
-5. Generate ELO predictions for future matches
-6. Regenerate complete ELO historical data when matches are updated
-7. Recalculate user prediction scores
-8. Log synchronisation results with detailed tracking
-
-#### **Admin Management Flow:**
-1. Admin authentication with role verification
-2. Access to user management, database operations
-3. Database backup/restore functionality
-4. Featured predictor configuration
-5. System monitoring and logs access
+**User Predictions**: Authentication → Prediction submission → Validation → Storage → Real-time scoring
+**Data Sync**: Daily cron job → Squiggle API → Database updates → ELO predictions → Score recalculation
+**Admin Functions**: Role-based access to user management, database operations, and system monitoring
 
 ### Directory Structure
 
@@ -147,24 +101,15 @@ afl-predictions/
 └── docker/           # Docker configuration files
 ```
 
-### Key Architectural Decisions
+### Key Design Decisions
 
-**SQLite Choice**: Selected for simplicity, minimal administration, and sufficient performance for the prediction use case with embedded deployment.
+- **SQLite**: Embedded database for simplicity and sufficient performance
+- **Service Layer Pattern**: Business logic separated from routes for maintainability  
+- **Custom Database Layer**: Promise-based SQLite abstraction with logging
+- **Session Authentication**: Simple session management with SQLite store
+- **Scheduled Sync**: Daily API synchronization rather than real-time
+- **Monolithic Deployment**: Single container for operational simplicity
 
-**Service Layer Pattern**: Business logic separated from route handlers to improve testability and maintainability.
-
-**Custom Database Layer**: Promise-based abstraction over SQLite to provide consistent error handling and logging.
-
-**Session-Based Authentication**: Simple session management suitable for the user base size and security requirements.
-
-**External API Integration**: Scheduled synchronisation rather than real-time to reduce API load and improve reliability.
-
-**Monolithic Deployment**: Single container deployment for operational simplicity while maintaining clear internal boundaries.
-
-## Environment Details
-
-- **Production Environment**: `/var/www/afl-predictions`
-- **Database**: SQLite (sessions stored in `data/sessions.db`)
 
 ## Docker Setup
 
@@ -356,62 +301,24 @@ The application includes an interactive ELO chart that displays team strength ra
 
 ### Features
 
-- **Intelligent Dual View Modes**: Context-sensitive interface that shows only relevant controls
-- **Automatic Updates**: Immediate chart refresh when changing modes or selecting years (no apply button needed)
-- **Year Selection**: Dropdown to view ELO charts for individual AFL seasons
-- **Year Range Selection**: Select start and end years to view long-term ELO trends (1990-present)
-- **Advanced Team Selection**: Click any team in the legend to highlight that team's progression
-- **Multiple Team Selection**: Ctrl/Cmd+click to select multiple teams for comparison
-- **Persistent Highlighting**: Team selections maintained when switching between modes or years
-- **Accurate Tooltips**: Hover displays correct year and round information for each data point
-- **Visual Design**: Bold, vibrant colors with proper color restoration and z-order management
-- **Responsive Layout**: Adapts to different screen sizes with optimized mobile view
-- **Easy Navigation**: Click "AFL Predictions" header to return to homepage
+- **Dual View Modes**: Single year (round-by-round) or year range (multi-year trends)
+- **Interactive Controls**: Automatic updates, team highlighting, persistent selections
+- **Advanced Selection**: Click teams to highlight, Ctrl/Cmd+click for multiple teams
+- **Responsive Design**: Optimized for desktop and mobile with accurate tooltips
 
-### Chart Modes
-
-#### Single Year Mode
-- Shows ELO ratings at the start of each round (OR, 1-23, plus finals)
-- Round-based timeline with proper AFL round ordering
-- X-axis labeled as "Round" for clear temporal reference
-- Displays current ratings as the "next round" progression
-
-#### Year Range Mode
-- Displays ELO trends across multiple years (e.g., 2020-2025)
-- Uses historical ELO data generated with optimal model parameters
-- X-axis labeled as "Year" for clear temporal reference
-- Period-based timeline showing year-round combinations (e.g., "2020 R1", "2020 R2")
-- Ideal for analyzing long-term team performance and comparing different eras
 
 ### Usage
 
-1. **Select Chart Mode**: Choose between "Year" (single season) or "Year Range" (multi-year) modes
-   - Interface automatically shows only relevant controls for selected mode
-2. **Single Year View**: 
-   - Use the year dropdown to select a specific AFL season
-   - Chart updates automatically when year is changed
-3. **Year Range View**:
-   - Select start and end years from the dropdown menus
-   - Chart updates automatically when either year is changed
-   - Default shows last 5 years for quick access
-4. **Team Interaction**:
-   - Click any team name in the legend to highlight only that team
-   - Hold Ctrl/Cmd and click team names to select multiple teams
-   - Click the same team again to deselect
-   - Team selections persist when changing chart modes or years
-5. **Navigation**: Click the "AFL Predictions" title in the header to return to homepage
+1. **Mode Selection**: Choose Year (single season) or Year Range (multi-year)
+2. **Year Selection**: Use dropdowns to select years - chart updates automatically
+3. **Team Highlighting**: Click team names to highlight, Ctrl/Cmd+click for multiple
+4. **Navigation**: Click header to return to homepage
 
 ### Data Sources
 
-The ELO chart uses a single consolidated data source with automated updates:
-
-- **File**: `data/afl_elo_complete_history.csv` (contains all ELO data from 1897-present)
-- **Automated Updates**: Daily sync process regenerates historical data when new match results are available
-- **Structure**: Clean match-only data with no redundant season carryover entries
-- **Coverage**: Complete historical ELO ratings for both single-year and year-range visualizations  
-- **Data Integrity**: Uses actual CSV rating values ensuring accurate chart rendering
-- **Performance**: Optimized data structure with reduced file size while maintaining identical ELO calculations
-- **Real-time Accuracy**: Chart always reflects latest match results through automated data pipeline
+- **File**: `data/afl_elo_complete_history.csv` (1897-present)
+- **Updates**: Automated daily regeneration when new match results available
+- **Performance**: Optimized CSV structure for fast chart rendering
 
 ### API Endpoints
 
