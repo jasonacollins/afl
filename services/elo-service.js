@@ -2,11 +2,44 @@ const fs = require('fs');
 const path = require('path');
 const { parse } = require('csv-parse');
 const { logger } = require('../utils/logger');
+const { getQuery } = require('../models/db');
 
 /**
  * Service for processing and serving ELO rating data
  */
 class EloService {
+  /**
+   * Get team colors from database
+   * @param {Array} teams - Array of team names
+   * @returns {Promise<Object>} Object mapping team names to hex colors
+   */
+  async getTeamColors(teams) {
+    try {
+      if (!teams || teams.length === 0) {
+        return {};
+      }
+      
+      const placeholders = teams.map(() => '?').join(',');
+      const colors = await getQuery(
+        `SELECT name, colour_hex FROM teams WHERE name IN (${placeholders})`,
+        teams
+      );
+      
+      const colorMap = {};
+      colors.forEach(row => {
+        if (row.colour_hex) {
+          colorMap[row.name] = `#${row.colour_hex}`;
+        }
+      });
+      
+      logger.info(`Loaded team colors for ${Object.keys(colorMap).length} teams`);
+      return colorMap;
+    } catch (error) {
+      logger.error('Error loading team colors from database', { error: error.message });
+      return {};
+    }
+  }
+
   /**
    * Get ELO ratings data for a specific year
    * @param {number} year - The year to get ratings for
@@ -34,9 +67,14 @@ class EloService {
       
       const processedData = this.processEloData(rawData, year);
       
+      // Add team colors to the response
+      const teamColors = await this.getTeamColors(processedData.teams);
+      processedData.teamColors = teamColors;
+      
       logger.info(`Successfully processed ELO data for year ${year}`, { 
         teamsCount: processedData.teams.length,
-        dataPoints: processedData.data.length 
+        dataPoints: processedData.data.length,
+        teamColorsCount: Object.keys(teamColors).length
       });
       
       return processedData;
@@ -80,11 +118,16 @@ class EloService {
       
       const processedData = this.processEloDataForYearRange(rawData, startYear, endYear);
       
+      // Add team colors to the response
+      const teamColors = await this.getTeamColors(processedData.teams);
+      processedData.teamColors = teamColors;
+      
       logger.info(`Successfully processed ELO data for year range`, {
         startYear,
         endYear,
         teamsCount: processedData.teams.length,
-        dataPoints: processedData.data.length 
+        dataPoints: processedData.data.length,
+        teamColorsCount: Object.keys(teamColors).length
       });
       
       return processedData;

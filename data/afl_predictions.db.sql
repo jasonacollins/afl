@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS "teams" (
 	"team_id"	INTEGER,
 	"name"	TEXT NOT NULL UNIQUE,
 	"abbrev"	TEXT,
+	"colour_hex"	INTEGER,
 	PRIMARY KEY("team_id")
 );
 COMMIT;
