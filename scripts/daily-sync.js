@@ -70,8 +70,9 @@ async function dailySync() {
     console.log(`ELO predictions complete: ${eloResults.message}`);
     
     // Step 3: Regenerate ELO historical data if there were match updates
-    if (apiResults.matchesUpdated > 0) {
-      console.log(`${apiResults.matchesUpdated} matches were updated, regenerating ELO history...`);
+    const totalUpdates = apiResults.updateCount + apiResults.scoresUpdated;
+    if (totalUpdates > 0) {
+      console.log(`${totalUpdates} matches were updated (${apiResults.updateCount} fixture updates, ${apiResults.scoresUpdated} score updates), regenerating ELO history...`);
       const historyResults = await regenerateEloHistory();
       console.log(`ELO history regeneration complete: ${historyResults.message}`);
     } else {

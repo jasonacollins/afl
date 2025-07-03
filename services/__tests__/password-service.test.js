@@ -12,20 +12,24 @@ jest.mock('../../utils/logger', () => ({
 // 2. Import the modules we need for testing.
 const fs = require('fs'); // This will be the mocked version of fs.
 const { PasswordService, loadCommonPasswordsFromFile } = require('../password-service');
+const { logger } = require('../../utils/logger');
 
 // 3. The first describe block for the class itself. This doesn't use the mock.
 describe('PasswordService', () => {
   let passwordService;
 
-  test('should validate a strong, unique password', () => {
+  // Create a fresh instance before each test to avoid state leakage
+  beforeEach(() => {
     passwordService = new PasswordService(new Set());
+  });
+
+  test('should validate a strong, unique password', () => {
     const result = passwordService.validatePassword('aVeryStrongP@ssw0rd');
     expect(result.isValid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
 
   test('should invalidate a password that is too short', () => {
-    passwordService = new PasswordService(new Set());
     const result = passwordService.validatePassword('short');
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain('Password must be at least 12 characters long');
@@ -41,7 +45,6 @@ describe('PasswordService', () => {
   });
 
   test('should invalidate a password with an obvious pattern', () => {
-    passwordService = new PasswordService(new Set());
     const result = passwordService.validatePassword('123456789012');
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain('Password contains obvious patterns. Please choose a stronger password');
@@ -59,7 +62,6 @@ describe('PasswordService', () => {
   });
 
   test('should handle an empty password', () => {
-    passwordService = new PasswordService(new Set());
     const result = passwordService.validatePassword('');
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain('Password must be at least 12 characters long');
@@ -80,6 +82,10 @@ describe('loadCommonPasswordsFromFile', () => {
   beforeEach(() => {
     fs.existsSync.mockClear();
     fs.readFileSync.mockClear();
+
+    logger.info.mockClear();
+    logger.warn.mockClear();
+    logger.error.mockClear();
   });
 
   test('should load and parse passwords from a file', () => {

@@ -133,3 +133,4 @@ dist
 data/*.db
 data/backups/*.db
 data/temp/*.db
+/data/temp
