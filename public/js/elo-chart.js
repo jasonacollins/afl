@@ -459,6 +459,17 @@ class EloChart {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 0
+          },
+          onClick: (event, activeElements) => {
+            if (activeElements.length > 0) {
+              const clickedElement = activeElements[0];
+              const datasetIndex = clickedElement.datasetIndex;
+              const teamName = datasets[datasetIndex].label;
+              this.toggleTeamHighlight(teamName);
+            }
+          },
           plugins: {
             legend: {
               display: false // We'll create a custom legend
@@ -623,13 +634,8 @@ class EloChart {
         const team = legendItem.dataset.team;
         const index = parseInt(legendItem.dataset.index);
         
-        if (e.ctrlKey || e.metaKey) {
-          // Ctrl/Cmd + click to add/remove from selection
-          this.toggleTeamHighlight(team);
-        } else {
-          // Regular click to select only this team
-          this.selectTeamExclusive(team);
-        }
+        // All clicks now toggle team highlighting
+        this.toggleTeamHighlight(team);
       }
     });
   }
@@ -800,6 +806,17 @@ class EloChart {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+          duration: 0
+        },
+        onClick: (event, activeElements) => {
+          if (activeElements.length > 0) {
+            const clickedElement = activeElements[0];
+            const datasetIndex = clickedElement.datasetIndex;
+            const teamName = datasets[datasetIndex].label;
+            this.toggleTeamHighlight(teamName);
+          }
+        },
         datasets: {
           line: {
             order: 1 // Default order for all line datasets

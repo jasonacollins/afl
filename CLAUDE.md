@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Reference
 
-For comprehensive project information including architecture, features, and setup instructions, **read the README.md file first**. This file contains AI-specific development guidelines and rules.
+For comprehensive project information including architecture, features, and setup instructions, **read the README.md file first**. Additionally, **read ai-instructions.md** for detailed AI/LLM workflow guidelines and communication requirements. This file contains AI-specific development guidelines and rules.
 
 ## Development Commands
 
@@ -79,7 +79,7 @@ Database queries use structured logging through Winston, with all operations log
 - Single Year: Round-by-round ELO progression for individual seasons
 - Year Range: Multi-year ELO trends using historical data (1990-present)
 - Intelligent UI: Context-sensitive controls with automatic updates (no apply button required)
-- Advanced team highlighting: Persistent across view changes with z-order management
+- Advanced team highlighting: Click teams or chart lines to toggle, persistent across view changes with z-order management
 - Accurate tooltips: Displays correct year/round information for hovered data points
 - Responsive design with clickable header navigation
 
@@ -133,7 +133,7 @@ The ELO system uses a hybrid approach for optimal performance:
 - Interactive chart with intelligent dual-mode visualization:
   - Conditional UI controls: Only relevant controls shown for selected mode
   - Automatic updates: Immediate chart refresh when changing modes or years
-  - Persistent team highlighting: Selection state maintained across view changes
+  - Persistent team highlighting: Click teams or chart lines to toggle, selection state maintained across view changes
   - Accurate tooltips: Correct year/round display for all data points
 - Smart team rendering: teams only appear in rounds where they actually play
 - Enhanced visual design: Vibrant team colors with proper restoration and z-order management

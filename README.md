@@ -303,7 +303,7 @@ The application includes an interactive ELO chart that displays team strength ra
 
 - **Dual View Modes**: Single year (round-by-round) or year range (multi-year trends)
 - **Interactive Controls**: Automatic updates, team highlighting, persistent selections
-- **Advanced Selection**: Click teams to highlight, Ctrl/Cmd+click for multiple teams
+- **Advanced Selection**: Click teams or chart lines to toggle highlighting, supports multiple team selection
 - **Responsive Design**: Optimized for desktop and mobile with accurate tooltips
 
 
