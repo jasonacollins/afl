@@ -78,10 +78,137 @@
         </div>
       <% } %>
     </div>
+    
+    <% if (rounds && rounds.length > 0) { %>
+    <div class="round-selector">
+      <h2>Select Round</h2>
+      <div class="round-buttons">
+        <% rounds.forEach(roundObj => { %>
+          <button 
+            data-round="<%= roundObj.round_number %>" 
+            class="round-button 
+                   <%= roundObj.round_number === selectedRound ? 'selected' : '' %>
+                   <%= roundObj.isCompleted ? 'completed' : '' %>
+                   <%= roundObj.round_number === currentRound ? 'current' : '' %>"
+            onclick="loadRoundStats('<%= roundObj.round_number %>')"
+          >
+            <%= roundObj.round_number %>
+          </button>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
+    
+    <div id="round-stats-container" style="<%= selectedRound && roundPredictorStats && roundPredictorStats.length > 0 ? '' : 'display: none;' %>">
+      <div class="stats-card round-leaderboard">
+        <h2 class="stats-heading" id="round-stats-heading">
+          Round Performance - <%= selectedYear %> 
+          <span id="round-display">
+            <%= selectedRound === 'OR' ? 'Opening Round' : 
+                isNaN(selectedRound) ? selectedRound : 
+                'Round ' + selectedRound %>
+          </span>
+        </h2>
+        
+        <div id="round-stats-content">
+          <% if (selectedRound && roundPredictorStats && roundPredictorStats.length > 0) { %>
+            <% if (roundPredictorStats.every(stat => stat.totalPredictions === 0)) { %>
+              <div class="no-stats">
+                <p>No prediction results available for this round.</p>
+              </div>
+            <% } else { %>
+              <table class="stats-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Name</th>
+                    <th>Brier Score</th>
+                    <th>Bits Score</th>
+                    <th>Tips</th>
+                    <th>Tip Accuracy</th>
+                    <th>Predictions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% 
+                    let roundRank = 1;
+                    roundPredictorStats.forEach(stats => {
+                      if (stats.totalPredictions > 0) {
+                  %>
+                    <tr class="<%= stats.id === currentUser.id ? 'current-user' : '' %>">
+                      <td><%= roundRank++ %></td>
+                      <td><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
+                      <td><%= stats.brierScore %></td>
+                      <td><%= stats.bitsScore %></td>
+                      <td><%= stats.tipPoints %></td>
+                      <td><%= stats.tipAccuracy %>%</td>
+                      <td><%= stats.totalPredictions %></td>
+                    </tr>
+                  <% 
+                      }
+                    });
+                  %>
+                </tbody>
+              </table>
+            <% } %>
+          <% } %>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
+  .round-selector {
+    margin: 0;
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  .round-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .round-button {
+    display: inline-block;
+    padding: 0.4rem 0.75rem;
+    background-color: var(--background-light);
+    color: var(--text-color);
+    text-decoration: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  
+  .round-button:hover {
+    background-color: var(--background-hover);
+    color: var(--text-color);
+    text-decoration: none;
+  }
+  
+  .round-button.selected {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+  
+  .round-leaderboard {
+    margin-top: 0;
+  }
+  
+  .loading {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+  }
+  
   .metrics-explanation {
     margin-top: 20px;
     padding: 15px;
@@ -115,3 +242,93 @@
 </style>
 
 <%- include('partials/footer') %>
+
+<script>
+let currentSelectedYear = <%= selectedYear %>;
+let currentUserId = <%= currentUser.id %>;
+
+function loadRoundStats(roundNumber) {
+  // Update button selection
+  document.querySelectorAll('.round-button').forEach(btn => {
+    btn.classList.remove('selected');
+  });
+  document.querySelector(`[data-round="${roundNumber}"]`).classList.add('selected');
+  
+  // Show loading state
+  const roundContainer = document.getElementById('round-stats-container');
+  const roundContent = document.getElementById('round-stats-content');
+  const roundDisplay = document.getElementById('round-display');
+  
+  // Show container and update round display
+  roundContainer.style.display = 'block';
+  roundDisplay.textContent = roundNumber === 'OR' ? 'Opening Round' : 
+                            isNaN(roundNumber) ? roundNumber : 
+                            'Round ' + roundNumber;
+  
+  // Show loading
+  roundContent.innerHTML = '<div class="loading">Loading round statistics...</div>';
+  
+  // Fetch round data
+  fetch(`/matches/stats/round/${roundNumber}?year=${currentSelectedYear}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        updateRoundStatsTable(data);
+      } else {
+        roundContent.innerHTML = '<div class="no-stats"><p>Error loading round statistics.</p></div>';
+      }
+    })
+    .catch(error => {
+      console.error('Error loading round stats:', error);
+      roundContent.innerHTML = '<div class="no-stats"><p>Error loading round statistics.</p></div>';
+    });
+}
+
+function updateRoundStatsTable(data) {
+  const roundContent = document.getElementById('round-stats-content');
+  
+  if (!data.roundPredictorStats || data.roundPredictorStats.length === 0 || 
+      data.roundPredictorStats.every(stat => stat.totalPredictions === 0)) {
+    roundContent.innerHTML = '<div class="no-stats"><p>No prediction results available for this round.</p></div>';
+    return;
+  }
+  
+  let tableHTML = `
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Name</th>
+          <th>Brier Score</th>
+          <th>Bits Score</th>
+          <th>Tips</th>
+          <th>Tip Accuracy</th>
+          <th>Predictions</th>
+        </tr>
+      </thead>
+      <tbody>`;
+  
+  let rank = 1;
+  data.roundPredictorStats.forEach(stats => {
+    if (stats.totalPredictions > 0) {
+      const isCurrentUser = stats.id === currentUserId;
+      tableHTML += `
+        <tr class="${isCurrentUser ? 'current-user' : ''}">
+          <td>${rank++}</td>
+          <td>${stats.display_name} ${isCurrentUser ? '(You)' : ''}</td>
+          <td>${stats.brierScore}</td>
+          <td>${stats.bitsScore}</td>
+          <td>${stats.tipPoints}</td>
+          <td>${stats.tipAccuracy}%</td>
+          <td>${stats.totalPredictions}</td>
+        </tr>`;
+    }
+  });
+  
+  tableHTML += `
+      </tbody>
+    </table>`;
+  
+  roundContent.innerHTML = tableHTML;
+}
+</script>

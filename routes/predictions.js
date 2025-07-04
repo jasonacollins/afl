@@ -30,7 +30,51 @@ router.get('/', catchAsync(async (req, res) => {
   const years = await getQuery(yearQuery);
       
   // Get all rounds for the selected year
-  const rounds = await roundService.getRoundsForYear(selectedYear);
+  const allRounds = await roundService.getRoundsForYear(selectedYear);
+  
+  // Get all matches for the year to determine round completion status
+  const allMatchesQuery = `
+    SELECT m.*, 
+       t1.name as home_team, 
+       t2.name as away_team,
+       m.round_number
+    FROM matches m
+    JOIN teams t1 ON m.home_team_id = t1.team_id
+    JOIN teams t2 ON m.away_team_id = t2.team_id
+    WHERE m.year = ? 
+    ORDER BY m.match_date
+  `;
+  const allMatches = await getQuery(allMatchesQuery, [selectedYear]);
+  
+  // Group matches by round
+  const matchesByRound = {};
+  allMatches.forEach(match => {
+    if (!matchesByRound[match.round_number]) {
+      matchesByRound[match.round_number] = [];
+    }
+    matchesByRound[match.round_number].push(match);
+  });
+  
+  // Add completion status to rounds and determine current round
+  let currentRound = null;
+  const rounds = allRounds.map(roundObj => {
+    const roundNumber = roundObj.round_number;
+    const roundMatches = matchesByRound[roundNumber] || [];
+    
+    // Check if all matches in this round are completed
+    const allMatchesCompleted = roundMatches.length > 0 && 
+      roundMatches.every(match => match.hscore !== null && match.ascore !== null);
+    
+    // If this round is not completed and we haven't found current round yet
+    if (!allMatchesCompleted && !currentRound) {
+      currentRound = roundNumber;
+    }
+    
+    return {
+      ...roundObj,
+      isCompleted: allMatchesCompleted
+    };
+  });
   
   // Find the earliest round with incomplete matches (where complete != 100)
   let selectedRound = null;
@@ -79,6 +123,7 @@ router.get('/', catchAsync(async (req, res) => {
     selectedYear,
     rounds,
     selectedRound,
+    currentRound,
     matches,
     predictions: predictionsMap,
     calculateTipPoints: scoringService.calculateTipPoints,

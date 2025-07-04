@@ -119,9 +119,65 @@ function processMatchLockStatus(matches) {
   return processedMatches;
 }
 
+// Get completed matches for a specific round and year
+async function getCompletedMatchesForRound(year, round) {
+  try {
+    logger.debug(`Fetching completed matches for year ${year}, round ${round}`);
+    
+    const matches = await getMatchesWithTeams(
+      'WHERE m.hscore IS NOT NULL AND m.ascore IS NOT NULL AND m.year = ? AND m.round_number = ? ORDER BY m.match_date DESC',
+      [year, round]
+    );
+    
+    logger.info(`Found ${matches.length} completed matches for year ${year}, round ${round}`);
+    
+    return matches;
+  } catch (error) {
+    logger.error('Error fetching completed matches for round', { 
+      error: error.message,
+      year,
+      round
+    });
+    throw error;
+  }
+}
+
+// Get the most recent round with completed results
+async function getMostRecentRoundWithResults() {
+  try {
+    logger.debug('Finding most recent round with completed results');
+    
+    const result = await getOne(
+      `SELECT year, round_number, MAX(match_date) as latest_date
+       FROM matches 
+       WHERE hscore IS NOT NULL AND ascore IS NOT NULL
+       ORDER BY year DESC, match_date DESC
+       LIMIT 1`
+    );
+    
+    if (result) {
+      logger.info(`Most recent round with results: ${result.year}, round ${result.round_number}`);
+      return {
+        year: result.year,
+        round: result.round_number
+      };
+    } else {
+      logger.warn('No completed matches found');
+      return null;
+    }
+  } catch (error) {
+    logger.error('Error finding most recent round with results', { 
+      error: error.message
+    });
+    throw error;
+  }
+}
+
 module.exports = {
   getMatchesWithTeams,
   getMatchesByRoundAndYear,
   getCompletedMatchesForYear,
+  getCompletedMatchesForRound,
+  getMostRecentRoundWithResults,
   processMatchLockStatus
 };

@@ -24,7 +24,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Live Match Updates**: Automatic synchronisation with AFL match results
 - **User Leaderboards**: Competitive element to compare prediction performance
 - **Multi-Season Support**: Historical tracking of predictions across multiple years
-- **Interactive ELO Chart**: Visualize team strength over time with intelligent UI, persistent team highlighting, and automatic data updates
+- **Interactive ELO Chart**: Visualize team strength over time with multi-team highlighting
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 
 ## Architecture
@@ -302,9 +302,8 @@ The application includes an interactive ELO chart that displays team strength ra
 ### Features
 
 - **Dual View Modes**: Single year (round-by-round) or year range (multi-year trends)
-- **Interactive Controls**: Automatic updates, team highlighting, persistent selections
-- **Advanced Selection**: Click teams or chart lines to toggle highlighting, supports multiple team selection
-- **Responsive Design**: Optimized for desktop and mobile with accurate tooltips
+- **Multi-Team Selection**: Toggle multiple teams via legend or chart lines
+- **Interactive Controls**: Automatic updates and responsive design
 
 
 ### Usage

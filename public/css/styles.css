@@ -273,27 +273,38 @@ textarea {
 .round-buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .round-button {
   background-color: var(--background-light);
   border: 1px solid var(--border-color);
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.75rem;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.8rem;
 }
 
 .round-button:hover {
   background-color: #f0f0f0;
 }
 
+.round-button.completed:not(.selected) {
+  background-color: #28a745;
+  border-color: #28a745;
+  color: white;
+}
+
+.round-button.current:not(.selected) {
+  background-color: #007bff;
+  border-color: #007bff;
+  color: white;
+}
+
 .round-button.selected {
-  background-color: var(--primary-color) !important; /* Added !important */
-  border-color: var(--primary-color);
-  color: white !important; /* Added !important to ensure text is always white */
-  z-index: 1; /* Optional: adds another layer of priority */
+  background-color: #dc3545 !important;
+  border-color: #dc3545 !important;
+  color: white !important;
 }
 
 /* Match Cards */

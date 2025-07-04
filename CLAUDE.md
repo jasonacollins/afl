@@ -78,9 +78,8 @@ Database queries use structured logging through Winston, with all operations log
 **ELO Chart**: Interactive visualization on homepage with dual modes:
 - Single Year: Round-by-round ELO progression for individual seasons
 - Year Range: Multi-year ELO trends using historical data (1990-present)
-- Intelligent UI: Context-sensitive controls with automatic updates (no apply button required)
-- Advanced team highlighting: Click teams or chart lines to toggle, persistent across view changes with z-order management
-- Accurate tooltips: Displays correct year/round information for hovered data points
+- Multi-team highlighting: Toggle multiple teams via chart legend or direct line clicks
+- Context-sensitive controls with automatic updates
 - Responsive design with clickable header navigation
 
 ## Testing Framework
@@ -130,13 +129,10 @@ The ELO system uses a hybrid approach for optimal performance:
 - Single consolidated CSV file (`data/afl_elo_complete_history.csv`) for historical chart data
 - Automated pipeline: Daily sync writes predictions to database and regenerates historical CSV when matches update
 - Clean separation between operational data (database) and analytical data (CSV)
-- Interactive chart with intelligent dual-mode visualization:
-  - Conditional UI controls: Only relevant controls shown for selected mode
-  - Automatic updates: Immediate chart refresh when changing modes or years
-  - Persistent team highlighting: Click teams or chart lines to toggle, selection state maintained across view changes
-  - Accurate tooltips: Correct year/round display for all data points
-- Smart team rendering: teams only appear in rounds where they actually play
-- Enhanced visual design: Vibrant team colors with proper restoration and z-order management
+- Interactive chart with dual-mode visualization:
+  - Multi-team highlighting: Toggle multiple team selections via legend or chart lines
+  - Automatic updates when changing modes or years
+  - Context-sensitive controls for different view modes
 - API endpoints: `/api/elo/ratings/:year` and `/api/elo/ratings/range?startYear=YYYY&endYear=YYYY`
 
 ## AI/LLM Specific Instructions

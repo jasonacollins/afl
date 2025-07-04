@@ -25,23 +25,16 @@
         </div>
         
         <div class="round-selector">
-          <span>Round:</span>
+          <h2>Select Round</h2>
           <div class="round-buttons">
             <% rounds.forEach(round => { %>
               <button 
-                class="round-button <%= round.round_number === selectedRound ? 'selected' : '' %>"
+                class="round-button 
+                       <%= round.round_number === selectedRound ? 'selected' : '' %>
+                       <%= round.isCompleted ? 'completed' : '' %>
+                       <%= round.round_number === currentRound ? 'current' : '' %>"
                 onclick="fetchRoundPredictions('<%= round.round_number %>')">
-                <% if (round.round_number === 'OR') { %>
-                  OR
-                <% } else if (round.round_number === 'Elimination Final' || 
-                             round.round_number === 'Qualifying Final' || 
-                             round.round_number === 'Semi Final' || 
-                             round.round_number === 'Preliminary Final' || 
-                             round.round_number === 'Grand Final') { %>
-                  <%= round.round_number %>
-                <% } else { %>
-                  <%= round.round_number %>
-                <% } %>
+                <%= round.round_number %>
               </button>
             <% }) %>
           </div>
@@ -362,10 +355,11 @@
   }
   
   .round-selector {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .round-selector h2 {
+    margin-bottom: 0.5rem;
   }
   
   .round-buttons {
@@ -387,10 +381,22 @@
     background-color: #f0f0f0;
   }
   
-  .round-button.selected {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
+  .round-button.completed:not(.selected) {
+    background-color: #28a745;
+    border-color: #28a745;
     color: white;
+  }
+  
+  .round-button.current:not(.selected) {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+  }
+  
+  .round-button.selected {
+    background-color: #dc3545 !important;
+    border-color: #dc3545 !important;
+    color: white !important;
   }
   
   .predictions-table {

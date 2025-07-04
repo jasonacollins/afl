@@ -111,6 +111,27 @@ app.get('/', catchAsync(async (req, res) => {
     matchesByRound[match.round_number].push(match);
   });
   
+  // Add completion status to rounds and determine current round
+  let currentRound = null;
+  const roundsWithStatus = allRounds.map(roundObj => {
+    const roundNumber = roundObj.round_number;
+    const roundMatches = matchesByRound[roundNumber] || [];
+    
+    // Check if all matches in this round are completed
+    const allMatchesCompleted = roundMatches.length > 0 && 
+      roundMatches.every(match => match.hscore !== null && match.ascore !== null);
+    
+    // If this round is not completed and we haven't found current round yet
+    if (!allMatchesCompleted && !currentRound) {
+      currentRound = roundNumber;
+    }
+    
+    return {
+      ...roundObj,
+      isCompleted: allMatchesCompleted
+    };
+  });
+  
   // First priority: Find the round with the next upcoming match
   let targetRound = null;
   let nextUpcomingMatch = null;
@@ -193,8 +214,9 @@ app.get('/', catchAsync(async (req, res) => {
     user: req.session.user,
     isAdmin: req.session.isAdmin,
     featuredPredictor: predictor,
-    rounds: allRounds,
+    rounds: roundsWithStatus,
     selectedRound: targetRound,
+    currentRound: currentRound,
     matches,
     predictions,
     currentYear

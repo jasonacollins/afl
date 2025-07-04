@@ -31,19 +31,12 @@
       <% rounds.forEach(round => { %>
         <button 
           data-round="<%= round.round_number %>" 
-          class="round-button <%= round.round_number === selectedRound ? 'selected' : '' %>"
+          class="round-button 
+                 <%= round.round_number === selectedRound ? 'selected' : '' %>
+                 <%= round.isCompleted ? 'completed' : '' %>
+                 <%= round.round_number === currentRound ? 'current' : '' %>"
         >
-          <% if (round.round_number === 'OR') { %>
-            Opening Round
-          <% } else if (round.round_number === 'Elimination Final' || 
-                        round.round_number === 'Qualifying Final' || 
-                        round.round_number === 'Semi Final' || 
-                        round.round_number === 'Preliminary Final' || 
-                        round.round_number === 'Grand Final') { %>
-            <%= round.round_number %>
-          <% } else { %>
-            Round <%= round.round_number %>
-          <% } %>
+          <%= round.round_number %>
         </button>
       <% }) %>
     </div>
