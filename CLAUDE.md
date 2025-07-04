@@ -31,56 +31,19 @@ For comprehensive project information including architecture, features, and setu
 - `docker-compose logs` - View container logs
 - `docker-compose build` - Rebuild containers after code changes
 
-## Architecture Quick Reference
-
-This is an AFL predictions web application built with Node.js/Express and SQLite, following a layered service architecture.
-
-### Key Architectural Patterns
-
-**Service Layer Pattern**: Business logic is separated into service modules (`/services`) that handle specific domains (predictions, matches, scoring, etc.). Route handlers (`/routes`) are thin and delegate to services.
-
-**Promise-Based Database Layer**: Custom database abstraction (`models/db.js`) provides `runQuery()`, `getQuery()`, and `getOne()` helpers that wrap SQLite operations in Promises with structured logging.
+## AI-Specific Architecture Notes
 
 **Dual-Environment Code**: The scoring service (`services/scoring-service.js`) is uniquely designed to work in both Node.js and browser environments - it's served as a client-side script via `/js/scoring-service.js`.
 
-### Data Flow Architecture
-
-**User Predictions**: Routes → Services → Database abstraction → SQLite
-**ELO Predictions**: Python scripts → Direct database writes (transactional integrity)
-**API Synchronization**: Cron jobs → Scripts → Squiggle API → Database → Score recalculation
-**Authentication**: Session-based with SQLite session store (`data/sessions.db`)
-
-### Core Services
-
-- **scoring-service.js**: Brier score, Bits score, and tip point calculations (client/server compatible)
-- **prediction-service.js**: User prediction management and validation
-- **match-service.js**: AFL match data handling and scheduling (now orders matches chronologically)
-- **round-service.js**: AFL season and round logic
-- **predictor-service.js**: User account management
-- **elo-service.js**: ELO rating data processing, supports both single-year and year-range filtering
-- **featured-predictions.js**: Homepage content management
-- **password-service.js**: Password validation with security rules
-
-### Database Architecture
-
-SQLite with custom Promise-based ORM. Two databases:
-- `data/afl_predictions.db` - Main application data
-- `data/sessions.db` - Express session storage
-
-Database queries use structured logging through Winston, with all operations logged for debugging.
-
-### External Integrations
-
-**Squiggle API**: Primary data source for AFL fixtures and results. Scripts handle automated synchronization with caching in `data/cache/`.
-
-**ELO Model**: Python-based prediction model (`scripts/afl_elo_*.py`) that trains on historical data and writes predictions directly to the database. Historical rating data is maintained in CSV format (`data/afl_elo_complete_history.csv`) for optimal chart performance, combining transactional integrity with read efficiency.
-
-**ELO Chart**: Interactive visualization on homepage with dual modes:
-- Single Year: Round-by-round ELO progression for individual seasons
-- Year Range: Multi-year ELO trends using historical data (1990-present)
-- Multi-team highlighting: Toggle multiple teams via chart legend or direct line clicks
-- Context-sensitive controls with automatic updates
-- Responsive design with clickable header navigation
+**ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
+- **Predictions**: Written directly to database by Python scripts (transactional, real-time)
+- **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
+- This separation allows for data integrity in predictions while maintaining fast chart rendering
+- Hybrid storage approach: predictions in database, historical ratings in CSV
+- Direct database writes for ELO predictions ensure transactional integrity
+- Single consolidated CSV file (`data/afl_elo_complete_history.csv`) for historical chart data
+- Automated pipeline: Daily sync writes predictions to database and regenerates historical CSV when matches update
+- Clean separation between operational data (database) and analytical data (CSV)
 
 ## Testing Framework
 
@@ -92,48 +55,11 @@ Uses Jest with the following structure:
 
 ## Important Implementation Notes
 
-### Security Considerations
-- Session secret configured via `SESSION_SECRET` environment variable
-- Passwords hashed with bcrypt
-- Rate limiting on authentication endpoints
-- SQLite session store for production persistence
-
 ### Logging
 Winston-based logging with daily rotation in `logs/` directory. All database operations are logged with query details and performance metrics.
 
 ### Client-Side Code Sharing
 The scoring service is served to browsers via Express route - any changes must maintain browser compatibility and avoid server-side dependencies.
-
-### ELO Data Architecture
-The ELO system uses a hybrid approach for optimal performance:
-- **Predictions**: Written directly to database by Python scripts (transactional, real-time)
-- **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
-- This separation allows for data integrity in predictions while maintaining fast chart rendering
-
-### Environment Configuration
-- Database path: `DB_PATH` environment variable (defaults to `data/afl_predictions.db`)
-- Session configuration via environment variables
-- See `example-env-production-file.txt` for production setup
-
-### Recent Key Updates
-
-**ELO Predictions Enhancement (June 2025)**:
-- Enhanced `scripts/elo-predictions.js` with better logging and verification of rating history file preservation
-- Updated `scripts/api-refresh.js` to handle fixture updates (dates, times, venues) for existing matches
-- Modified `services/match-service.js` to order matches chronologically instead of by match ID
-- Created `scripts/afl_elo_history_generator.py` for comprehensive historical ELO data generation
-
-**ELO System Architecture**:
-- Hybrid storage approach: predictions in database, historical ratings in CSV
-- Direct database writes for ELO predictions ensure transactional integrity
-- Single consolidated CSV file (`data/afl_elo_complete_history.csv`) for historical chart data
-- Automated pipeline: Daily sync writes predictions to database and regenerates historical CSV when matches update
-- Clean separation between operational data (database) and analytical data (CSV)
-- Interactive chart with dual-mode visualization:
-  - Multi-team highlighting: Toggle multiple team selections via legend or chart lines
-  - Automatic updates when changing modes or years
-  - Context-sensitive controls for different view modes
-- API endpoints: `/api/elo/ratings/:year` and `/api/elo/ratings/range?startYear=YYYY&endYear=YYYY`
 
 ## AI/LLM Specific Instructions
 

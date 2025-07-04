@@ -373,7 +373,9 @@ class EloChart {
           y: rating,
           year: point.year, // Include year information for tooltips
           round: point.round, // Include round information for tooltips
-          isSeasonStart: isSeasonStart
+          isSeasonStart: isSeasonStart,
+          // Include match details for tooltips
+          match: point[`${team}_match`] || null
         };
       }).filter(point => point !== null); // Filter out nulls to prevent errors
 
@@ -513,6 +515,15 @@ class EloChart {
                 label: function(context) {
                   const teamName = context.dataset.label;
                   const rating = Math.round(context.parsed.y * 10) / 10;
+                  
+                  // Check if match details are available
+                  const pointData = context.raw;
+                  if (pointData && pointData.match) {
+                    const match = pointData.match;
+                    const gameResult = `vs ${match.opponent} ${match.score}-${match.opponent_score} (${match.result.charAt(0).toUpperCase() + match.result.slice(1)})`;
+                    return [`${teamName}: ${rating}`, gameResult];
+                  }
+                  
                   return `${teamName}: ${rating}`;
                 }
               }
@@ -755,7 +766,9 @@ class EloChart {
           y: rating,
           year: point.year, // Include year information for tooltips
           round: point.round, // Include round information for tooltips
-          isSeasonStart: isSeasonStart
+          isSeasonStart: isSeasonStart,
+          // Include match details for tooltips
+          match: point[`${team}_match`] || null
         };
       }).filter(point => point !== null);
 
@@ -865,6 +878,15 @@ class EloChart {
               label: function(context) {
                 const teamName = context.dataset.label;
                 const rating = Math.round(context.parsed.y * 10) / 10;
+                
+                // Check if match details are available
+                const pointData = context.raw;
+                if (pointData && pointData.match) {
+                  const match = pointData.match;
+                  const gameResult = `vs ${match.opponent} ${match.score}-${match.opponent_score} (${match.result.charAt(0).toUpperCase() + match.result.slice(1)})`;
+                  return [`${teamName}: ${rating}`, gameResult];
+                }
+                
                 return `${teamName}: ${rating}`;
               }
             }

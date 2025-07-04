@@ -301,6 +301,13 @@ class EloService {
         const teamMatch = roundMatches.find(match => match.team === team);
         if (teamMatch) {
           beforePoint[team] = parseFloat(teamMatch.rating_before);
+          // Add match details for hover tooltip
+          beforePoint[`${team}_match`] = {
+            opponent: teamMatch.opponent,
+            score: teamMatch.score,
+            opponent_score: teamMatch.opponent_score,
+            result: teamMatch.result
+          };
         }
       });
       chartData.push(beforePoint);
@@ -358,6 +365,13 @@ class EloService {
           const teamMatch = gameMatches.find(match => match.team === team);
           if (teamMatch) {
             afterGamePoint[team] = parseFloat(teamMatch.rating_after);
+            // Add match details for hover tooltip
+            afterGamePoint[`${team}_match`] = {
+              opponent: teamMatch.opponent,
+              score: teamMatch.score,
+              opponent_score: teamMatch.opponent_score,
+              result: teamMatch.result
+            };
           }
         });
         chartData.push(afterGamePoint);
@@ -546,6 +560,13 @@ class EloService {
         const teamMatch = roundMatches.find(match => match.team === team);
         if (teamMatch) {
           beforePoint[team] = parseFloat(teamMatch.rating_before);
+          // Add match details for hover tooltip
+          beforePoint[`${team}_match`] = {
+            opponent: teamMatch.opponent,
+            score: teamMatch.score,
+            opponent_score: teamMatch.opponent_score,
+            result: teamMatch.result
+          };
         }
       });
       chartData.push(beforePoint);
@@ -576,6 +597,13 @@ class EloService {
           const teamMatch = gameMatches.find(match => match.team === team);
           if (teamMatch) {
             afterGamePoint[team] = parseFloat(teamMatch.rating_after);
+            // Add match details for hover tooltip
+            afterGamePoint[`${team}_match`] = {
+              opponent: teamMatch.opponent,
+              score: teamMatch.score,
+              opponent_score: teamMatch.opponent_score,
+              result: teamMatch.result
+            };
           }
         });
         chartData.push(afterGamePoint);

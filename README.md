@@ -303,6 +303,7 @@ The application includes an interactive ELO chart that displays team strength ra
 
 - **Dual View Modes**: Single year (round-by-round) or year range (multi-year trends)
 - **Multi-Team Selection**: Toggle multiple teams via legend or chart lines
+- **Enhanced Hover Tooltips**: Display team ratings plus game results (opponent, score, outcome)
 - **Interactive Controls**: Automatic updates and responsive design
 
 
