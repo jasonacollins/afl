@@ -35,6 +35,7 @@ class AFLEloPredictor:
             self.margin_factor = self.params['margin_factor']
             self.season_carryover = self.params['season_carryover']
             self.max_margin = self.params['max_margin']
+            self.beta = self.params['beta']
             
             # Set team ratings
             self.team_ratings = model_data['team_ratings']
@@ -69,6 +70,32 @@ class AFLEloPredictor:
         
         return win_probability
     
+    def predict_margin(self, home_team, away_team):
+        """
+        Predict match margin from win probability
+        
+        Parameters:
+        -----------
+        home_team: str
+            Name of home team
+        away_team: str
+            Name of away team
+            
+        Returns:
+        --------
+        float: Predicted margin (positive = home win, negative = away win)
+        """
+        win_prob = self.calculate_win_probability(home_team, away_team)
+        
+        # Avoid log(0) or log(1) errors
+        win_prob = np.clip(win_prob, 0.001, 0.999)
+        
+        # Convert probability to expected margin using log-odds
+        log_odds = np.log(win_prob / (1 - win_prob))
+        predicted_margin = self.beta * log_odds
+        
+        return predicted_margin
+
     def apply_season_carryover(self, new_year):
         """Apply regression to mean between seasons"""
         print(f"Applying season carryover for {new_year}...")
@@ -149,7 +176,8 @@ class AFLEloPredictor:
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
-            'confidence': max(home_win_prob, 1 - home_win_prob)
+            'confidence': max(home_win_prob, 1 - home_win_prob),
+            'predicted_margin': self.predict_margin(home_team, away_team),
         }
         
         # If scores are provided, update ratings and add result info
@@ -270,6 +298,7 @@ class AFLEloPredictor:
             'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
+            'predicted_margin': self.predict_margin(home_team, away_team),
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
             'confidence': max(home_win_prob, 1 - home_win_prob)
         }

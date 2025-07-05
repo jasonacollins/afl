@@ -5,6 +5,9 @@ WORKDIR /app
 # Install cron and Python
 RUN apk add --no-cache dcron python3 py3-pip py3-pandas py3-numpy py3-scipy
 
+# Upgrade pip and install scikit-optimize via pip
+RUN pip install --no-cache-dir scikit-optimize
+
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install --production

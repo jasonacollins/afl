@@ -10,7 +10,7 @@ from datetime import datetime
 
 class AFLEloModel:
     def __init__(self, base_rating=1500, k_factor=20, home_advantage=50, 
-                 margin_factor=0.3, season_carryover=0.6, max_margin=120):
+                margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05):
         """
         Initialize the AFL ELO model with configurable parameters
         
@@ -28,6 +28,8 @@ class AFLEloModel:
             Percentage of rating retained between seasons (0.75 = 75%)
         max_margin: int
             Maximum margin to consider (to limit effect of blowouts)
+        beta: float
+            Scaling factor for converting win probability to predicted margin
         """
         self.base_rating = base_rating
         self.k_factor = k_factor
@@ -35,10 +37,11 @@ class AFLEloModel:
         self.margin_factor = margin_factor
         self.season_carryover = season_carryover
         self.max_margin = max_margin
+        self.beta = beta
         self.team_ratings = {}
-        self.yearly_ratings = {}  # Track ratings at the end of each year
-        self.rating_history = []  # To track rating changes over time
-        self.predictions = []     # To store model predictions
+        self.yearly_ratings = {}
+        self.rating_history = []
+        self.predictions = []
     
     def initialize_ratings(self, teams):
         """Initialize all team ratings to the base rating"""
@@ -61,6 +64,32 @@ class AFLEloModel:
         
         return win_probability
     
+    def predict_margin(self, home_team, away_team):
+        """
+        Predict match margin from win probability
+        
+        Parameters:
+        -----------
+        home_team: str
+            Name of home team
+        away_team: str
+            Name of away team
+            
+        Returns:
+        --------
+        float: Predicted margin (positive = home win, negative = away win)
+        """
+        win_prob = self.calculate_win_probability(home_team, away_team)
+        
+        # Avoid log(0) or log(1) errors
+        win_prob = np.clip(win_prob, 0.001, 0.999)
+        
+        # Convert probability to expected margin using log-odds
+        log_odds = np.log(win_prob / (1 - win_prob))
+        predicted_margin = self.beta * log_odds
+        
+        return predicted_margin
+
     def update_ratings(self, home_team, away_team, hscore, ascore, year, match_id=None, round_number=None, match_date=None, venue=None):
         """
         Update team ratings based on match result
@@ -145,6 +174,7 @@ class AFLEloModel:
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
             'confidence': max(home_win_prob, 1 - home_win_prob),
+            'predicted_margin': self.predict_margin(home_team, away_team),
             'actual_result': 'home_win' if hscore > ascore else ('away_win' if hscore < ascore else 'draw'),
             'correct': (home_win_prob > 0.5 and hscore > ascore) or (home_win_prob < 0.5 and hscore < ascore) or (home_win_prob == 0.5 and hscore == ascore),
             'margin': margin,
@@ -233,6 +263,7 @@ class AFLEloModel:
                 'margin_factor': self.margin_factor,
                 'season_carryover': self.season_carryover,
                 'max_margin': self.max_margin,
+                'beta': self.beta,
             },
             'team_ratings': self.team_ratings,
             'yearly_ratings': self.yearly_ratings
@@ -325,7 +356,8 @@ def train_elo_model(data, params=None):
             home_advantage=params.get('home_advantage', 50),
             margin_factor=params.get('margin_factor', 0.3),
             season_carryover=params.get('season_carryover', 0.6),
-            max_margin=params.get('max_margin', 120)
+            max_margin=params.get('max_margin', 120),
+            beta=params.get('beta', 0.05)
         )
     
     # Get unique teams
@@ -405,15 +437,17 @@ def parameter_tuning(data, param_grid, cv=5, max_combinations=None):
             for margin_factor in param_grid['margin_factor']:
                 for season_carryover in param_grid['season_carryover']:
                     for max_margin in param_grid['max_margin']:
-                        params = {
-                            'base_rating': param_grid['base_rating'][0],  # Use first value
-                            'k_factor': k_factor,
-                            'home_advantage': home_advantage,
-                            'margin_factor': margin_factor,
-                            'season_carryover': season_carryover,
-                            'max_margin': max_margin
-                        }
-                        param_combinations.append(params)
+                        for beta in param_grid.get('beta', [0.05]):  # Default if not in grid
+                            params = {
+                                'base_rating': param_grid['base_rating'][0],  # Use first value
+                                'k_factor': k_factor,
+                                'home_advantage': home_advantage,
+                                'margin_factor': margin_factor,
+                                'season_carryover': season_carryover,
+                                'max_margin': max_margin,
+                                'beta': beta
+                            }
+                            param_combinations.append(params)
     
     # Limit the number of combinations if specified
     if max_combinations and len(param_combinations) > max_combinations:
@@ -553,6 +587,8 @@ def main():
                         help='Number of cross-validation folds for parameter tuning')
     parser.add_argument('--max-combinations', type=int, default=500,
                         help='Maximum number of parameter combinations to test (None for all)')
+    parser.add_argument('--params-file', type=str, default=None,
+                    help='Load parameters from JSON file (from optimization)')
     
     args = parser.parse_args()
     
@@ -574,7 +610,25 @@ def main():
     data = fetch_afl_data(args.db_path, start_year=args.start_year, end_year=args.end_year)
     print(f"Fetched {len(data)} matches from {data['year'].min()} to {data['year'].max()}")
     
-    if not args.no_tune_parameters:
+    if args.params_file:
+        print(f"\nLoading parameters from {args.params_file}...")
+        with open(args.params_file, 'r') as f:
+            params_data = json.load(f)
+        
+        # Handle both old format and new format
+        if 'parameters' in params_data:
+            best_params = params_data['parameters']
+        else:
+            best_params = params_data
+        
+        print("Loaded parameters:")
+        for key, value in best_params.items():
+            print(f"  {key}: {value}")
+        
+        # Train model with loaded parameters
+        model = train_elo_model(data, best_params)
+
+    elif not args.no_tune_parameters:
         print("\nPerforming parameter tuning...")
         
         # Define parameter grid - extensive version
@@ -584,7 +638,8 @@ def main():
             'home_advantage': [20, 30, 40, 50, 60, 70],  # Home ground advantage in rating points
             'margin_factor': [0.1, 0.2, 0.3, 0.4, 0.5, 0.7],  # How much margin affects rating changes
             'season_carryover': [0.5, 0.6, 0.7, 0.75, 0.8, 0.9],  # How much rating carries over between seasons
-            'max_margin': [60, 80, 100, 120, 140, 160]  # Maximum margin to consider
+            'max_margin': [60, 80, 100, 120, 140, 160],  # Maximum margin to consider
+            'beta': [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08]  # Margin prediction scaling factor
         }
         
         # Report the total number of combinations
@@ -592,7 +647,8 @@ def main():
                         len(param_grid['home_advantage']) * 
                         len(param_grid['margin_factor']) * 
                         len(param_grid['season_carryover']) * 
-                        len(param_grid['max_margin']))
+                        len(param_grid['max_margin']) *
+                        len(param_grid.get('beta', [0.05])))
         
         print(f"Parameter grid has {total_combos} possible combinations")
         
@@ -637,7 +693,8 @@ def main():
             'home_advantage': 50,
             'margin_factor': 0.3,
             'season_carryover': 0.6,
-            'max_margin': 120
+            'max_margin': 120,
+            'beta': 0.05
         }
         print("\nSkipping parameter tuning and using default parameters...")
         print("Use --tune-parameters flag to find optimal parameters")

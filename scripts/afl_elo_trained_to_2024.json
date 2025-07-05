@@ -5,7 +5,8 @@
         "home_advantage": 60,
         "margin_factor": 0.7,
         "season_carryover": 0.5,
-        "max_margin": 160
+        "max_margin": 160,
+        "beta": 0.03
     },
     "team_ratings": {
         "Carlton": 1519.4035762218978,

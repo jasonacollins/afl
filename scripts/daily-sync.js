@@ -10,7 +10,7 @@ async function regenerateEloHistory() {
   console.log('Regenerating ELO historical data...');
   
   return new Promise((resolve, reject) => {
-    const modelPath = path.join(__dirname, 'afl_elo_trained_to_2024.json');
+    const modelPath = path.join(__dirname, '../data/afl_elo_trained_to_2024.json');
     const dbPath = path.join(__dirname, '../data/afl_predictions.db');
     const outputDir = path.join(__dirname, '../data');
     

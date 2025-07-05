@@ -215,14 +215,68 @@ The application uses the Squiggle API (https://api.squiggle.com.au) to source ma
 
 ## ELO Predictions Model
 
-The application includes an ELO-based prediction model that can be trained on historical match data and used to make predictions for future matches.
+The application includes an ELO-based prediction model that can be trained on historical match data and used to make predictions for future matches. The model supports both traditional parameter tuning and advanced Bayesian optimization for efficient hyperparameter discovery.
 
-### Training the Model
+### Recommended Training Workflow (Bayesian Optimization)
 
-To train the ELO model using historical data up to a specific year:
+The recommended approach uses Bayesian optimization for efficient parameter discovery:
+
+#### Step 1: Bayesian Parameter Optimization
+
+Find the best parameters using Bayesian optimization to efficiently explore the parameter space:
 
 ```bash
-python scripts/afl_elo_training.py --start-year 1990 --end-year 2024 --output-dir scripts
+python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
+```
+
+Parameters:
+- `--n-calls`: Number of parameter combinations to test (default: 50)
+- `--output-path`: Path to save optimal parameters (default: current directory)
+- `--start-year`: Start year for training data (default: 1990)
+- `--end-year`: End year for training data (default: 2024)
+- `--cv-folds`: Number of cross-validation folds (default: 3)
+
+This process:
+1. Uses Bayesian optimization to intelligently search parameter space
+2. Tests 100-1000 parameter combinations efficiently
+3. Outputs optimal parameters to `optimal_elo_params_bayesian.json`
+4. Provides detailed tuning results in `afl_elo_tuning_results_[year].json`
+
+#### Step 2: Final Model Training
+
+Train the final model using the optimal parameters discovered in Step 1:
+
+```bash
+python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
+```
+
+#### Step 3: Generate Predictions
+
+Use the trained model to make predictions for future matches:
+
+```bash
+python3 scripts/afl_elo_predictions.py --model-path data/afl_elo_trained_to_2024.json --output-dir data
+```
+
+### Complete Bayesian Workflow Example
+
+```bash
+# Step 1: Find optimal parameters (tests ~500-1000 combinations)
+python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
+
+# Step 2: Train final model with optimal parameters
+python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
+
+# Step 3: Generate predictions with trained model
+python3 scripts/afl_elo_predictions.py --model-path data/afl_elo_trained_to_2024.json --output-dir data
+```
+
+### Traditional Training Method
+
+The original training method is still available for backward compatibility:
+
+```bash
+python3 scripts/afl_elo_training.py --start-year 1990 --end-year 2024 --output-dir scripts
 ```
 
 Parameters:
@@ -233,7 +287,7 @@ Parameters:
 - `--cv-folds`: Number of cross-validation folds for parameter tuning (default: 3)
 - `--max-combinations`: Maximum number of parameter combinations to test (default: 500)
 
-The training process will:
+The traditional training process will:
 1. Find optimal parameters using cross-validation (unless `--no-tune-parameters` is specified)
 2. Train the model on all data from the start year to the end year
 3. Output a model file (e.g., `afl_elo_trained_to_2024.json`) and predictions file
