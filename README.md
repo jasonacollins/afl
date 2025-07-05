@@ -230,17 +230,19 @@ python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --end-year 2024 --out
 ```
 
 Parameters:
-- `--n-calls`: Number of parameter combinations to test (default: 50)
-- `--output-path`: Path to save optimal parameters (default: current directory)
+- `--n-calls`: Number of parameter combinations to test per start (default: 200)
+- `--n-starts`: Number of independent optimization runs with different random seeds (default: 1)
+- `--output-path`: Path to save optimal parameters (default: data/optimal_elo_params_bayesian.json)
 - `--start-year`: Start year for training data (default: 1990)
 - `--end-year`: End year for training data (default: 2024)
 - `--cv-folds`: Number of cross-validation folds (default: 3)
 
 This process:
 1. Uses Bayesian optimization to intelligently search parameter space
-2. Tests 100-1000 parameter combinations efficiently
-3. Outputs optimal parameters to `optimal_elo_params_bayesian.json`
-4. Provides detailed tuning results in `afl_elo_tuning_results_[year].json`
+2. Supports multi-start optimization for better global optimum discovery
+3. Tests parameter combinations efficiently across multiple independent runs
+4. Outputs optimal parameters to `optimal_elo_params_bayesian.json`
+5. Generates convergence plots to visualize optimization progress
 
 #### Step 2: Final Model Training
 
@@ -255,20 +257,45 @@ python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesi
 Use the trained model to make predictions for future matches:
 
 ```bash
-python3 scripts/afl_elo_predictions.py --model-path data/afl_elo_trained_to_2024.json --output-dir data
+python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
 ```
 
-### Complete Bayesian Workflow Example
+### Complete Bayesian Workflow Examples
 
+#### Basic Single-Start Optimization
 ```bash
-# Step 1: Find optimal parameters (tests ~500-1000 combinations)
-python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
+# Step 1: Find optimal parameters (200 evaluations)
+python3 scripts/afl_elo_optimize_bayesian.py --n-calls 200 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
 
 # Step 2: Train final model with optimal parameters
 python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
 
 # Step 3: Generate predictions with trained model
-python3 scripts/afl_elo_predictions.py --model-path data/afl_elo_trained_to_2024.json --output-dir data
+python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
+```
+
+#### Multi-Start Optimization (Recommended)
+```bash
+# Step 1: Find optimal parameters with 3 independent runs (300 total evaluations)
+python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
+
+# Step 2: Train final model with optimal parameters
+python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
+
+# Step 3: Generate predictions with trained model
+python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
+```
+
+#### Thorough Optimization for Production
+```bash
+# Step 1: Comprehensive search with 5 starts of 100 calls each (500 total evaluations)
+python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --n-starts 5 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
+
+# Step 2: Train final model with optimal parameters
+python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
+
+# Step 3: Generate predictions with trained model
+python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
 ```
 
 ### Traditional Training Method
