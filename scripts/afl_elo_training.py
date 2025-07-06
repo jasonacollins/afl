@@ -10,7 +10,7 @@ from datetime import datetime
 
 class AFLEloModel:
     def __init__(self, base_rating=1500, k_factor=20, home_advantage=50, 
-                margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05):
+            margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05, margin_scale=0.04):
         """
         Initialize the AFL ELO model with configurable parameters
         
@@ -38,6 +38,7 @@ class AFLEloModel:
         self.season_carryover = season_carryover
         self.max_margin = max_margin
         self.beta = beta
+        self.margin_scale = margin_scale
         self.team_ratings = {}
         self.yearly_ratings = {}
         self.rating_history = []
@@ -66,7 +67,7 @@ class AFLEloModel:
     
     def predict_margin(self, home_team, away_team):
         """
-        Predict match margin from win probability
+        Predict match margin from rating difference
         
         Parameters:
         -----------
@@ -79,14 +80,12 @@ class AFLEloModel:
         --------
         float: Predicted margin (positive = home win, negative = away win)
         """
-        win_prob = self.calculate_win_probability(home_team, away_team)
+        home_rating = self.team_ratings.get(home_team, self.base_rating)
+        away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Avoid log(0) or log(1) errors
-        win_prob = np.clip(win_prob, 0.001, 0.999)
-        
-        # Convert probability to expected margin using log-odds
-        log_odds = np.log(win_prob / (1 - win_prob))
-        predicted_margin = self.beta * log_odds
+        # Direct conversion from rating difference to expected margin
+        rating_diff = (home_rating + self.home_advantage) - away_rating
+        predicted_margin = rating_diff * self.margin_scale
         
         return predicted_margin
 
@@ -264,6 +263,7 @@ class AFLEloModel:
                 'season_carryover': self.season_carryover,
                 'max_margin': self.max_margin,
                 'beta': self.beta,
+                'margin_scale': self.margin_scale,
             },
             'team_ratings': self.team_ratings,
             'yearly_ratings': self.yearly_ratings

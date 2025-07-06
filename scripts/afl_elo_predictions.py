@@ -36,6 +36,7 @@ class AFLEloPredictor:
             self.season_carryover = self.params['season_carryover']
             self.max_margin = self.params['max_margin']
             self.beta = self.params['beta']
+            self.margin_scale = self.params.get('margin_scale', 0.04)  # Default to 0.04 if not present
             
             # Set team ratings
             self.team_ratings = model_data['team_ratings']
@@ -72,7 +73,7 @@ class AFLEloPredictor:
     
     def predict_margin(self, home_team, away_team):
         """
-        Predict match margin from win probability
+        Predict match margin from rating difference
         
         Parameters:
         -----------
@@ -85,14 +86,12 @@ class AFLEloPredictor:
         --------
         float: Predicted margin (positive = home win, negative = away win)
         """
-        win_prob = self.calculate_win_probability(home_team, away_team)
+        home_rating = self.team_ratings.get(home_team, self.base_rating)
+        away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Avoid log(0) or log(1) errors
-        win_prob = np.clip(win_prob, 0.001, 0.999)
-        
-        # Convert probability to expected margin using log-odds
-        log_odds = np.log(win_prob / (1 - win_prob))
-        predicted_margin = self.beta * log_odds
+        # Direct conversion from rating difference to expected margin
+        rating_diff = (home_rating + self.home_advantage) - away_rating
+        predicted_margin = rating_diff * self.margin_scale
         
         return predicted_margin
 
@@ -366,6 +365,10 @@ class AFLEloPredictor:
             # Insert new predictions
             insert_count = 0
             for pred in future_predictions:
+                # Debug: Print first prediction to see what's available
+                if insert_count == 0:
+                    print(f"Debug: First prediction keys: {list(pred.keys())}")
+                    print(f"Debug: predicted_margin value: {pred.get('predicted_margin', 'NOT_FOUND')}")
                 # Convert probability to percentage (0-100)
                 home_prob_pct = int(round(pred['home_win_probability'] * 100))
                 
@@ -379,13 +382,19 @@ class AFLEloPredictor:
                 if home_prob_pct == 50:
                     tipped_team = 'home'
                 
+                margin_value = round(pred['predicted_margin'], 1)
+                if insert_count == 0:
+                    print(f"Debug: Inserting margin value: {margin_value}")
+                    print(f"Debug: SQL values: match_id={pred['match_id']}, predictor_id={predictor_id}, home_win_prob={home_prob_pct}, margin={margin_value}, tipped_team={tipped_team}")
+                
                 cursor.execute(
                     """INSERT INTO predictions 
-                       (match_id, predictor_id, home_win_probability, tipped_team) 
-                       VALUES (?, ?, ?, ?)""",
+                       (match_id, predictor_id, home_win_probability, predicted_margin, tipped_team) 
+                       VALUES (?, ?, ?, ?, ?)""",
                     (pred['match_id'], 
                      predictor_id, 
                      home_prob_pct,
+                     margin_value,
                      tipped_team)
                 )
                 insert_count += 1

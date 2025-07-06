@@ -29,7 +29,8 @@ space = [
     Real(0.1, 0.7, name='margin_factor'),
     Real(0.3, 0.95, name='season_carryover'),
     Integer(60, 180, name='max_margin'),
-    Real(0.02, 0.08, name='beta')
+    Real(0.02, 0.08, name='beta'),
+    Real(0.02, 0.08, name='margin_scale')
 ]
 
 
@@ -38,7 +39,7 @@ def evaluate_parameters_cv(params, matches_df, cv_folds=3, verbose=False):
     Evaluate ELO parameters using cross-validation
     Returns log loss (lower is better)
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta = params
+    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale = params
     
     # Create time-based splits
     tscv = TimeSeriesSplit(n_splits=cv_folds)
@@ -58,7 +59,8 @@ def evaluate_parameters_cv(params, matches_df, cv_folds=3, verbose=False):
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
-            beta=beta
+            beta=beta,
+            margin_scale=margin_scale
         )
         fold_model.initialize_ratings(all_teams)
         
@@ -134,7 +136,7 @@ def evaluate_parameters_walkforward(params, matches_df, verbose=False):
     Trains on seasons up to year N and tests on season N+1.
     Returns the average log loss across all splits.
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta = params
+    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale = params
 
     # Ensure chronological order
     matches_df = matches_df.sort_values(['year', 'match_date'])
@@ -163,6 +165,7 @@ def evaluate_parameters_walkforward(params, matches_df, verbose=False):
             season_carryover=season_carryover,
             max_margin=max_margin,
             beta=beta,
+            margin_scale=margin_scale
         )
         model.initialize_ratings(all_teams)
 
@@ -289,12 +292,13 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
             season_carryover = params['season_carryover']
             max_margin = params['max_margin']
             beta = params['beta']
+            margin_scale = params['margin_scale']
             
             # Evaluate parameters
             score = evaluate_parameters_walkforward(
-                [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta],
+                [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale],
                 matches_df,
-                verbose=False  # Less verbose for multi-start
+                verbose=False
             )
             
             # Track best score for this start
@@ -333,7 +337,7 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         print(f"\nStart {start_idx + 1} completed:")
         print(f"  Best score: {result.fun:.4f}")
         print(f"  Best params: k={result.x[0]}, h={result.x[1]}, m={result.x[2]:.3f}, "
-              f"c={result.x[3]:.3f}, max={result.x[4]}, β={result.x[5]:.4f}")
+            f"c={result.x[3]:.3f}, max={result.x[4]}, β={result.x[5]:.4f}, ms={result.x[6]:.4f}")
         print(f"  Overall best so far: {overall_best_score:.4f}")
     
     # Find the best result across all starts
@@ -348,6 +352,7 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         'season_carryover': result.x[3],
         'max_margin': result.x[4],
         'beta': result.x[5],
+        'margin_scale': result.x[6],
         'base_rating': 1500
     }
     

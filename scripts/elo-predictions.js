@@ -15,7 +15,7 @@ async function runEloPredictions() {
   
   try {
     // Step 1: Run Python ELO prediction script (now writes directly to database)
-    const modelPath = path.join(__dirname, 'afl_elo_trained_to_2024.json');
+    const modelPath = path.join(__dirname, '../data/afl_elo_trained_to_2024.json');
     const dbPath = path.join(__dirname, '../data/afl_predictions.db');
     const outputDir = path.join(__dirname, '../data/temp');
     
