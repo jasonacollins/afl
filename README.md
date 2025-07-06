@@ -279,10 +279,13 @@ python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_e
 # Step 1: Find optimal parameters with 3 independent runs (300 total evaluations)
 python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
 
-# Step 2: Train final model with optimal parameters
+# Step 2: Find optimal margin parameters with 3 independent runs (150 total evaulations)
+python3 scripts/afl_elo_optimize_bayesian.py --margin-mode --elo-params data/optimal_elo_params_bayesian.json --n-calls 50 --n-starts 3 --output-margin-params data/optimal_elo_margin_params.json
+
+# Step 3: Train final model with optimal parameters
 python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
 
-# Step 3: Generate predictions with trained model
+# Step 4: Generate predictions with trained model
 python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
 ```
 

@@ -8,7 +8,7 @@ import argparse
 
 
 class AFLEloPredictor:
-    def __init__(self, model_path):
+    def __init__(self, model_path, margin_model_path=None):
         """
         Initialize the ELO predictor with a trained model
         
@@ -16,8 +16,13 @@ class AFLEloPredictor:
         -----------
         model_path: str
             Path to the saved ELO model JSON file
+        margin_model_path: str, optional
+            Path to the saved margin model JSON file
         """
+        self.margin_model = None
         self.load_model(model_path)
+        if margin_model_path:
+            self.load_margin_model(margin_model_path)
         self.predictions = []  # Store all predictions
         self.rating_history = []  # Store rating history
     
@@ -52,6 +57,25 @@ class AFLEloPredictor:
             return True
         except Exception as e:
             print(f"Error loading model: {e}")
+            return False
+    
+    def load_margin_model(self, margin_model_path):
+        """Load the trained margin model"""
+        try:
+            with open(margin_model_path, 'r') as f:
+                self.margin_model = json.load(f)
+            
+            method = self.margin_model['method']
+            params = self.margin_model['parameters']
+            
+            print(f"Loaded margin model using {method.upper().replace('_', ' ')} method")
+            print("Margin model parameters:")
+            for param, value in params.items():
+                print(f"  {param}: {value:.4f}")
+                
+            return True
+        except Exception as e:
+            print(f"Error loading margin model: {e}")
             return False
     
     def _cap_margin(self, margin):
@@ -89,9 +113,34 @@ class AFLEloPredictor:
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Direct conversion from rating difference to expected margin
-        rating_diff = (home_rating + self.home_advantage) - away_rating
-        predicted_margin = rating_diff * self.margin_scale
+        # Use margin model if available, otherwise fall back to simple scaling
+        if self.margin_model:
+            method = self.margin_model['method']
+            params = self.margin_model['parameters']
+            
+            if method == 'simple':
+                # Simple scaling: margin = rating_diff * scale_factor
+                rating_diff = (home_rating + self.home_advantage) - away_rating
+                predicted_margin = rating_diff * params['scale_factor']
+                
+            elif method == 'diminishing_returns':
+                # Diminishing returns: margin = (win_prob - 0.5) / beta
+                win_prob = self.calculate_win_probability(home_team, away_team)
+                predicted_margin = (win_prob - 0.5) / params['beta']
+                
+            elif method == 'linear':
+                # Linear regression: margin = rating_diff * slope + intercept
+                rating_diff = (home_rating + self.home_advantage) - away_rating
+                predicted_margin = rating_diff * params['slope'] + params['intercept']
+                
+            else:
+                # Fallback to simple scaling if unknown method
+                rating_diff = (home_rating + self.home_advantage) - away_rating
+                predicted_margin = rating_diff * self.margin_scale
+        else:
+            # Original method: Direct conversion from rating difference to expected margin
+            rating_diff = (home_rating + self.home_advantage) - away_rating
+            predicted_margin = rating_diff * self.margin_scale
         
         return predicted_margin
 
@@ -365,10 +414,6 @@ class AFLEloPredictor:
             # Insert new predictions
             insert_count = 0
             for pred in future_predictions:
-                # Debug: Print first prediction to see what's available
-                if insert_count == 0:
-                    print(f"Debug: First prediction keys: {list(pred.keys())}")
-                    print(f"Debug: predicted_margin value: {pred.get('predicted_margin', 'NOT_FOUND')}")
                 # Convert probability to percentage (0-100)
                 home_prob_pct = int(round(pred['home_win_probability'] * 100))
                 
@@ -383,9 +428,6 @@ class AFLEloPredictor:
                     tipped_team = 'home'
                 
                 margin_value = round(pred['predicted_margin'], 1)
-                if insert_count == 0:
-                    print(f"Debug: Inserting margin value: {margin_value}")
-                    print(f"Debug: SQL values: match_id={pred['match_id']}, predictor_id={predictor_id}, home_win_prob={home_prob_pct}, margin={margin_value}, tipped_team={tipped_team}")
                 
                 cursor.execute(
                     """INSERT INTO predictions 
@@ -538,7 +580,8 @@ def fetch_matches(db_path, start_year):
     return matches
 
 
-def predict_matches(model_path, db_path, start_year, output_dir='.', save_to_db=True, predictor_id=6):
+def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=2025, 
+                   output_dir='.', save_to_db=True, predictor_id=6, margin_model_path=None):
     """
     Make predictions for matches starting from specified year
     
@@ -562,7 +605,7 @@ def predict_matches(model_path, db_path, start_year, output_dir='.', save_to_db=
     None
     """
     # Load the predictor
-    predictor = AFLEloPredictor(model_path)
+    predictor = AFLEloPredictor(model_path, margin_model_path)
     
     # Get matches from database
     matches = fetch_matches(db_path, start_year)
@@ -668,11 +711,14 @@ def main():
                         help='Disable database saving, use CSV output instead')
     parser.add_argument('--predictor-id', type=int, default=6,
                         help='Predictor ID for database storage (default: 6 for ELO)')
-    
+    parser.add_argument('--margin-model', type=str, default=None,
+                    help='Path to the trained margin model JSON file (optional)')
+
     args = parser.parse_args()
     
     predict_matches(
         model_path=args.model_path,
+        margin_model_path=args.margin_model,
         db_path=args.db_path,
         start_year=args.start_year,
         output_dir=args.output_dir,

@@ -569,6 +569,40 @@ def parameter_tuning(data, param_grid, cv=5, max_combinations=None):
         'all_results': all_results
     }
 
+def train_margin_model(data, elo_model, margin_params):
+    """
+    Train margin prediction model using ELO model and margin parameters
+    
+    Parameters:
+    -----------
+    data: pandas DataFrame
+        Historical match data
+    elo_model: AFLEloModel
+        Trained ELO model for getting rating differences and probabilities
+    margin_params: dict
+        Margin prediction parameters from optimization
+        
+    Returns:
+    --------
+    dict: Trained margin model configuration
+    """
+    method = margin_params['best_method']
+    params = margin_params['parameters']
+    
+    print(f"\nTraining margin model using {method.upper().replace('_', ' ')} method...")
+    print("Margin parameters:")
+    for key, value in params.items():
+        print(f"  {key}: {value:.4f}")
+    
+    # Create margin model configuration
+    margin_model = {
+        'method': method,
+        'parameters': params,
+        'optimization_results': margin_params,
+        'elo_model_reference': True  # Indicates this margin model requires ELO model
+    }
+    
+    return margin_model
 
 def main():
     """Main function to train the ELO model"""
@@ -588,8 +622,10 @@ def main():
     parser.add_argument('--max-combinations', type=int, default=500,
                         help='Maximum number of parameter combinations to test (None for all)')
     parser.add_argument('--params-file', type=str, default=None,
-                    help='Load parameters from JSON file (from optimization)')
-    
+                        help='Load parameters from JSON file (from optimization)')
+    parser.add_argument('--margin-params', type=str, default=None,
+                        help='Load margin parameters from JSON file (from margin optimization)')
+
     args = parser.parse_args()
     
     print("AFL ELO Model Training")
@@ -717,6 +753,28 @@ def main():
     predictions_file = os.path.join(args.output_dir, f"{output_prefix}_predictions.csv")
     
     model.save_model(model_file)
+
+    # Train margin model if margin parameters provided
+    margin_model = None
+    if args.margin_params:
+        print(f"\nLoading margin parameters from {args.margin_params}...")
+        with open(args.margin_params, 'r') as f:
+            margin_data = json.load(f)
+        
+        print("Margin optimization results:")
+        print(f"  Best method: {margin_data['best_method'].upper().replace('_', ' ')}")
+        print(f"  Best MAE: {margin_data['margin_mae']:.2f}")
+        
+        # Train margin model
+        margin_model = train_margin_model(data, model, margin_data)
+        
+        # Save margin model
+        margin_model_file = os.path.join(args.output_dir, f"afl_elo_margin_model_{args.end_year}.json")
+        with open(margin_model_file, 'w') as f:
+            json.dump(margin_model, f, indent=4)
+        
+        print(f"Margin model saved to {margin_model_file}")
+
     print(f"\nModel saved to {model_file}")
     
     model.save_predictions_to_csv(predictions_file)

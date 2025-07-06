@@ -5,8 +5,14 @@ AFL ELO Bayesian Parameter Optimization
 Uses Bayesian optimization to efficiently find optimal ELO parameters.
 Much more efficient than grid search for high-dimensional parameter spaces.
 
+Extended to support margin prediction optimization.
+
 Usage:
+    # Standard ELO parameter optimization
     python3 afl_elo_optimize_bayesian.py --db-path data/afl_predictions.db --n-calls 100
+    
+    # Margin parameter optimization (after ELO optimization)
+    python3 afl_elo_optimize_bayesian.py --margin-mode --elo-params optimal_elo_params_bayesian.json --n-calls 50
 """
 
 import pandas as pd
@@ -22,7 +28,7 @@ from afl_elo_training import AFLEloModel, fetch_afl_data, train_elo_model
 from sklearn.model_selection import TimeSeriesSplit
 
 
-# Define the parameter search space
+# Define the ELO parameter search space (original name: space)
 space = [
     Integer(10, 50, name='k_factor'),
     Integer(0, 100, name='home_advantage'),
@@ -32,6 +38,120 @@ space = [
     Real(0.02, 0.08, name='beta'),
     Real(0.02, 0.08, name='margin_scale')
 ]
+
+# Define margin parameter search spaces
+margin_spaces = {
+    'simple': [Real(0.01, 0.1, name='scale_factor')],
+    'diminishing_returns': [Real(0.01, 0.1, name='beta')],  
+    'linear': [
+        Real(0.01, 0.1, name='slope'),
+        Real(-10, 10, name='intercept')
+    ]
+}
+
+
+def predict_margin_simple(rating_diff, scale_factor):
+    """Simple linear scaling method"""
+    return rating_diff * scale_factor
+
+
+def predict_margin_diminishing_returns(win_prob, beta):
+    """Diminishing returns method (Arc's approach)"""
+    return (win_prob - 0.5) / beta
+
+
+def predict_margin_linear(rating_diff, slope, intercept):
+    """Linear regression method"""
+    return rating_diff * slope + intercept
+
+
+def evaluate_margin_method_walkforward(params, method, elo_params, matches_df, verbose=False):
+    """
+    Evaluate margin prediction parameters using walk-forward validation
+    Returns Mean Absolute Error (lower is better)
+    """
+    # Ensure chronological order
+    matches_df = matches_df.sort_values(['year', 'match_date'])
+    
+    seasons = sorted(matches_df['year'].unique())
+    if len(seasons) < 2:
+        return np.inf  # Not enough data for walk-forward
+    
+    # All unique teams
+    all_teams = pd.concat([matches_df['home_team'], matches_df['away_team']]).unique()
+    
+    all_errors = []
+    
+    for i in range(len(seasons) - 1):
+        train_seasons = seasons[:i + 1]
+        test_season = seasons[i + 1]
+        
+        train_data = matches_df[matches_df['year'].isin(train_seasons)]
+        test_data = matches_df[matches_df['year'] == test_season]
+        
+        # Create fresh ELO model for this split
+        model = AFLEloModel(**elo_params)
+        model.initialize_ratings(all_teams)
+        
+        # Train ELO model on historical data
+        prev_year = None
+        for _, match in train_data.iterrows():
+            # Apply season carryover at the start of a new season
+            if prev_year is not None and match['year'] != prev_year:
+                model.apply_season_carryover(match['year'])
+            
+            model.update_ratings(
+                match['home_team'],
+                match['away_team'],
+                match['hscore'],
+                match['ascore'],
+                match['year'],
+                match_id=match.get('id'),
+                round_number=match.get('round'),
+                match_date=match.get('match_date'),
+                venue=match.get('venue')
+            )
+            prev_year = match['year']
+        
+        # Apply season carryover before predicting test season
+        if prev_year is not None and test_season != prev_year:
+            model.apply_season_carryover(test_season)
+        
+        # Predict margins on test season (no ELO rating updates)
+        predicted_margins = []
+        actual_margins = []
+        
+        for _, match in test_data.iterrows():
+            # Get ELO-based predictions
+            win_prob = model.calculate_win_probability(match['home_team'], match['away_team'])
+            
+            home_rating = model.team_ratings.get(match['home_team'], model.base_rating)
+            away_rating = model.team_ratings.get(match['away_team'], model.base_rating)
+            rating_diff = (home_rating + model.home_advantage) - away_rating
+            
+            # Apply margin prediction method
+            if method == 'simple':
+                predicted_margin = predict_margin_simple(rating_diff, params[0])
+            elif method == 'diminishing_returns':
+                predicted_margin = predict_margin_diminishing_returns(win_prob, params[0])
+            elif method == 'linear':
+                predicted_margin = predict_margin_linear(rating_diff, params[0], params[1])
+            else:
+                raise ValueError(f"Unknown method: {method}")
+            
+            actual_margin = match['hscore'] - match['ascore']
+            
+            predicted_margins.append(predicted_margin)
+            actual_margins.append(actual_margin)
+        
+        # Calculate MAE for this split
+        split_mae = np.mean(np.abs(np.array(predicted_margins) - np.array(actual_margins)))
+        all_errors.append(split_mae)
+        
+        if verbose:
+            print(f"Train ≤ {test_season - 1}, test {test_season}: MAE {split_mae:.2f}")
+    
+    return np.mean(all_errors) if all_errors else np.inf
 
 
 def evaluate_parameters_cv(params, matches_df, cv_folds=3, verbose=False):
@@ -91,50 +211,36 @@ def evaluate_parameters_cv(params, matches_df, cv_folds=3, verbose=False):
             if test_year != prev_year:
                 fold_model.apply_season_carryover(test_year)
         
-        # Test on validation data (NO UPDATES - pure prediction only)
+        # Predict on test data (no rating updates)
         test_probs = []
         test_results = []
-        
         for _, match in test_data.iterrows():
-            # Make prediction WITHOUT updating ratings
             prob = fold_model.calculate_win_probability(match['home_team'], match['away_team'])
-            test_probs.append(prob)
+            test_probs.append(max(min(prob, 0.999), 0.001))  # clip
             
-            # Actual result (1 for home win, 0 for away win)
             if match['hscore'] > match['ascore']:
-                result = 1.0
+                test_results.append(1.0)
             elif match['hscore'] < match['ascore']:
-                result = 0.0
+                test_results.append(0.0)
             else:
-                result = 0.5  # Draw
-            test_results.append(result)
-            
-            # DO NOT UPDATE RATINGS during test phase - this prevents data leakage
+                test_results.append(0.5)  # draw
         
-        # --- Brier score ---
-        test_probs = np.array(test_probs)
-        test_results = np.array(test_results)
-        fold_loss = np.mean((test_probs - test_results) ** 2)  # lower is better
+        # --- Brier score for this fold ---
+        test_probs_arr = np.array(test_probs)
+        test_results_arr = np.array(test_results)
+        cv_scores.append(np.mean((test_probs_arr - test_results_arr) ** 2))
+        
+        if verbose:
+            print(f"Fold {fold_idx + 1}: Brier score {cv_scores[-1]:.4f}")
     
-        cv_scores.append(fold_loss)
-    
-    # Return average CV score
-    avg_score = np.mean(cv_scores) if cv_scores else np.inf
-    
-    if verbose:
-        print(f"k={k_factor}, h={home_advantage}, m={margin_factor:.3f}, "
-              f"c={season_carryover:.3f}, max={max_margin}, b={beta:.4f} "
-              f"-> Brier: {avg_score:.4f}")
-    
-    return avg_score
+    return np.mean(cv_scores)
 
 
 def evaluate_parameters_walkforward(params, matches_df, verbose=False):
     """
-    Rolling‑origin (walk‑forward) evaluation.
-
+    Evaluate ELO parameters using walk-forward validation.
     Trains on seasons up to year N and tests on season N+1.
-    Returns the average log loss across all splits.
+    Returns the average Brier score across all splits.
     """
     k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale = params
 
@@ -221,24 +327,69 @@ def evaluate_parameters_walkforward(params, matches_df, verbose=False):
     return np.mean(split_losses) if split_losses else np.inf
 
 
-def calculate_log_loss(y_true, y_pred):
-    """Calculate log loss for predictions"""
-    epsilon = 1e-15  # Small value to avoid log(0)
-    losses = []
-    for true_val, pred_val in zip(y_true, y_pred):
-        # Clip predictions to avoid log(0)
-        pred_val = np.clip(pred_val, epsilon, 1 - epsilon)
+def optimize_margin_parameters(elo_params, matches_df, n_calls=50, verbose=True):
+    """
+    Optimize margin prediction parameters for all three methods
+    Returns the best method and its parameters
+    """
+    best_method = None
+    best_params = None
+    best_score = float('inf')
+    all_results = {}
+    
+    print("Testing margin prediction methods...")
+    
+    for method_name, space in margin_spaces.items():
+        print(f"\n{'='*50}")
+        print(f"OPTIMIZING: {method_name.upper().replace('_', ' ')} METHOD")
+        print(f"{'='*50}")
         
-        if true_val == 1.0:  # Home win
-            loss = -np.log(pred_val)
-        elif true_val == 0.0:  # Away win
-            loss = -np.log(1 - pred_val)
-        else:  # Draw - need different handling
-            # For binary predictions, you might want to exclude draws
-            # or use a different loss formulation
-            continue  # Skip draws for now
-        losses.append(loss)
-    return np.mean(losses) if losses else np.inf
+        iteration = [0]
+        
+        @use_named_args(space)
+        def objective(**params):
+            iteration[0] += 1
+            param_values = [params[name] for name in [dim.name for dim in space]]
+            
+            score = evaluate_margin_method_walkforward(
+                param_values, method_name, elo_params, matches_df, verbose=False
+            )
+            
+            if iteration[0] % 10 == 0 or iteration[0] == 1:
+                print(f"  Iteration {iteration[0]:3d}: MAE = {score:.2f}")
+            
+            return score
+        
+        # Run optimization for this method
+        result = gp_minimize(objective, space, n_calls=n_calls, random_state=42)
+        
+        all_results[method_name] = {
+            'score': result.fun,
+            'params': {space[i].name: result.x[i] for i in range(len(space))},
+            'result': result
+        }
+        
+        print(f"\n{method_name.upper().replace('_', ' ')} RESULTS:")
+        print(f"  Best MAE: {result.fun:.2f}")
+        print("  Best parameters:")
+        for i, dim in enumerate(space):
+            print(f"    {dim.name}: {result.x[i]:.4f}")
+        
+        if result.fun < best_score:
+            best_score = result.fun
+            best_method = method_name
+            best_params = all_results[method_name]['params']
+    
+    print(f"\n{'='*60}")
+    print("MARGIN OPTIMIZATION COMPLETE")
+    print(f"{'='*60}")
+    print(f"Best method: {best_method.upper().replace('_', ' ')}")
+    print(f"Best MAE: {best_score:.2f}")
+    print("Best parameters:")
+    for key, value in best_params.items():
+        print(f"  {key}: {value:.4f}")
+    
+    return best_method, best_params, best_score, all_results
 
 
 def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, cv_folds=3, n_starts=1):
@@ -414,40 +565,103 @@ def main():
     parser.add_argument('--n-starts', type=int, default=1,
                         help='Number of optimization runs with different random seeds (default: 1)')
     
+    # Margin optimization arguments
+    parser.add_argument('--margin-mode', action='store_true',
+                        help='Run margin parameter optimization instead of ELO optimization')
+    parser.add_argument('--elo-params', type=str,
+                        help='Path to existing ELO parameters JSON file (required for margin mode)')
+    parser.add_argument('--output-margin-params', type=str, default='data/optimal_elo_margin_params.json',
+                        help='Path to save optimal margin parameters (margin mode only)')
+    
     args = parser.parse_args()
     
-    # Run optimization
-    best_params, result = optimize_elo_bayesian(
-        args.db_path, 
-        args.start_year,
-        args.end_year,
-        args.n_calls,
-        args.cv_folds,
-        args.n_starts
-    )
-    
-    # Save results - convert all values to native Python types for JSON serialization
-    json_safe_params = {}
-    for key, value in best_params.items():
-        if hasattr(value, 'item'):  # NumPy scalar
-            json_safe_params[key] = value.item()
+    if args.margin_mode:
+        # Margin optimization mode
+        if not args.elo_params:
+            print("ERROR: --elo-params is required when using --margin-mode")
+            return
+        
+        # Load existing ELO parameters
+        print(f"Loading ELO parameters from: {args.elo_params}")
+        with open(args.elo_params, 'r') as f:
+            elo_data = json.load(f)
+            
+        if 'parameters' in elo_data:
+            elo_params = elo_data['parameters']
         else:
-            json_safe_params[key] = float(value) if isinstance(value, (int, float)) else value
-    
-    output_data = {
-        'parameters': json_safe_params,
-        'log_loss': float(result.fun),
-        'n_iterations': len(result.func_vals),
-        'optimization_method': 'bayesian',
-        'convergence_history': [float(x) for x in result.func_vals]
-    }
-    
-    with open(args.output_path, 'w') as f:
-        json.dump(output_data, f, indent=4)
-    
-    print(f"\nOptimal parameters saved to: {args.output_path}")
-    print("\nTo train a model with these parameters, run:")
-    print(f"python3 afl_elo_training.py --params-file {args.output_path}")
+            elo_params = elo_data
+            
+        print("ELO parameters:")
+        for key, value in elo_params.items():
+            print(f"  {key}: {value}")
+        
+        # Load match data
+        print(f"\nLoading match data from {args.start_year} to {args.end_year}...")
+        matches_df = fetch_afl_data(args.db_path, start_year=args.start_year, end_year=args.end_year)
+        print(f"Loaded {len(matches_df)} matches")
+        
+        # Run margin optimization
+        best_method, best_params, best_score, all_results = optimize_margin_parameters(
+            elo_params, matches_df, n_calls=args.n_calls
+        )
+        
+        # Save margin parameters
+        margin_data = {
+            'best_method': best_method,
+            'parameters': best_params,
+            'margin_mae': best_score,
+            'optimization_method': 'bayesian_margin',
+            'all_methods': {
+                method: {
+                    'mae': result['score'],
+                    'parameters': result['params']
+                }
+                for method, result in all_results.items()
+            }
+        }
+        
+        with open(args.output_margin_params, 'w') as f:
+            json.dump(margin_data, f, indent=4)
+        
+        print(f"\nMargin parameters saved to: {args.output_margin_params}")
+        print("\nTo train models with these parameters, run:")
+        print(f"python3 afl_elo_training.py --params-file {args.elo_params} --margin-params {args.output_margin_params}")
+        
+    else:
+        # Standard ELO optimization mode
+        best_params, result = optimize_elo_bayesian(
+            args.db_path, 
+            args.start_year,
+            args.end_year,
+            args.n_calls,
+            args.cv_folds,
+            args.n_starts
+        )
+        
+        # Save results - convert all values to native Python types for JSON serialization
+        json_safe_params = {}
+        for key, value in best_params.items():
+            if hasattr(value, 'item'):  # NumPy scalar
+                json_safe_params[key] = value.item()
+            else:
+                json_safe_params[key] = float(value) if isinstance(value, (int, float)) else value
+        
+        output_data = {
+            'parameters': json_safe_params,
+            'log_loss': float(result.fun),
+            'n_iterations': len(result.func_vals),
+            'optimization_method': 'bayesian',
+            'convergence_history': [float(x) for x in result.func_vals]
+        }
+        
+        with open(args.output_path, 'w') as f:
+            json.dump(output_data, f, indent=4)
+        
+        print(f"\nOptimal parameters saved to: {args.output_path}")
+        print("\nTo train a model with these parameters, run:")
+        print(f"python3 afl_elo_training.py --params-file {args.output_path}")
+        print("\nTo optimize margin parameters, run:")
+        print(f"python3 afl_elo_optimize_bayesian.py --margin-mode --elo-params {args.output_path}")
 
 
 if __name__ == '__main__':

@@ -1,0 +1,29 @@
+{
+    "best_method": "diminishing_returns",
+    "parameters": {
+        "beta": 0.01
+    },
+    "margin_mae": 32.165596885746176,
+    "optimization_method": "bayesian_margin",
+    "all_methods": {
+        "simple": {
+            "mae": 32.37112920217072,
+            "parameters": {
+                "scale_factor": 0.1
+            }
+        },
+        "diminishing_returns": {
+            "mae": 32.165596885746176,
+            "parameters": {
+                "beta": 0.01
+            }
+        },
+        "linear": {
+            "mae": 32.306072683604945,
+            "parameters": {
+                "slope": 0.1,
+                "intercept": 2.564365049360383
+            }
+        }
+    }
+}
