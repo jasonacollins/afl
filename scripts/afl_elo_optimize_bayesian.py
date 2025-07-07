@@ -28,23 +28,22 @@ from afl_elo_training import AFLEloModel, fetch_afl_data, train_elo_model
 from sklearn.model_selection import TimeSeriesSplit
 
 
-# Define the ELO parameter search space (original name: space)
-space = [
+# Define the ELO parameter search space
+elo_space = [
     Integer(10, 50, name='k_factor'),
     Integer(0, 100, name='home_advantage'),
     Real(0.1, 0.7, name='margin_factor'),
     Real(0.3, 0.95, name='season_carryover'),
     Integer(60, 180, name='max_margin'),
-    Real(0.02, 0.08, name='beta'),
-    Real(0.02, 0.08, name='margin_scale')
+    Real(0.02, 0.08, name='beta')
 ]
 
 # Define margin parameter search spaces
 margin_spaces = {
-    'simple': [Real(0.01, 0.1, name='scale_factor')],
-    'diminishing_returns': [Real(0.01, 0.1, name='beta')],  
+    'simple': [Real(0.01, 0.2, name='scale_factor')],
+    'diminishing_returns': [Real(0.005, 0.2, name='beta')],  
     'linear': [
-        Real(0.01, 0.1, name='slope'),
+        Real(0.01, 0.2, name='slope'),
         Real(-10, 10, name='intercept')
     ]
 }
@@ -159,7 +158,7 @@ def evaluate_parameters_cv(params, matches_df, cv_folds=3, verbose=False):
     Evaluate ELO parameters using cross-validation
     Returns log loss (lower is better)
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale = params
+    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta = params
     
     # Create time-based splits
     tscv = TimeSeriesSplit(n_splits=cv_folds)
@@ -179,8 +178,7 @@ def evaluate_parameters_cv(params, matches_df, cv_folds=3, verbose=False):
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
-            beta=beta,
-            margin_scale=margin_scale
+            beta=beta
         )
         fold_model.initialize_ratings(all_teams)
         
@@ -242,7 +240,7 @@ def evaluate_parameters_walkforward(params, matches_df, verbose=False):
     Trains on seasons up to year N and tests on season N+1.
     Returns the average Brier score across all splits.
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale = params
+    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta = params
 
     # Ensure chronological order
     matches_df = matches_df.sort_values(['year', 'match_date'])
@@ -270,8 +268,7 @@ def evaluate_parameters_walkforward(params, matches_df, verbose=False):
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
-            beta=beta,
-            margin_scale=margin_scale
+            beta=beta
         )
         model.initialize_ratings(all_teams)
 
@@ -432,7 +429,7 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         start_time = datetime.now()
         
         # Define objective function with decorators for named arguments
-        @use_named_args(space)
+        @use_named_args(elo_space)
         def objective(**params):
             iteration[0] += 1
             
@@ -443,11 +440,10 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
             season_carryover = params['season_carryover']
             max_margin = params['max_margin']
             beta = params['beta']
-            margin_scale = params['margin_scale']
             
             # Evaluate parameters
             score = evaluate_parameters_walkforward(
-                [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta, margin_scale],
+                [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta],
                 matches_df,
                 verbose=False
             )
@@ -467,35 +463,37 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         
         # Run Bayesian optimization for this start
         result = gp_minimize(
-            func=objective,
-            dimensions=space,
-            n_calls=n_calls,
-            n_initial_points=max(25, n_calls // 4),  # More initial exploration - at least 25 or 25% of calls
-            acq_func='EI',  # Expected Improvement for better exploration
-            xi=0.05,  # Exploration parameter - balance between exploitation and exploration
-            noise='gaussian',  # Handle noisy objectives
-            random_state=42 + start_idx  # Different seed for each start
+            func = objective,
+            dimensions = elo_space, # Note: Ensure this uses your 'elo_space' variable
+            n_calls = n_calls,
+            n_initial_points = max(25, n_calls // 4),  # More initial exploration
+            acq_func = 'EI',  # Expected Improvement for better exploration
+            xi = 0.05,  # Exploration-exploitation trade-off parameter
+            noise = 'gaussian',  # Handles noisy objectives
+            random_state = 42 + start_idx  # Different seed for each start
         )
         
-        # Store result for this start
+        # Store this result
         all_results.append(result)
         
-        # Update overall best
+        # Update overall best if this start found something better
         if result.fun < overall_best_score:
             overall_best_score = result.fun
             overall_best_params = result.x
         
-        print(f"\nStart {start_idx + 1} completed:")
+        elapsed = datetime.now() - start_time
+        print(f"\nStart {start_idx + 1} complete!")
         print(f"  Best score: {result.fun:.4f}")
-        print(f"  Best params: k={result.x[0]}, h={result.x[1]}, m={result.x[2]:.3f}, "
-            f"c={result.x[3]:.3f}, max={result.x[4]}, β={result.x[5]:.4f}, ms={result.x[6]:.4f}")
+        print(f"  Best parameters this start:")
+        for i, dim in enumerate(elo_space):
+            print(f"    {dim.name}: {result.x[i]:.4f}")
+        print(f"  Time elapsed: {elapsed}")
         print(f"  Overall best so far: {overall_best_score:.4f}")
     
-    # Find the best result across all starts
-    best_result = min(all_results, key=lambda x: x.fun)
-    result = best_result  # Use best result for final output
+    # Use the result object with the best score
+    result = min(all_results, key=lambda x: x.fun)
     
-    # Extract best parameters
+    # Convert to parameter dictionary
     best_params = {
         'k_factor': result.x[0],
         'home_advantage': result.x[1],
@@ -503,7 +501,6 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         'season_carryover': result.x[3],
         'max_margin': result.x[4],
         'beta': result.x[5],
-        'margin_scale': result.x[6],
         'base_rating': 1500
     }
     

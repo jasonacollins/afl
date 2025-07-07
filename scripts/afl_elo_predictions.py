@@ -98,22 +98,11 @@ class AFLEloPredictor:
     def predict_margin(self, home_team, away_team):
         """
         Predict match margin from rating difference
-        
-        Parameters:
-        -----------
-        home_team: str
-            Name of home team
-        away_team: str
-            Name of away team
-            
-        Returns:
-        --------
-        float: Predicted margin (positive = home win, negative = away win)
         """
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Use margin model if available, otherwise fall back to simple scaling
+        # Use margin model if available
         if self.margin_model:
             method = self.margin_model['method']
             params = self.margin_model['parameters']
@@ -134,13 +123,11 @@ class AFLEloPredictor:
                 predicted_margin = rating_diff * params['slope'] + params['intercept']
                 
             else:
-                # Fallback to simple scaling if unknown method
-                rating_diff = (home_rating + self.home_advantage) - away_rating
-                predicted_margin = rating_diff * self.margin_scale
+                raise ValueError(f"Unknown margin prediction method: {method}")
         else:
-            # Original method: Direct conversion from rating difference to expected margin
-            rating_diff = (home_rating + self.home_advantage) - away_rating
-            predicted_margin = rating_diff * self.margin_scale
+            # No margin model loaded - could either return 0 or raise an error
+            print("WARNING: No margin model loaded. Returning 0 for margin prediction.")
+            predicted_margin = 0
         
         return predicted_margin
 
@@ -683,7 +670,39 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
         correct_count = sum(1 for p in completed_predictions if p.get('correct', False))
         accuracy = correct_count / len(completed_predictions)
         
-        print(f"\nPrediction Accuracy on {len(completed_predictions)} completed matches: {accuracy:.4f}")
+        # Calculate Brier score
+        brier_scores = []
+        mae_scores = []
+        
+        for p in completed_predictions:
+            # Convert actual result to probability (1.0 for home win, 0.0 for away win, 0.5 for draw)
+            if p['actual_result'] == 'home_win':
+                actual_prob = 1.0
+            elif p['actual_result'] == 'away_win':
+                actual_prob = 0.0
+            else:  # draw
+                actual_prob = 0.5
+            
+            # Brier score: (predicted_prob - actual_prob)^2
+            predicted_prob = p['home_win_probability']
+            brier_score = (predicted_prob - actual_prob) ** 2
+            brier_scores.append(brier_score)
+            
+            # MAE for margin prediction (if margin data available)
+            if 'predicted_margin' in p and 'margin' in p:
+                mae = abs(p['predicted_margin'] - p['margin'])
+                mae_scores.append(mae)
+        
+        avg_brier = np.mean(brier_scores)
+        avg_mae = np.mean(mae_scores) if mae_scores else None
+        
+        print(f"\nPrediction Performance on {len(completed_predictions)} completed matches:")
+        print(f"  Accuracy: {accuracy:.4f}")
+        print(f"  Brier Score: {avg_brier:.4f}")
+        if avg_mae is not None:
+            print(f"  Margin MAE: {avg_mae:.2f}")
+        else:
+            print("  Margin MAE: No margin data available")
     else:
         print("\nNo completed matches found to evaluate prediction accuracy")
     

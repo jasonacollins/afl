@@ -1,0 +1,38 @@
+{
+    "method": "linear",
+    "parameters": {
+        "slope": 0.13608862230753804,
+        "intercept": -1.6894503499268065
+    },
+    "optimization_results": {
+        "best_method": "linear",
+        "parameters": {
+            "slope": 0.13608862230753804,
+            "intercept": -1.6894503499268065
+        },
+        "margin_mae": 32.13080831526523,
+        "optimization_method": "bayesian_margin",
+        "all_methods": {
+            "simple": {
+                "mae": 32.15235425594706,
+                "parameters": {
+                    "scale_factor": 0.12782644703520427
+                }
+            },
+            "diminishing_returns": {
+                "mae": 32.19064482797539,
+                "parameters": {
+                    "beta": 0.010097528555675235
+                }
+            },
+            "linear": {
+                "mae": 32.13080831526523,
+                "parameters": {
+                    "slope": 0.13608862230753804,
+                    "intercept": -1.6894503499268065
+                }
+            }
+        }
+    },
+    "elo_model_reference": true
+}

@@ -10,7 +10,7 @@ from datetime import datetime
 
 class AFLEloModel:
     def __init__(self, base_rating=1500, k_factor=20, home_advantage=50, 
-            margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05, margin_scale=0.04):
+            margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05):
         """
         Initialize the AFL ELO model with configurable parameters
         
@@ -38,7 +38,6 @@ class AFLEloModel:
         self.season_carryover = season_carryover
         self.max_margin = max_margin
         self.beta = beta
-        self.margin_scale = margin_scale
         self.team_ratings = {}
         self.yearly_ratings = {}
         self.rating_history = []
@@ -64,30 +63,6 @@ class AFLEloModel:
         win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
         
         return win_probability
-    
-    def predict_margin(self, home_team, away_team):
-        """
-        Predict match margin from rating difference
-        
-        Parameters:
-        -----------
-        home_team: str
-            Name of home team
-        away_team: str
-            Name of away team
-            
-        Returns:
-        --------
-        float: Predicted margin (positive = home win, negative = away win)
-        """
-        home_rating = self.team_ratings.get(home_team, self.base_rating)
-        away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Direct conversion from rating difference to expected margin
-        rating_diff = (home_rating + self.home_advantage) - away_rating
-        predicted_margin = rating_diff * self.margin_scale
-        
-        return predicted_margin
 
     def update_ratings(self, home_team, away_team, hscore, ascore, year, match_id=None, round_number=None, match_date=None, venue=None):
         """
@@ -173,7 +148,6 @@ class AFLEloModel:
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
             'confidence': max(home_win_prob, 1 - home_win_prob),
-            'predicted_margin': self.predict_margin(home_team, away_team),
             'actual_result': 'home_win' if hscore > ascore else ('away_win' if hscore < ascore else 'draw'),
             'correct': (home_win_prob > 0.5 and hscore > ascore) or (home_win_prob < 0.5 and hscore < ascore) or (home_win_prob == 0.5 and hscore == ascore),
             'margin': margin,
@@ -262,8 +236,7 @@ class AFLEloModel:
                 'margin_factor': self.margin_factor,
                 'season_carryover': self.season_carryover,
                 'max_margin': self.max_margin,
-                'beta': self.beta,
-                'margin_scale': self.margin_scale,
+                'beta': self.beta
             },
             'team_ratings': self.team_ratings,
             'yearly_ratings': self.yearly_ratings

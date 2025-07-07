@@ -1,28 +1,29 @@
 {
-    "best_method": "diminishing_returns",
+    "best_method": "linear",
     "parameters": {
-        "beta": 0.01
+        "slope": 0.13608862230753804,
+        "intercept": -1.6894503499268065
     },
-    "margin_mae": 32.165596885746176,
+    "margin_mae": 32.13080831526523,
     "optimization_method": "bayesian_margin",
     "all_methods": {
         "simple": {
-            "mae": 32.37112920217072,
+            "mae": 32.15235425594706,
             "parameters": {
-                "scale_factor": 0.1
+                "scale_factor": 0.12782644703520427
             }
         },
         "diminishing_returns": {
-            "mae": 32.165596885746176,
+            "mae": 32.19064482797539,
             "parameters": {
-                "beta": 0.01
+                "beta": 0.010097528555675235
             }
         },
         "linear": {
-            "mae": 32.306072683604945,
+            "mae": 32.13080831526523,
             "parameters": {
-                "slope": 0.1,
-                "intercept": 2.564365049360383
+                "slope": 0.13608862230753804,
+                "intercept": -1.6894503499268065
             }
         }
     }
