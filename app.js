@@ -210,10 +210,78 @@ app.get('/', catchAsync(async (req, res) => {
   const { predictor, matches, predictions } = 
     await featuredPredictionsService.getFeaturedPredictionsForRound(targetRound, currentYear);
   
+  // Calculate overall performance metrics for featured predictor
+  let featuredPredictorStats = null;
+  if (predictor) {
+    const predictionService = require('./services/prediction-service');
+    const scoringService = require('./services/scoring-service');
+    
+    // Get all predictions with results for this predictor for the current year
+    const predictionResults = await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, currentYear);
+    
+    if (predictionResults.length > 0) {
+      let tipPoints = 0;
+      let totalBrierScore = 0;
+      let totalBitsScore = 0;
+      let totalPredictions = predictionResults.length;
+      let marginErrorSum = 0;
+      let marginPredictionCount = 0;
+      
+      // Calculate metrics for each prediction
+      predictionResults.forEach(pred => {
+        const homeWon = pred.hscore > pred.ascore;
+        const awayWon = pred.hscore < pred.ascore;
+        const tie = pred.hscore === pred.ascore;
+        
+        // Determine outcome (1 if home team won, 0.5 if tie, 0 if away team won)
+        const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
+        
+        // Use scoring service
+        const brierScore = scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
+        totalBrierScore += brierScore;
+        
+        const bitsScore = scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
+        totalBitsScore += bitsScore;
+        
+        // Get tipped team (default to home if not stored)
+        const tippedTeam = pred.tipped_team || 'home';
+        
+        // Calculate tip points
+        const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
+        tipPoints += tipPointsForPred;
+        
+        // Calculate margin error if predicted_margin exists
+        if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
+          const actualMargin = pred.hscore - pred.ascore;
+          const marginError = Math.abs(actualMargin - pred.predicted_margin);
+          marginErrorSum += marginError;
+          marginPredictionCount++;
+        }
+      });
+      
+      // Calculate averages and percentages
+      const avgBrierScore = (totalBrierScore / totalPredictions).toFixed(4);
+      const bitsScoreSum = totalBitsScore.toFixed(2);
+      const tipAccuracy = ((tipPoints / totalPredictions) * 100).toFixed(1);
+      const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
+      
+      featuredPredictorStats = {
+        tipPoints,
+        totalPredictions,
+        tipAccuracy,
+        brierScore: avgBrierScore,
+        bitsScore: bitsScoreSum,
+        marginMAE: marginMAE,
+        marginPredictionCount: marginPredictionCount
+      };
+    }
+  }
+  
   res.render('home', { 
     user: req.session.user,
     isAdmin: req.session.isAdmin,
     featuredPredictor: predictor,
+    featuredPredictorStats: featuredPredictorStats,
     rounds: roundsWithStatus,
     selectedRound: targetRound,
     currentRound: currentRound,
@@ -221,6 +289,87 @@ app.get('/', catchAsync(async (req, res) => {
     predictions,
     currentYear
   });
+}));
+
+// API endpoint for featured predictor performance stats
+app.get('/api/featured-predictor-stats', catchAsync(async (req, res) => {
+  const selectedYear = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
+  
+  // Get featured predictor
+  const featuredPredictionsService = require('./services/featured-predictions');
+  const featuredPredictor = await featuredPredictionsService.getFeaturedPredictor();
+  
+  if (!featuredPredictor) {
+    return res.json({ success: false, message: 'No featured predictor found' });
+  }
+  
+  // Calculate performance metrics for the selected year
+  const predictionService = require('./services/prediction-service');
+  const scoringService = require('./services/scoring-service');
+  
+  // Get all predictions with results for this predictor for the selected year
+  const predictionResults = await predictionService.getPredictionsWithResultsForYear(featuredPredictor.predictor_id, selectedYear);
+  
+  if (predictionResults.length === 0) {
+    return res.json({ success: false, message: 'No prediction data available for this year' });
+  }
+  
+  let tipPoints = 0;
+  let totalBrierScore = 0;
+  let totalBitsScore = 0;
+  let totalPredictions = predictionResults.length;
+  let marginErrorSum = 0;
+  let marginPredictionCount = 0;
+  
+  // Calculate metrics for each prediction
+  predictionResults.forEach(pred => {
+    const homeWon = pred.hscore > pred.ascore;
+    const awayWon = pred.hscore < pred.ascore;
+    const tie = pred.hscore === pred.ascore;
+    
+    // Determine outcome (1 if home team won, 0.5 if tie, 0 if away team won)
+    const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
+    
+    // Use scoring service
+    const brierScore = scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
+    totalBrierScore += brierScore;
+    
+    const bitsScore = scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
+    totalBitsScore += bitsScore;
+    
+    // Get tipped team (default to home if not stored)
+    const tippedTeam = pred.tipped_team || 'home';
+    
+    // Calculate tip points
+    const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
+    tipPoints += tipPointsForPred;
+    
+    // Calculate margin error if predicted_margin exists
+    if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
+      const actualMargin = pred.hscore - pred.ascore;
+      const marginError = Math.abs(actualMargin - pred.predicted_margin);
+      marginErrorSum += marginError;
+      marginPredictionCount++;
+    }
+  });
+  
+  // Calculate averages and percentages
+  const avgBrierScore = (totalBrierScore / totalPredictions).toFixed(4);
+  const bitsScoreSum = totalBitsScore.toFixed(2);
+  const tipAccuracy = ((tipPoints / totalPredictions) * 100).toFixed(1);
+  const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
+  
+  const stats = {
+    tipPoints,
+    totalPredictions,
+    tipAccuracy,
+    brierScore: avgBrierScore,
+    bitsScore: bitsScoreSum,
+    marginMAE: marginMAE,
+    marginPredictionCount: marginPredictionCount
+  };
+  
+  res.json({ success: true, stats: stats });
 }));
 
 // Featured predictions route for AJAX updates

@@ -1,12 +1,12 @@
 {
     "model_type": "margin_only_elo",
     "parameters": {
-        "k_factor": 34,
-        "home_advantage": 49,
+        "k_factor": 34.0,
+        "home_advantage": 49.0,
         "season_carryover": 0.5,
         "margin_scale": 0.15593087226429303,
-        "max_margin": 65,
-        "base_rating": 1500
+        "max_margin": 65.0,
+        "base_rating": 1500.0
     },
     "mae": 30.11827121416681,
     "optimization_details": {

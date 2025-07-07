@@ -215,160 +215,21 @@ The application uses the Squiggle API (https://api.squiggle.com.au) to source ma
 
 ## ELO Predictions Model
 
-The application includes an ELO-based prediction model that can be trained on historical match data and used to make predictions for future matches. The model supports both traditional parameter tuning and advanced Bayesian optimization for efficient hyperparameter discovery.
+The application includes an advanced ELO-based prediction system using a dual-model approach:
+- **Standard ELO Model**: Optimized for win probability accuracy
+- **Margin-Only ELO Model**: Optimized specifically for margin prediction accuracy (MAE ~30.1)
 
-### Recommended Training Workflow (Bayesian Optimization)
+### Quick ELO Commands
+- `npm run daily-sync` - Complete daily synchronization (API refresh + ELO predictions + historical data)
+- `npm run import` - Initialize database with team data
+- `npm run sync-games` - Sync match data from Squiggle API
 
-The recommended approach uses Bayesian optimization for efficient parameter discovery:
-
-#### Step 1: Bayesian Parameter Optimization
-
-Find the best parameters using Bayesian optimization to efficiently explore the parameter space:
-
-```bash
-python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
-```
-
-Parameters:
-- `--n-calls`: Number of parameter combinations to test per start (default: 200)
-- `--n-starts`: Number of independent optimization runs with different random seeds (default: 1)
-- `--output-path`: Path to save optimal parameters (default: data/optimal_elo_params_bayesian.json)
-- `--start-year`: Start year for training data (default: 1990)
-- `--end-year`: End year for training data (default: 2024)
-- `--cv-folds`: Number of cross-validation folds (default: 3)
-
-This process:
-1. Uses Bayesian optimization to intelligently search parameter space
-2. Supports multi-start optimization for better global optimum discovery
-3. Tests parameter combinations efficiently across multiple independent runs
-4. Outputs optimal parameters to `optimal_elo_params_bayesian.json`
-5. Generates convergence plots to visualize optimization progress
-
-#### Step 2: Final Model Training
-
-Train the final model using the optimal parameters discovered in Step 1:
-
-```bash
-python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --end-year 2024 --output-dir data
-```
-
-#### Step 3: Generate Predictions
-
-Use the trained model to make predictions for future matches:
-
-```bash
-python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
-```
-
-### Complete Bayesian Workflow Examples
-
-#### Basic Single-Start Optimization
-```bash
-# Step 1: Find optimal parameters (100 evaluations)
-python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
-
-# Step 2: Find optimal margin parameters with 3 independent runs (50 total evaulations)
-python3 scripts/afl_elo_optimize_bayesian.py --margin-mode --elo-params data/optimal_elo_params_bayesian.json --n-calls 50 --output-margin-params data/optimal_elo_margin_params.json
-
-# Step 3: Train final model with optimal parameters
-python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --margin-params data/optimal_elo_margin_params.json --end-year 2024 --output-dir data
-
-# Step 4: Generate predictions with trained model
-python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --margin-model data/afl_elo_margin_model_2024.json --output-dir data
-```
-
-#### Multi-Start Optimization (Recommended)
-```bash
-# Step 1: Find optimal parameters with 3 independent runs (300 total evaluations)
-python3 scripts/afl_elo_optimize_bayesian.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_bayesian.json
-
-# Step 2: Find optimal margin parameters with 3 independent runs (150 total evaulations)
-python3 scripts/afl_elo_optimize_bayesian.py --margin-mode --elo-params data/optimal_elo_params_bayesian.json --n-calls 50 --n-starts 3 --output-margin-params data/optimal_elo_margin_params.json
-
-# Step 3: Train final model with optimal parameters
-python3 scripts/afl_elo_training.py --params-file data/optimal_elo_params_bayesian.json --margin-params data/optimal_elo_margin_params.json --end-year 2024 --output-dir data
-
-# Step 4: Generate predictions using BOTH models
-python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --margin-model data/afl_elo_margin_model_2024.json --output-dir data
-```
-
-### Traditional Training Method
-
-The original training method is still available for backward compatibility:
-
-```bash
-python3 scripts/afl_elo_training.py --start-year 1990 --end-year 2024 --output-dir scripts
-```
-
-Parameters:
-- `--start-year`: The start year for training data (default: 1990)
-- `--end-year`: The end year for training data (inclusive)
-- `--output-dir`: Directory to save output files
-- `--no-tune-parameters`: Skip parameter tuning (faster but may give worse results)
-- `--cv-folds`: Number of cross-validation folds for parameter tuning (default: 3)
-- `--max-combinations`: Maximum number of parameter combinations to test (default: 500)
-
-The traditional training process will:
-1. Find optimal parameters using cross-validation (unless `--no-tune-parameters` is specified)
-2. Train the model on all data from the start year to the end year
-3. Output a model file (e.g., `afl_elo_trained_to_2024.json`) and predictions file
-
-Example with all parameters:
-```bash
-python3 scripts/afl_elo_training.py --start-year 1990 --end-year 2024 --output-dir scripts --cv-folds 5 --max-combinations 1000
-```
-
-### Making Predictions
-
-Once a model is trained, you can use it to make predictions for future matches:
-
-```bash
-python3 scripts/afl_elo_predictions.py --start-year 2025 --model-path scripts/afl_elo_trained_to_2024.json --output-dir scripts
-```
-
-Parameters:
-- `--start-year`: Start year for predictions (inclusive)
-- `--model-path`: Path to the trained ELO model JSON file
-- `--db-path`: Path to the SQLite database (default: `../data/afl_predictions.db`)
-- `--output-dir`: Directory to save output files
-
-The prediction process will:
-1. Load the trained model
-2. Make predictions for all matches from the start year onwards
-3. Generate two output files:
-   - Predictions file (e.g., `afl_elo_predictions_from_2025.csv`)
-   - Rating history file (e.g., `afl_elo_rating_history_from_2025.csv`)
-
-### Generating Historical ELO Data
-
-To generate complete ELO rating history for charting and analysis purposes:
-
-```bash
-python3 scripts/afl_elo_history_generator.py --model-path scripts/afl_elo_trained_to_2024.json --output-dir scripts
-```
-
-Parameters:
-- `--model-path`: Path to the trained ELO model JSON file containing optimal parameters
-- `--start-year`: Start year for history generation (optional, defaults to all available data)
-- `--end-year`: End year for history generation (optional, defaults to all available data)
-- `--db-path`: Path to the SQLite database (default: `data/afl_predictions.db`)
-- `--output-dir`: Directory to save output files (default: current directory)
-- `--output-prefix`: Prefix for output files (default: `afl_elo_complete_history`)
-
-This generates comprehensive ELO history files:
-- CSV format for easy data analysis and charting
-- Complete match-by-match rating changes for every team
-- Season carryover events between years
-- Team performance summaries
-
-Examples:
-```bash
-# Generate full history from 1990-2025
-python3 scripts/afl_elo_history_generator.py --model-path scripts/afl_elo_trained_to_2024.json
-
-# Generate specific year range
-python3 scripts/afl_elo_history_generator.py --model-path scripts/afl_elo_trained_to_2024.json --start-year 2020 --end-year 2024
-```
+### Detailed ELO Documentation
+For comprehensive ELO model training, optimization, and prediction workflows, see **[scripts/CLAUDE.md](scripts/CLAUDE.md)**. This includes:
+- Complete step-by-step training workflow
+- Script parameters and usage instructions
+- Margin prediction methods explanation
+- Troubleshooting guides and performance tips
 
 ## ELO Chart Visualization
 

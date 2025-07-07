@@ -81,7 +81,8 @@ async function getFeaturedPredictionsForRound(round, year) {
     predictions.forEach(pred => {
       predictionsMap[pred.match_id] = {
         probability: pred.home_win_probability,
-        tipped_team: pred.tipped_team || 'home'
+        tipped_team: pred.tipped_team || 'home',
+        predicted_margin: pred.predicted_margin
       };
     });
     

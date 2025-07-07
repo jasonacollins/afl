@@ -205,6 +205,8 @@ router.get('/stats', catchAsync(async (req, res) => {
     let totalBrierScore = 0;
     let totalBitsScore = 0;
     let totalPredictions = predictionResults.length;
+    let marginErrorSum = 0;
+    let marginPredictionCount = 0;
     
     // Calculate metrics for each prediction
     predictionResults.forEach(pred => {
@@ -228,12 +230,21 @@ router.get('/stats', catchAsync(async (req, res) => {
       // Calculate tip points
       const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
       tipPoints += tipPointsForPred;
+      
+      // Calculate margin error if predicted_margin exists
+      if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
+        const actualMargin = pred.hscore - pred.ascore;
+        const marginError = Math.abs(actualMargin - pred.predicted_margin);
+        marginErrorSum += marginError;
+        marginPredictionCount++;
+      }
     });
     
     // Calculate averages and percentages
     const avgBrierScore = totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0;
     const bitsScoreSum = totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0;
     const tipAccuracy = totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0;
+    const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
     
     predictorStats.push({
       id: predictor.predictor_id,
@@ -243,7 +254,9 @@ router.get('/stats', catchAsync(async (req, res) => {
       totalPredictions,
       tipAccuracy,
       brierScore: avgBrierScore,
-      bitsScore: bitsScoreSum
+      bitsScore: bitsScoreSum,
+      marginMAE: marginMAE,
+      marginPredictionCount: marginPredictionCount
     });
   }
   
@@ -312,6 +325,8 @@ router.get('/stats', catchAsync(async (req, res) => {
       let totalBrierScore = 0;
       let totalBitsScore = 0;
       let totalPredictions = roundPredictionResults.length;
+      let marginErrorSum = 0;
+      let marginPredictionCount = 0;
       
       // Calculate metrics for each prediction in this round
       roundPredictionResults.forEach(pred => {
@@ -335,12 +350,21 @@ router.get('/stats', catchAsync(async (req, res) => {
         // Calculate tip points
         const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
         tipPoints += tipPointsForPred;
+        
+        // Calculate margin error if predicted_margin exists
+        if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
+          const actualMargin = pred.hscore - pred.ascore;
+          const marginError = Math.abs(actualMargin - pred.predicted_margin);
+          marginErrorSum += marginError;
+          marginPredictionCount++;
+        }
       });
       
       // Calculate averages and percentages for round
       const avgBrierScore = totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0;
       const bitsScoreSum = totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0;
       const tipAccuracy = totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0;
+      const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
       
       roundPredictorStats.push({
         id: predictor.predictor_id,
@@ -350,7 +374,9 @@ router.get('/stats', catchAsync(async (req, res) => {
         totalPredictions,
         tipAccuracy,
         brierScore: avgBrierScore,
-        bitsScore: bitsScoreSum
+        bitsScore: bitsScoreSum,
+        marginMAE: marginMAE,
+        marginPredictionCount: marginPredictionCount
       });
     }
     
@@ -419,6 +445,8 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
     let totalBrierScore = 0;
     let totalBitsScore = 0;
     let totalPredictions = roundPredictionResults.length;
+    let marginErrorSum = 0;
+    let marginPredictionCount = 0;
     
     // Calculate metrics for each prediction in this round
     roundPredictionResults.forEach(pred => {
@@ -442,12 +470,21 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
       // Calculate tip points
       const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
       tipPoints += tipPointsForPred;
+      
+      // Calculate margin error if predicted_margin exists
+      if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
+        const actualMargin = pred.hscore - pred.ascore;
+        const marginError = Math.abs(actualMargin - pred.predicted_margin);
+        marginErrorSum += marginError;
+        marginPredictionCount++;
+      }
     });
     
     // Calculate averages and percentages for round
     const avgBrierScore = totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0;
     const bitsScoreSum = totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0;
     const tipAccuracy = totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0;
+    const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
     
     roundPredictorStats.push({
       id: predictor.predictor_id,
@@ -457,7 +494,9 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
       totalPredictions,
       tipAccuracy,
       brierScore: avgBrierScore,
-      bitsScore: bitsScoreSum
+      bitsScore: bitsScoreSum,
+      marginMAE: marginMAE,
+      marginPredictionCount: marginPredictionCount
     });
   }
   

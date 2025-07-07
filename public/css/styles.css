@@ -547,6 +547,12 @@ textarea {
   font-weight: 600;
 }
 
+/* Center align numerical columns (3rd column onwards) */
+.stats-table th:nth-child(n+3),
+.stats-table td:nth-child(n+3) {
+  text-align: center;
+}
+
 .stats-heading {
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;

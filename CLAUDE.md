@@ -21,10 +21,12 @@ For comprehensive project information including architecture, features, and setu
 - `npm run daily-sync` - Run comprehensive daily synchronization: API refresh, ELO predictions, and historical data regeneration (`scripts/daily-sync.js`)
 
 ### ELO Model Scripts
-- `python3 scripts/afl_elo_optimize_bayesian.py` - Find optimal ELO parameters using Bayesian optimization with multi-start support
-- `python3 scripts/afl_elo_training.py` - Train ELO model with optimal parameters
-- `python3 scripts/afl_elo_predictions.py` - Generate ELO predictions for future matches
-- `python3 scripts/afl_elo_history_generator.py` - Generate comprehensive historical ELO data for charting
+For detailed documentation on ELO model training, optimization, and prediction workflows, see **[scripts/CLAUDE.md](scripts/CLAUDE.md)**. This includes complete workflow instructions, script parameters, and troubleshooting guides.
+
+**Quick ELO Commands:**
+- `npm run daily-sync` - Run comprehensive daily synchronization (recommended)
+- `npm run import` - Initialize database with team data  
+- `npm run sync-games` - Sync match data from Squiggle API
 
 ### Docker Commands
 - `docker-compose up -d` - Start containerized application

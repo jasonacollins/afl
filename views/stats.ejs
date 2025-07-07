@@ -41,9 +41,10 @@
               <th>Name</th>
               <th>Brier Score</th>
               <th>Bits Score</th>
-              <th>Tips</th>
+              <th>Correct Tips</th>
+              <th>Total Tips</th>
               <th>Tip Accuracy</th>
-              <th>Predictions</th>
+              <th>Margin MAE</th>
             </tr>
           </thead>
           <tbody>
@@ -58,8 +59,9 @@
                 <td><%= stats.brierScore %></td>
                 <td><%= stats.bitsScore %></td>
                 <td><%= stats.tipPoints %></td>
-                <td><%= stats.tipAccuracy %>%</td>
                 <td><%= stats.totalPredictions %></td>
+                <td><%= stats.tipAccuracy %>%</td>
+                <td><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
               </tr>
             <% 
                 }
@@ -74,6 +76,7 @@
             <li><strong>Tip Accuracy:</strong> Percentage of correct tips. A full point is awarded if it was a draw.</li>
             <li><strong>Brier Score:</strong> Measures accuracy of probabilistic predictions - lower is better (0 is perfect).</li>
             <li><strong>Bits Score:</strong> Information-based scoring - higher is better.</li>
+            <li><strong>Margin MAE:</strong> Mean Absolute Error for margin predictions - average difference between predicted and actual margins. Lower is better. Shows "-" if no margin predictions.</li>
           </ul>
         </div>
       <% } %>
@@ -124,9 +127,10 @@
                     <th>Name</th>
                     <th>Brier Score</th>
                     <th>Bits Score</th>
-                    <th>Tips</th>
+                    <th>Correct Tips</th>
+                    <th>Total Tips</th>
                     <th>Tip Accuracy</th>
-                    <th>Predictions</th>
+                    <th>Margin MAE</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -141,8 +145,9 @@
                       <td><%= stats.brierScore %></td>
                       <td><%= stats.bitsScore %></td>
                       <td><%= stats.tipPoints %></td>
-                      <td><%= stats.tipAccuracy %>%</td>
                       <td><%= stats.totalPredictions %></td>
+                      <td><%= stats.tipAccuracy %>%</td>
+                      <td><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
                     </tr>
                   <% 
                       }
@@ -301,9 +306,10 @@ function updateRoundStatsTable(data) {
           <th>Name</th>
           <th>Brier Score</th>
           <th>Bits Score</th>
-          <th>Tips</th>
+          <th>Correct Tips</th>
+          <th>Total Tips</th>
           <th>Tip Accuracy</th>
-          <th>Predictions</th>
+          <th>Margin MAE</th>
         </tr>
       </thead>
       <tbody>`;
@@ -319,8 +325,9 @@ function updateRoundStatsTable(data) {
           <td>${stats.brierScore}</td>
           <td>${stats.bitsScore}</td>
           <td>${stats.tipPoints}</td>
-          <td>${stats.tipAccuracy}%</td>
           <td>${stats.totalPredictions}</td>
+          <td>${stats.tipAccuracy}%</td>
+          <td>${stats.marginMAE !== null ? stats.marginMAE : '-'}</td>
         </tr>`;
     }
   });

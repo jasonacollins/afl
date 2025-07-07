@@ -277,6 +277,21 @@ def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_
         print(f"  Best MAE: {result.fun:.4f}")
         print(f"  Iterations: {len(result.func_vals)}")
         
+        # Show best parameters for this start
+        start_best_params = {
+            'k_factor': int(result.x[0]),
+            'home_advantage': int(result.x[1]),
+            'season_carryover': float(result.x[2]),
+            'margin_scale': float(result.x[3]),
+            'max_margin': int(result.x[4])
+        }
+        print(f"  Best parameters for this start:")
+        for key, value in start_best_params.items():
+            if isinstance(value, float):
+                print(f"    {key}: {value:.4f}")
+            else:
+                print(f"    {key}: {value}")
+        
         if result.fun < overall_best_score:
             overall_best_score = result.fun
             overall_best_params = result.x
@@ -352,31 +367,12 @@ def main():
         args.n_starts
     )
     
-    # Save results - convert all values to native Python types for JSON serialization
-    json_safe_params = {}
+    # Convert best_params values to native Python types for JSON serialization
     for key, value in best_params.items():
         if hasattr(value, 'item'):  # NumPy scalar
-            json_safe_params[key] = value.item()
+            best_params[key] = value.item()
         else:
-            json_safe_params[key] = float(value) if isinstance(value, (int, float)) else value
-    
-    output_data = {
-        'parameters': json_safe_params,
-        'mae': float(result.fun),
-        'n_iterations': len(result.func_vals),
-        'optimization_method': 'bayesian_margin_only',
-        'convergence_history': [float(x) for x in result.func_vals]
-    }
-    
-    with open(args.output_path, 'w') as f:
-        json.dump(output_data, f, indent=4)
-    
-    print(f"\nOptimal margin parameters saved to: {args.output_path}")
-    print("\nTo train a margin-only model with these parameters, run:")
-    print(f"python3 scripts/afl_elo_training_margin_only.py --params-file {args.output_path} --end-year {args.end_year}")
-    print("\nTo compare with the two-stage approach:")
-    print("1. Run predictions using both models independently")
-    print("2. Compare the margin MAE between approaches")
+            best_params[key] = float(value) if isinstance(value, (int, float)) else value
     
     # Total optimization time
     total_time = (datetime.now() - start_time).total_seconds() / 60
@@ -395,7 +391,7 @@ def main():
     except ImportError:
         print("\nInstall matplotlib to see convergence plots")
     
-    # Save results
+    # Save results with correct structure
     output_data = {
         'model_type': 'margin_only_elo',
         'parameters': best_params,

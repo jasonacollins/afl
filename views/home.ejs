@@ -16,6 +16,47 @@
   </div>
 
   <% if (locals.featuredPredictor) { %>
+    <!-- Featured Predictor Performance Card -->
+    <% if (locals.featuredPredictorStats) { %>
+      <div class="performance-card">
+        <div class="performance-header">
+          <h2><%= featuredPredictor.display_name %>'s Performance</h2>
+          <div class="year-selector-performance">
+            <select id="performance-year-selector" onchange="updatePerformanceYear(this.value)">
+              <option value="<%= currentYear %>" selected><%= currentYear %></option>
+              <% if (currentYear > 2022) { %>
+                <% for (let year = currentYear - 1; year >= 2022; year--) { %>
+                  <option value="<%= year %>"><%= year %></option>
+                <% } %>
+              <% } %>
+            </select>
+          </div>
+        </div>
+        <div class="performance-metrics" id="performance-metrics-container">
+          <div class="metric">
+            <div class="metric-label">Tip Accuracy</div>
+            <div class="metric-value"><%= featuredPredictorStats.tipAccuracy %>%</div>
+            <div class="metric-detail"><%= featuredPredictorStats.tipPoints %>/<%= featuredPredictorStats.totalPredictions %> correct</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Brier Score</div>
+            <div class="metric-value"><%= featuredPredictorStats.brierScore %></div>
+            <div class="metric-detail">Lower is better</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Bits Score</div>
+            <div class="metric-value"><%= featuredPredictorStats.bitsScore %></div>
+            <div class="metric-detail">Higher is better</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Margin MAE</div>
+            <div class="metric-value"><%= featuredPredictorStats.marginMAE !== null ? featuredPredictorStats.marginMAE : '-' %></div>
+            <div class="metric-detail"><%= featuredPredictorStats.marginMAE !== null ? 'Lower is better' : 'No margin predictions' %></div>
+          </div>
+        </div>
+      </div>
+    <% } %>
+    
     <div class="predictions-viewer">
       <h2>Featured Predictions</h2>
       
@@ -48,7 +89,9 @@
                 <th style="text-align: left;">Match</th>
                 <th style="text-align: center;">Result</th>
                 <th style="text-align: center;">Prediction</th>
-                <th style="text-align: center;">Accuracy</th>
+                <th style="text-align: center;">Win Accuracy</th>
+                <th style="text-align: center;">Predicted Margin</th>
+                <th style="text-align: center;">Margin Accuracy</th>
                 </tr>
             </thead>
           <tbody>
@@ -90,7 +133,7 @@
                         No prediction
                     <% } %>
                   </td>
-                  <td class="accuracy">
+                  <td class="win-accuracy">
                     <% if (match.hscore !== null && match.ascore !== null && predictions[match.match_id] && match.metrics) { %>
                       <% if (match.metrics.correct) { %>
                         <div class="correct">✓ Correct</div>
@@ -106,11 +149,35 @@
                       -
                     <% } %>
                   </td>
+                  <td class="margin">
+                    <% if (predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && predictions[match.match_id].predicted_margin !== undefined) { %>
+                        <% const margin = predictions[match.match_id].predicted_margin %>
+                        <% if (margin > 0) { %>
+                            +<%= Math.abs(margin).toFixed(1) %> pts
+                        <% } else if (margin < 0) { %>
+                            -<%= Math.abs(margin).toFixed(1) %> pts
+                        <% } else { %>
+                            0.0 pts
+                        <% } %>
+                    <% } else { %>
+                        -
+                    <% } %>
+                  </td>
+                  <td class="margin-accuracy">
+                    <% if (match.hscore !== null && match.ascore !== null && predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && predictions[match.match_id].predicted_margin !== undefined) { %>
+                        <% const actualMargin = match.hscore - match.ascore %>
+                        <% const predictedMargin = predictions[match.match_id].predicted_margin %>
+                        <% const mae = Math.abs(actualMargin - predictedMargin) %>
+                        MAE: <%= mae.toFixed(1) %>
+                    <% } else { %>
+                        -
+                    <% } %>
+                  </td>
                 </tr>
               <% }) %>
             <% } else { %>
               <tr>
-                <td colspan="4" style="text-align: center; padding: 2rem;">No matches available for this round</td>
+                <td colspan="6" style="text-align: center; padding: 2rem;">No matches available for this round</td>
               </tr>
             <% } %>
           </tbody>
@@ -196,7 +263,9 @@
             <th style="text-align: left;">Match</th>
             <th style="text-align: center;">Result</th>
             <th style="text-align: center;">Prediction</th>
-            <th style="text-align: center;">Accuracy</th>
+            <th style="text-align: center;">Win Accuracy</th>
+            <th style="text-align: center;">Predicted Margin</th>
+            <th style="text-align: center;">Margin Accuracy</th>
             </tr>
           </thead>
           <tbody>
@@ -253,25 +322,50 @@
             resultHtml = `${match.hscore} - ${match.ascore}`;
           }
           
-          // Accuracy
-          let accuracyHtml = '-';
+          // Win Accuracy
+          let winAccuracyHtml = '-';
           if (match.hscore !== null && match.ascore !== null && 
               predictions[match.match_id] && match.metrics) {
             
             if (match.metrics.correct) {
-              accuracyHtml = `<div class="correct">✓ Correct</div>`;
+              winAccuracyHtml = `<div class="correct">✓ Correct</div>`;
             } else if (match.metrics.partial) {
-              accuracyHtml = `<div class="partial">◑ Draw</div>`;
+              winAccuracyHtml = `<div class="partial">◑ Draw</div>`;
             } else {
-              accuracyHtml = `<div class="incorrect">✗ Incorrect</div>`;
+              winAccuracyHtml = `<div class="incorrect">✗ Incorrect</div>`;
             }
             
-            accuracyHtml += `
+            winAccuracyHtml += `
               <div class="metrics">
                 Brier: ${match.metrics.brierScore.toFixed(4)} | 
                 Bits: ${match.metrics.bitsScore.toFixed(4)}
               </div>
             `;
+          }
+          
+          // Margin
+          let marginHtml = '-';
+          if (predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && 
+              predictions[match.match_id].predicted_margin !== undefined) {
+            const margin = predictions[match.match_id].predicted_margin;
+            if (margin > 0) {
+              marginHtml = `+${Math.abs(margin).toFixed(1)} pts`;
+            } else if (margin < 0) {
+              marginHtml = `-${Math.abs(margin).toFixed(1)} pts`;
+            } else {
+              marginHtml = `0.0 pts`;
+            }
+          }
+          
+          // Margin Accuracy
+          let marginAccuracyHtml = '-';
+          if (match.hscore !== null && match.ascore !== null && 
+              predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && 
+              predictions[match.match_id].predicted_margin !== undefined) {
+            const actualMargin = match.hscore - match.ascore;
+            const predictedMargin = predictions[match.match_id].predicted_margin;
+            const mae = Math.abs(actualMargin - predictedMargin);
+            marginAccuracyHtml = `MAE: ${mae.toFixed(1)}`;
           }
           
           tableHtml += `
@@ -282,14 +376,16 @@
               </td>
               <td class="score">${resultHtml}</td>
               <td class="prediction">${predictionHtml}</td>
-              <td class="accuracy">${accuracyHtml}</td>
+              <td class="win-accuracy">${winAccuracyHtml}</td>
+              <td class="margin">${marginHtml}</td>
+              <td class="margin-accuracy">${marginAccuracyHtml}</td>
             </tr>
           `;
         });
       } else {
         tableHtml += `
           <tr>
-            <td colspan="4" style="text-align: center; padding: 2rem;">No matches available for this round</td>
+            <td colspan="6" style="text-align: center; padding: 2rem;">No matches available for this round</td>
           </tr>
         `;
       }
@@ -300,6 +396,59 @@
       `;
       
       document.getElementById('predictions-table-container').innerHTML = tableHtml;
+    }
+    
+    // Function to update performance card when year changes
+    function updatePerformanceYear(selectedYear) {
+      const container = document.getElementById('performance-metrics-container');
+      
+      // Show loading state
+      container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">Loading performance data...</div>';
+      
+      // Fetch performance data for selected year
+      fetch(`/api/featured-predictor-stats?year=${selectedYear}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.stats) {
+            updatePerformanceMetrics(data.stats);
+          } else {
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No performance data available for this year.</div>';
+          }
+        })
+        .catch(error => {
+          console.error('Error loading performance data:', error);
+          container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">Error loading performance data.</div>';
+        });
+    }
+    
+    // Function to update performance metrics display
+    function updatePerformanceMetrics(stats) {
+      const container = document.getElementById('performance-metrics-container');
+      
+      const metricsHtml = `
+        <div class="metric">
+          <div class="metric-label">Tip Accuracy</div>
+          <div class="metric-value">${stats.tipAccuracy}%</div>
+          <div class="metric-detail">${stats.tipPoints}/${stats.totalPredictions} correct</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Brier Score</div>
+          <div class="metric-value">${stats.brierScore}</div>
+          <div class="metric-detail">Lower is better</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Bits Score</div>
+          <div class="metric-value">${stats.bitsScore}</div>
+          <div class="metric-detail">Higher is better</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Margin MAE</div>
+          <div class="metric-value">${stats.marginMAE !== null ? stats.marginMAE : '-'}</div>
+          <div class="metric-detail">${stats.marginMAE !== null ? 'Lower is better' : 'No margin predictions'}</div>
+        </div>
+      `;
+      
+      container.innerHTML = metricsHtml;
     }
   </script>
 <% } %>
@@ -431,9 +580,21 @@
     text-align: center;
   }
     
-  /* Accuracy column - align center */
+  /* Win Accuracy column - align center */
   .predictions-table th:nth-child(4),
   .predictions-table td:nth-child(4) {
+    text-align: center;
+  }
+    
+  /* Margin column - align center */
+  .predictions-table th:nth-child(5),
+  .predictions-table td:nth-child(5) {
+    text-align: center;
+  }
+    
+  /* Margin Accuracy column - align center */
+  .predictions-table th:nth-child(6),
+  .predictions-table td:nth-child(6) {
     text-align: center;
   }
 
@@ -455,8 +616,19 @@
     text-align: center;
   }
   
-  .accuracy {
+  .win-accuracy {
     text-align: center;
+  }
+  
+  .margin {
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  
+  .margin-accuracy {
+    text-align: center;
+    font-size: 0.9rem;
   }
   
   .metrics {
@@ -477,6 +649,122 @@
   .partial {
     color: var(--warning-color);
     font-weight: bold;
+  }
+  
+  /* Performance Card Styles */
+  .performance-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border-left: 4px solid var(--primary-color);
+  }
+  
+  .performance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .performance-card h2 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 1.3rem;
+  }
+  
+  .year-selector-performance {
+    display: flex;
+    align-items: center;
+  }
+  
+  .year-selector-performance select {
+    padding: 0.4rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: white;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  
+  .year-selector-performance select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+  
+  .performance-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  
+  .metric {
+    text-align: center;
+    padding: 1rem;
+    background-color: var(--background-light);
+    border-radius: 6px;
+    transition: transform 0.2s ease;
+  }
+  
+  .metric:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .metric-label {
+    font-size: 0.9rem;
+    color: var(--light-text);
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .metric-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 0.3rem;
+  }
+  
+  .metric-detail {
+    font-size: 0.8rem;
+    color: var(--light-text);
+    font-style: italic;
+  }
+  
+  @media (max-width: 768px) {
+    .performance-header {
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .performance-metrics {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+    
+    .metric {
+      padding: 0.8rem;
+    }
+    
+    .metric-value {
+      font-size: 1.5rem;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .performance-metrics {
+      grid-template-columns: 1fr;
+      gap: 0.8rem;
+    }
   }
 </style>
 

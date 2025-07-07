@@ -2,7 +2,7 @@ import json
 import sqlite3
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import argparse
 
@@ -20,7 +20,14 @@ class AFLEloPredictor:
             Path to the saved margin model JSON file
         """
         self.margin_model = None
-        self.load_model(model_path)
+        self.is_margin_only_model = False
+        
+        # Initialize empty attributes in case loading fails
+        self.team_ratings = {}
+        self.params = {}
+        
+        if not self.load_model(model_path):
+            raise ValueError(f"Failed to load ELO model from {model_path}")
         
         # Load margin model if provided
         if margin_model_path:
@@ -40,24 +47,45 @@ class AFLEloPredictor:
             with open(model_path, 'r') as f:
                 model_data = json.load(f)
             
+            # Check if this is a margin-only model
+            self.is_margin_only_model = model_data.get('model_type') == 'margin_only_elo'
+            
             # Set parameters
             self.params = model_data['parameters']
             self.base_rating = self.params['base_rating']
             self.k_factor = self.params['k_factor']
             self.home_advantage = self.params['home_advantage']
-            self.margin_factor = self.params['margin_factor']
             self.season_carryover = self.params['season_carryover']
             self.max_margin = self.params['max_margin']
-            self.beta = self.params['beta']
-            self.margin_scale = self.params.get('margin_scale', 0.04)  # Default to 0.04 if not present
+            
+            # Handle different parameter structures
+            if self.is_margin_only_model:
+                # Margin-only model parameters
+                self.margin_scale = self.params['margin_scale']
+                self.margin_factor = 0.0  # Not used in margin-only models
+                self.beta = 0.04  # Fallback for built-in calculations
+                print(f"Loaded margin-only ELO model (MAE: {model_data.get('mae', 'unknown')})")
+            else:
+                # Standard ELO model parameters
+                if 'margin_factor' not in self.params:
+                    raise ValueError("Standard ELO model missing required 'margin_factor' parameter")
+                if 'beta' not in self.params:
+                    raise ValueError("Standard ELO model missing required 'beta' parameter")
+                    
+                self.margin_factor = self.params['margin_factor']
+                self.beta = self.params['beta']
+                self.margin_scale = self.params.get('margin_scale', 0.04)  # Default to 0.04 if not present
+                print(f"Loaded standard ELO model")
             
             # Set team ratings
+            if 'team_ratings' not in model_data:
+                raise ValueError("Model file missing required 'team_ratings' data")
             self.team_ratings = model_data['team_ratings']
             
             # Store yearly ratings if available
             self.yearly_ratings = model_data.get('yearly_ratings', {})
             
-            print(f"Loaded ELO model with {len(self.team_ratings)} team ratings")
+            print(f"Model has {len(self.team_ratings)} team ratings")
             print("Model parameters:")
             for param, value in self.params.items():
                 print(f"  {param}: {value}")
@@ -65,6 +93,9 @@ class AFLEloPredictor:
             return True
         except Exception as e:
             print(f"Error loading model: {e}")
+            # Reset attributes to prevent partial loading
+            self.team_ratings = {}
+            self.params = {}
             return False
     
     def load_margin_model(self, margin_model_path):
@@ -105,12 +136,18 @@ class AFLEloPredictor:
     
     def predict_margin(self, home_team, away_team):
         """
-        Predict match margin from rating difference
+        Predict match margin from rating difference - returns the margin used for database
         """
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Use margin model if available
+        # For margin-only models, use margin_scale approach
+        if self.is_margin_only_model:
+            rating_diff = (home_rating + self.home_advantage) - away_rating
+            predicted_margin = rating_diff * self.margin_scale
+            return predicted_margin
+        
+        # For standard models, use margin model if available
         if self.margin_model:
             method = self.margin_model['method']
             params = self.margin_model['parameters']
@@ -138,6 +175,68 @@ class AFLEloPredictor:
             predicted_margin = 0
         
         return predicted_margin
+    
+    def predict_all_margins(self, home_team, away_team):
+        """
+        Predict match margin using all available methods for CSV export
+        Returns dict with all margin predictions
+        """
+        home_rating = self.team_ratings.get(home_team, self.base_rating)
+        away_rating = self.team_ratings.get(away_team, self.base_rating)
+        rating_diff = (home_rating + self.home_advantage) - away_rating
+        
+        margin_predictions = {}
+        
+        # 1. Margin-only ELO approach (if this is a margin-only model)
+        if self.is_margin_only_model:
+            margin_predictions['margin_only_elo'] = rating_diff * self.margin_scale
+            margin_predictions['database_method'] = 'margin_only_elo'
+        else:
+            margin_predictions['margin_only_elo'] = None
+        
+        # 2. Built-in ELO margin calculation
+        win_prob = self.calculate_win_probability(home_team, away_team)
+        margin_predictions['builtin_elo'] = (win_prob - 0.5) / self.beta
+        
+        # 3. Linear regression method (if margin model available)
+        if self.margin_model:
+            method = self.margin_model['method']
+            params = self.margin_model['parameters']
+            
+            # Calculate linear regression if parameters available
+            if method == 'linear' and 'slope' in params and 'intercept' in params:
+                margin_predictions['linear_regression'] = rating_diff * params['slope'] + params['intercept']
+                if not self.is_margin_only_model:
+                    margin_predictions['database_method'] = 'linear_regression'
+            else:
+                margin_predictions['linear_regression'] = None
+                
+            # Calculate simple scaling - use fallback scale factor if not available
+            if method == 'simple' and 'scale_factor' in params:
+                margin_predictions['simple_scaling'] = rating_diff * params['scale_factor']
+                if not self.is_margin_only_model:
+                    margin_predictions['database_method'] = 'simple_scaling'
+            else:
+                # Use fallback simple scaling calculation (rating_diff / 400 * 50 as rough estimate)
+                margin_predictions['simple_scaling'] = rating_diff * 0.125  # Approximate scale factor
+                
+            # Calculate diminishing returns - use margin model beta if available, otherwise main model beta
+            if method == 'diminishing_returns' and 'beta' in params:
+                margin_predictions['diminishing_returns'] = (win_prob - 0.5) / params['beta']
+                if not self.is_margin_only_model:
+                    margin_predictions['database_method'] = 'diminishing_returns'
+            else:
+                # Use main model beta as fallback
+                margin_predictions['diminishing_returns'] = (win_prob - 0.5) / self.beta
+        else:
+            # No margin model - calculate fallback values
+            margin_predictions['linear_regression'] = None
+            margin_predictions['simple_scaling'] = rating_diff * 0.125  # Fallback scale factor
+            margin_predictions['diminishing_returns'] = (win_prob - 0.5) / self.beta
+            if not self.is_margin_only_model:
+                margin_predictions['database_method'] = 'builtin_elo'
+        
+        return margin_predictions
 
     def apply_season_carryover(self, new_year):
         """Apply regression to mean between seasons"""
@@ -203,6 +302,9 @@ class AFLEloPredictor:
         # Calculate win probability
         home_win_prob = self.calculate_win_probability(home_team, away_team)
         
+        # Get all margin predictions for CSV export
+        all_margins = self.predict_all_margins(home_team, away_team)
+        
         # Store the pre-update prediction info
         prediction_info = {
             'match_id': match_id,
@@ -221,6 +323,13 @@ class AFLEloPredictor:
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
             'confidence': max(home_win_prob, 1 - home_win_prob),
             'predicted_margin': self.predict_margin(home_team, away_team),
+            # Add all margin predictions for CSV export
+            'predicted_margin_margin_only_elo': all_margins['margin_only_elo'],
+            'predicted_margin_linear_regression': all_margins['linear_regression'],
+            'predicted_margin_builtin_elo': all_margins['builtin_elo'],
+            'predicted_margin_simple_scaling': all_margins['simple_scaling'],
+            'predicted_margin_diminishing_returns': all_margins['diminishing_returns'],
+            'margin_method_used_in_db': all_margins['database_method'],
         }
         
         # If scores are provided, update ratings and add result info
@@ -326,6 +435,9 @@ class AFLEloPredictor:
         # Calculate win probability
         home_win_prob = self.calculate_win_probability(home_team, away_team)
         
+        # Get all margin predictions for CSV export
+        all_margins = self.predict_all_margins(home_team, away_team)
+        
         # Create prediction result
         prediction = {
             'match_id': match_id,
@@ -343,7 +455,14 @@ class AFLEloPredictor:
             'away_win_probability': 1 - home_win_prob,
             'predicted_margin': self.predict_margin(home_team, away_team),
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
-            'confidence': max(home_win_prob, 1 - home_win_prob)
+            'confidence': max(home_win_prob, 1 - home_win_prob),
+            # Add all margin predictions for CSV export
+            'predicted_margin_margin_only_elo': all_margins['margin_only_elo'],
+            'predicted_margin_linear_regression': all_margins['linear_regression'],
+            'predicted_margin_builtin_elo': all_margins['builtin_elo'],
+            'predicted_margin_simple_scaling': all_margins['simple_scaling'],
+            'predicted_margin_diminishing_returns': all_margins['diminishing_returns'],
+            'margin_method_used_in_db': all_margins['database_method'],
         }
         
         # Store the prediction
@@ -384,11 +503,43 @@ class AFLEloPredictor:
         cursor = conn.cursor()
         
         try:
-            # Get only future match predictions (no scores)
-            future_predictions = [p for p in self.predictions if 'actual_result' not in p]
+            # Get current time in UTC for comparison
+            current_time = datetime.now(timezone.utc)
+            
+            # Filter out completed games and games that have started
+            future_predictions = []
+            for p in self.predictions:
+                # Skip if game is completed (has actual_result)
+                if 'actual_result' in p:
+                    continue
+                
+                # Skip if game has started (match_date is in the past)
+                if p.get('match_date'):
+                    try:
+                        # Parse match date - handle both ISO format and simple date format
+                        match_date_str = p['match_date']
+                        if 'T' in match_date_str:
+                            # ISO format with time
+                            match_date = datetime.fromisoformat(match_date_str.replace('Z', '+00:00'))
+                        else:
+                            # Simple date format - assume UTC and add a default time
+                            match_date = datetime.fromisoformat(match_date_str + 'T00:00:00+00:00')
+                        
+                        # Only include games that haven't started yet
+                        if match_date > current_time:
+                            future_predictions.append(p)
+                        else:
+                            print(f"Skipping match {p.get('match_id', 'unknown')} - game has started ({match_date_str})")
+                    except (ValueError, TypeError) as e:
+                        print(f"Warning: Could not parse match date '{match_date_str}' for match {p.get('match_id', 'unknown')}, including prediction")
+                        future_predictions.append(p)
+                else:
+                    # No match date available - include the prediction with warning
+                    print(f"Warning: No match date for match {p.get('match_id', 'unknown')}, including prediction")
+                    future_predictions.append(p)
             
             if not future_predictions:
-                print("No future match predictions to save")
+                print("No future match predictions to save (all games completed or started)")
                 return
             
             print(f"Saving {len(future_predictions)} predictions to database for predictor {predictor_id}")
@@ -663,14 +814,20 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
     csv_filename = os.path.join(output_dir, f'elo_predictions_{years.min()}_{years.max()}.csv')
     predictor.save_predictions_to_csv(csv_filename)
 
-    # Print which models were used (more useful than a separate CSV)
+    # Print which models were used
     print(f"\nSaved predictions to: {csv_filename}")
-    if margin_model_path:
-        print("  - Win probabilities: Main ELO model")
-        print("  - Margins: Separate margin model (linear method)")
+    if predictor.is_margin_only_model:
+        print("  - Win probabilities: Margin-only ELO model")
+        print("  - Margins (Database): Margin-only ELO model (rating_diff * margin_scale)")
+        print("  - CSV includes all margin prediction methods for comparison")
+    elif margin_model_path:
+        print("  - Win probabilities: Standard ELO model")
+        print("  - Margins (Database): Separate margin model (linear method)")
+        print("  - CSV includes all margin prediction methods for comparison")
     else:
-        print("  - Win probabilities: Main ELO model")
-        print("  - Margins: Main ELO model (built-in calculation)")
+        print("  - Win probabilities: Standard ELO model")
+        print("  - Margins (Database): Built-in ELO calculation")
+        print("  - CSV includes all margin prediction methods for comparison")
 
     # Save to database if requested
     if save_to_db:
