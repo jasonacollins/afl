@@ -16,6 +16,7 @@ async function runEloPredictions() {
   try {
     // Step 1: Run Python ELO prediction script (now writes directly to database)
     const modelPath = path.join(__dirname, '../data/afl_elo_trained_to_2024.json');
+    const marginModelPath = path.join(__dirname, '../data/afl_elo_margin_model_2024.json');
     const dbPath = path.join(__dirname, '../data/afl_predictions.db');
     const outputDir = path.join(__dirname, '../data/temp');
     
@@ -28,6 +29,7 @@ async function runEloPredictions() {
       'afl_elo_predictions.py',
       '--start-year', currentYear.toString(),
       '--model-path', modelPath,
+      '--margin-model', marginModelPath,
       '--db-path', dbPath,
       '--output-dir', outputDir,
       '--save-to-db',  // Ensure database writing is enabled

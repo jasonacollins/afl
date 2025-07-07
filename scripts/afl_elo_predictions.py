@@ -21,8 +21,16 @@ class AFLEloPredictor:
         """
         self.margin_model = None
         self.load_model(model_path)
+        
+        # Load margin model if provided
         if margin_model_path:
-            self.load_margin_model(margin_model_path)
+            if self.load_margin_model(margin_model_path):
+                print("✓ Margin model loaded successfully")
+            else:
+                print("✗ Failed to load margin model - using fallback")
+        else:
+            print("ℹ No margin model specified - using built-in margin calculation")
+        
         self.predictions = []  # Store all predictions
         self.rating_history = []  # Store rating history
     
@@ -650,14 +658,23 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
     
     # Save predictions
     os.makedirs(output_dir, exist_ok=True)
-    
-    if save_to_db:
-        # Save predictions directly to database
-        predictor.save_predictions_to_database(db_path, predictor_id)
+
+    # Save predictions to CSV
+    csv_filename = os.path.join(output_dir, f'elo_predictions_{years.min()}_{years.max()}.csv')
+    predictor.save_predictions_to_csv(csv_filename)
+
+    # Print which models were used (more useful than a separate CSV)
+    print(f"\nSaved predictions to: {csv_filename}")
+    if margin_model_path:
+        print("  - Win probabilities: Main ELO model")
+        print("  - Margins: Separate margin model (linear method)")
     else:
-        # Keep CSV output as fallback/debugging option
-        predictions_file = os.path.join(output_dir, f"afl_elo_predictions_from_{start_year}.csv")
-        predictor.save_predictions_to_csv(predictions_file)
+        print("  - Win probabilities: Main ELO model")
+        print("  - Margins: Main ELO model (built-in calculation)")
+
+    # Save to database if requested
+    if save_to_db:
+        predictor.save_predictions_to_database(db_path, predictor_id)
     
     # Always save rating history for charts
     history_file = os.path.join(output_dir, f"afl_elo_rating_history_from_{start_year}.csv")
