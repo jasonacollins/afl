@@ -24,7 +24,7 @@ from skopt.utils import use_named_args
 import json
 import argparse
 from datetime import datetime
-from afl_elo_training import AFLEloModel, fetch_afl_data, train_elo_model
+from afl_elo_train_standard import AFLEloModel, fetch_afl_data, train_elo_model
 from sklearn.model_selection import TimeSeriesSplit
 
 
@@ -647,8 +647,7 @@ def main():
             'parameters': json_safe_params,
             'log_loss': float(result.fun),
             'n_iterations': len(result.func_vals),
-            'optimization_method': 'bayesian',
-            'convergence_history': [float(x) for x in result.func_vals]
+            'optimization_method': 'bayesian'
         }
         
         with open(args.output_path, 'w') as f:

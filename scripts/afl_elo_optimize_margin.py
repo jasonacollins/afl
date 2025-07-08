@@ -63,11 +63,12 @@ class MarginEloModel:
     """ELO model optimized for margin prediction"""
     
     def __init__(self, k_factor=35, home_advantage=40, season_carryover=0.75, 
-                 margin_scale=0.15, max_margin=100, base_rating=1500):
+                 margin_scale=0.15, scaling_factor=50, max_margin=100, base_rating=1500):
         self.k_factor = k_factor
         self.home_advantage = home_advantage
         self.season_carryover = season_carryover
         self.margin_scale = margin_scale
+        self.scaling_factor = scaling_factor
         self.max_margin = max_margin
         self.base_rating = base_rating
         self.team_ratings = {}
@@ -102,34 +103,35 @@ class MarginEloModel:
         # Cap actual margin to reduce impact of blowouts
         capped_margin = np.sign(actual_margin) * min(abs(actual_margin), self.max_margin)
         
-        # Calculate error
+        # Calculate margin prediction error
         margin_error = capped_margin - predicted_margin
         
-        # Update ratings based on margin error
-        # Larger errors lead to larger updates
-        update_magnitude = self.k_factor * margin_error / self.max_margin
+        # Calculate the raw rating change
+        raw_rating_change = self.k_factor * margin_error / self.scaling_factor
         
-        self.team_ratings[home_team] = home_rating + update_magnitude
-        self.team_ratings[away_team] = away_rating - update_magnitude
+        # Clip the rating change to prevent explosion and ensure stability
+        max_change = min(40, self.k_factor * 0.8)  # Dynamic clipping based on k_factor
+        rating_change = np.clip(raw_rating_change, -max_change, max_change)
+        
+        self.team_ratings[home_team] = home_rating + rating_change
+        self.team_ratings[away_team] = away_rating - rating_change
     
     def apply_season_carryover(self):
-        """Apply season carryover - regress ratings toward mean"""
-        mean_rating = np.mean(list(self.team_ratings.values()))
-        
+        """Apply season carryover - regress ratings toward base rating (1500)"""
         for team in self.team_ratings:
             current_rating = self.team_ratings[team]
             self.team_ratings[team] = (
-                self.season_carryover * current_rating + 
-                (1 - self.season_carryover) * mean_rating
+                self.base_rating + self.season_carryover * (current_rating - self.base_rating)
             )
 
 
-# Define parameter search space for margin model
+# Define parameter search space for margin model - more conservative ranges
 margin_space = [
-    Integer(10, 60, name='k_factor'),          # Might need higher K for margins
+    Integer(20, 60, name='k_factor'),          # Learning rate for rating updates
     Integer(0, 80, name='home_advantage'),     # Home advantage in rating points
-    Real(0.5, 0.95, name='season_carryover'),  
-    Real(0.05, 0.4, name='margin_scale'),      # How rating diff converts to margin
+    Real(0.6, 0.95, name='season_carryover'),  # Rating carryover between seasons
+    Real(0.02, 0.3, name='margin_scale'),      # How rating diff converts to margin
+    Real(20, 80, name='scaling_factor'),       # Converts margin error to rating change
     Integer(40, 150, name='max_margin')        # Cap for blowouts
 ]
 
@@ -139,14 +141,29 @@ def evaluate_margin_params_walkforward(params, matches_df, verbose=False):
     Evaluate margin parameters using walk-forward validation
     Returns Mean Absolute Error (lower is better)
     """
-    k_factor, home_advantage, season_carryover, margin_scale, max_margin = params
+    k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin = params
+    
+    # Mathematical stability constraints
+    max_rating_change = k_factor * max_margin / scaling_factor
+    if max_rating_change > 75:  # No more than 75 points change per match
+        return 1e10
+    
+    # Prevent numerical instability from extreme parameter combinations
+    if margin_scale < 0.03 and scaling_factor < 30:  # Very small values together
+        return 1e10
+    if k_factor > 50 and scaling_factor < 40:  # High k with low scaling
+        return 1e10
+        
+    # Basic parameter validation
+    if scaling_factor <= 0 or k_factor <= 0 or margin_scale <= 0:
+        return 1e10
     
     # Ensure chronological order
     matches_df = matches_df.sort_values(['year', 'match_date'])
     
     seasons = sorted(matches_df['year'].unique())
     if len(seasons) < 2:
-        return np.inf
+        return 1e10
     
     all_errors = []
     
@@ -158,6 +175,7 @@ def evaluate_margin_params_walkforward(params, matches_df, verbose=False):
             home_advantage=home_advantage,
             season_carryover=season_carryover,
             margin_scale=margin_scale,
+            scaling_factor=scaling_factor,
             max_margin=max_margin
         )
         
@@ -176,6 +194,12 @@ def evaluate_margin_params_walkforward(params, matches_df, verbose=False):
             for _, match in season_matches.iterrows():
                 actual_margin = match['hscore'] - match['ascore']
                 model.update_ratings(match['home_team'], match['away_team'], actual_margin)
+                
+                # Check for rating explosion during training
+                max_rating = max(model.team_ratings.values())
+                min_rating = min(model.team_ratings.values())
+                if max_rating > 2500 or min_rating < 500 or not np.isfinite(max_rating) or not np.isfinite(min_rating):
+                    return 1e10
             
             # Apply season carryover (except after last training season)
             if season < test_season - 1:
@@ -199,12 +223,21 @@ def evaluate_margin_params_walkforward(params, matches_df, verbose=False):
         
         # Calculate MAE for this season
         season_mae = np.mean(np.abs(np.array(predicted_margins) - np.array(actual_margins)))
+        
+        # Return infinity if we get NaN or infinite values
+        if not np.isfinite(season_mae):
+            return 1e10
+            
         all_errors.append(season_mae)
+        
+        # Early termination if any season shows instability
+        if season_mae > 1000:  # Clearly unstable
+            return 1e10
         
         if verbose:
             print(f"Train ≤ {test_season - 1}, test {test_season}: MAE {season_mae:.2f}")
     
-    return np.mean(all_errors) if all_errors else np.inf
+    return np.mean(all_errors) if all_errors else 1e10
 
 
 def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_starts=1):
@@ -244,6 +277,7 @@ def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_
                 params['home_advantage'],
                 params['season_carryover'],
                 params['margin_scale'],
+                params['scaling_factor'],
                 params['max_margin']
             ]
             
@@ -283,7 +317,8 @@ def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_
             'home_advantage': int(result.x[1]),
             'season_carryover': float(result.x[2]),
             'margin_scale': float(result.x[3]),
-            'max_margin': int(result.x[4])
+            'scaling_factor': float(result.x[4]),
+            'max_margin': int(result.x[5])
         }
         print(f"  Best parameters for this start:")
         for key, value in start_best_params.items():
@@ -306,7 +341,8 @@ def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_
         'home_advantage': int(result.x[1]),
         'season_carryover': float(result.x[2]),
         'margin_scale': float(result.x[3]),
-        'max_margin': int(result.x[4]),
+        'scaling_factor': float(result.x[4]),
+        'max_margin': int(result.x[5]),
         'base_rating': 1500
     }
     
@@ -401,8 +437,7 @@ def main():
             'n_calls': args.n_calls,
             'n_starts': args.n_starts,
             'start_year': args.start_year,
-            'end_year': args.end_year,
-            'convergence_history': [float(x) for x in result.func_vals]
+            'end_year': args.end_year
         }
     }
     

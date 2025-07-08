@@ -1,0 +1,44 @@
+{
+  "best_method": "linear",
+  "best_params": {
+    "slope": 0.1358514772788855,
+    "intercept": -1.7481161574389645
+  },
+  "best_score": 32.070230004609556,
+  "all_methods": {
+    "simple": {
+      "score": 32.09486441059499,
+      "params": {
+        "scale_factor": 0.12798821380114697
+      },
+      "iterations": 50,
+      "convergence": 32.09493742868876
+    },
+    "diminishing_returns": {
+      "score": 32.134731145140435,
+      "params": {
+        "beta": 0.010112405525131667
+      },
+      "iterations": 50,
+      "convergence": 32.134755594316914
+    },
+    "linear": {
+      "score": 32.070230004609556,
+      "params": {
+        "slope": 0.1358514772788855,
+        "intercept": -1.7481161574389645
+      },
+      "iterations": 50,
+      "convergence": 32.07074095611142
+    }
+  },
+  "elo_params_used": {
+    "base_rating": 1500.0,
+    "k_factor": 47,
+    "home_advantage": 69,
+    "margin_factor": 0.4712318118786548,
+    "season_carryover": 0.6431728202207778,
+    "max_margin": 84,
+    "beta": 0.04788971700275127
+  }
+}
