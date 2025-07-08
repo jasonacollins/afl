@@ -21,7 +21,7 @@ For comprehensive project information including architecture, features, and setu
 - `npm run daily-sync` - Run comprehensive daily synchronization: API refresh, ELO predictions, and historical data regeneration (`scripts/daily-sync.js`)
 
 ### ELO Model Scripts
-For detailed documentation on ELO model training, optimization, and prediction workflows, see **[scripts/CLAUDE.md](scripts/CLAUDE.md)**. This includes complete workflow instructions, script parameters, and troubleshooting guides.
+For detailed documentation on ELO model training, optimization, and prediction workflows, see **[scripts/README.md](scripts/README.md)**. This includes complete workflow instructions, script parameters, and troubleshooting guides.
 
 **Quick ELO Commands:**
 - `npm run daily-sync` - Run comprehensive daily synchronization (recommended)

@@ -20,6 +20,49 @@ const path = require('path');
 router.use(isAuthenticated);
 router.use(isAdmin);
 
+// API endpoints for managing predictor exclusions
+router.get('/api/excluded-predictors', catchAsync(async (req, res) => {
+  const excludedPredictors = await getQuery(
+    'SELECT predictor_id FROM predictors WHERE stats_excluded = 1'
+  );
+  
+  res.json({ 
+    excludedPredictors: excludedPredictors.map(p => p.predictor_id.toString()) 
+  });
+}));
+
+router.post('/api/excluded-predictors', catchAsync(async (req, res) => {
+  const { predictorIds } = req.body;
+  
+  if (!Array.isArray(predictorIds)) {
+    return res.status(400).json({ error: 'predictorIds must be an array' });
+  }
+  
+  // First, reset all predictors to not excluded
+  await runQuery('UPDATE predictors SET stats_excluded = 0');
+  
+  // Then set the specified predictors as excluded
+  if (predictorIds.length > 0) {
+    const placeholders = predictorIds.map(() => '?').join(',');
+    await runQuery(
+      `UPDATE predictors SET stats_excluded = 1 WHERE predictor_id IN (${placeholders})`,
+      predictorIds
+    );
+  }
+  
+  logger.info(`Admin ${req.session.user.id} updated excluded predictors: ${predictorIds.join(', ')}`);
+  
+  res.json({ success: true, excludedPredictors: predictorIds });
+}));
+
+// Export function to access excluded predictors
+router.getExcludedPredictors = async function() {
+  const excludedPredictors = await getQuery(
+    'SELECT predictor_id FROM predictors WHERE stats_excluded = 1'
+  );
+  return excludedPredictors.map(p => p.predictor_id.toString());
+};
+
 // Admin dashboard
 router.get('/', catchAsync(async (req, res) => {
   // Get selected year or default to current year

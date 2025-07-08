@@ -157,6 +157,16 @@ async function initializeDatabase() {
         await runQuery("ALTER TABLE matches ADD COLUMN complete INTEGER");
       }
       
+      // Check if 'stats_excluded' column exists in predictors table
+      const statsExcludedColumnExists = await getOne(
+        "SELECT 1 FROM pragma_table_info('predictors') WHERE name='stats_excluded'"
+      );
+      
+      if (!statsExcludedColumnExists) {
+        logger.info('Adding stats_excluded column to predictors table');
+        await runQuery("ALTER TABLE predictors ADD COLUMN stats_excluded INTEGER DEFAULT 0");
+      }
+      
       logger.info('Schema update check completed');
     }
   } catch (error) {

@@ -29,6 +29,28 @@
     <div class="stats-card leaderboard">
       <h2 class="stats-heading">Predictor Leaderboard - <%= selectedYear %> Season</h2>
       
+      <% if (locals.isAdmin) { %>
+        <div class="admin-controls">
+          <h3>Admin Controls</h3>
+          <div class="exclude-controls">
+            <span>Exclude from statistics (saves automatically):</span>
+            <div class="predictor-checkboxes">
+              <% 
+                // Show all predictors (including excluded ones) for admin controls
+                const allPredictors = locals.allPredictors || predictorStats;
+                allPredictors.forEach(stats => { 
+              %>
+                <label class="checkbox-label">
+                  <input type="checkbox" class="exclude-checkbox" data-predictor-id="<%= stats.id %>" />
+                  <%= stats.display_name %>
+                </label>
+              <% }) %>
+            </div>
+            <button id="clear-exclusions" class="clear-btn">Clear All</button>
+          </div>
+        </div>
+      <% } %>
+      
       <% if (predictorStats.length === 0 || predictorStats.every(stat => stat.totalPredictions === 0)) { %>
         <div class="no-stats">
           <p>No prediction results available.</p>
@@ -244,6 +266,72 @@
   .partial {
     color: #ff9800;
   }
+  
+  .admin-controls {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+  }
+  
+  .admin-controls h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #495057;
+    font-size: 16px;
+  }
+  
+  .exclude-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .exclude-controls span {
+    font-weight: 500;
+    color: #495057;
+  }
+  
+  .predictor-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin: 10px 0;
+  }
+  
+  .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  
+  .exclude-checkbox {
+    cursor: pointer;
+  }
+  
+  .clear-btn {
+    align-self: flex-start;
+    padding: 8px 16px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+  }
+  
+  .clear-btn:hover {
+    background-color: #c82333;
+  }
+  
+  .excluded-predictor {
+    opacity: 0.5;
+    background-color: #f8f9fa;
+  }
 </style>
 
 <%- include('partials/footer') %>
@@ -251,6 +339,47 @@
 <script>
 let currentSelectedYear = <%= selectedYear %>;
 let currentUserId = <%= currentUser.id %>;
+let excludedPredictors = new Set();
+
+// Load saved exclusions from server
+async function loadSavedExclusions() {
+  try {
+    const response = await fetch('/api/excluded-predictors');
+    const data = await response.json();
+    
+    if (data.excludedPredictors) {
+      excludedPredictors = new Set(data.excludedPredictors);
+      
+      // Update checkbox states (only for admins)
+      document.querySelectorAll('.exclude-checkbox').forEach(checkbox => {
+        checkbox.checked = excludedPredictors.has(checkbox.dataset.predictorId);
+      });
+      
+      // No need to apply exclusions since server handles filtering
+    }
+  } catch (error) {
+    console.error('Error loading saved exclusions:', error);
+  }
+}
+
+// Save exclusions to server (admin only)
+async function saveExclusions() {
+  try {
+    const response = await fetch('/admin/api/excluded-predictors', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ predictorIds: [...excludedPredictors] })
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to save exclusions');
+    }
+  } catch (error) {
+    console.error('Error saving exclusions:', error);
+  }
+}
 
 function loadRoundStats(roundNumber) {
   // Update button selection
@@ -337,5 +466,123 @@ function updateRoundStatsTable(data) {
     </table>`;
   
   roundContent.innerHTML = tableHTML;
+  
+  // Server handles exclusions, no need to apply client-side
 }
+
+function applyExclusionsToTable() {
+  // Apply exclusions to main season table
+  const mainTable = document.querySelector('.stats-table');
+  if (mainTable) {
+    const rows = mainTable.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      const nameCell = row.cells[1];
+      if (nameCell) {
+        const predictorName = nameCell.textContent.replace(' (You)', '').trim();
+        const isExcluded = Array.from(excludedPredictors).some(id => {
+          const checkbox = document.querySelector(`[data-predictor-id="${id}"]`);
+          return checkbox && checkbox.closest('label').textContent.trim() === predictorName;
+        });
+        
+        if (isExcluded) {
+          row.classList.add('excluded-predictor');
+          row.style.display = 'none';
+        } else {
+          row.classList.remove('excluded-predictor');
+          row.style.display = '';
+        }
+      }
+    });
+    
+    // Recalculate rankings for visible rows
+    recalculateRankings(mainTable);
+  }
+  
+  // Apply exclusions to round stats table
+  const roundTable = document.querySelector('#round-stats-content .stats-table');
+  if (roundTable) {
+    const rows = roundTable.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      const nameCell = row.cells[1];
+      if (nameCell) {
+        const predictorName = nameCell.textContent.replace(' (You)', '').trim();
+        const isExcluded = Array.from(excludedPredictors).some(id => {
+          const checkbox = document.querySelector(`[data-predictor-id="${id}"]`);
+          return checkbox && checkbox.closest('label').textContent.trim() === predictorName;
+        });
+        
+        if (isExcluded) {
+          row.classList.add('excluded-predictor');
+          row.style.display = 'none';
+        } else {
+          row.classList.remove('excluded-predictor');
+          row.style.display = '';
+        }
+      }
+    });
+    
+    // Recalculate rankings for visible rows
+    recalculateRankings(roundTable);
+  }
+}
+
+function recalculateRankings(table) {
+  const visibleRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+  visibleRows.forEach((row, index) => {
+    const rankCell = row.cells[0];
+    if (rankCell) {
+      rankCell.textContent = index + 1;
+    }
+  });
+}
+
+// Event listener for clear exclusions button and checkbox changes
+document.addEventListener('DOMContentLoaded', async function() {
+  // Load saved exclusions on page load for all users
+  await loadSavedExclusions();
+  
+  const clearBtn = document.getElementById('clear-exclusions');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async function() {
+      // Clear all exclusions
+      excludedPredictors.clear();
+      
+      // Uncheck all checkboxes
+      document.querySelectorAll('.exclude-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      
+      // Save cleared state
+      await saveExclusions();
+      
+      // Reload page to show updated statistics
+      window.location.reload();
+      
+      // Show feedback
+      clearBtn.textContent = 'Cleared!';
+      clearBtn.style.backgroundColor = '#28a745';
+      setTimeout(() => {
+        clearBtn.textContent = 'Clear All';
+        clearBtn.style.backgroundColor = '#dc3545';
+      }, 2000);
+    });
+  }
+  
+  // Add event listeners to checkboxes for real-time updates (admin only)
+  document.querySelectorAll('.exclude-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', async function() {
+      if (this.checked) {
+        excludedPredictors.add(this.dataset.predictorId);
+      } else {
+        excludedPredictors.delete(this.dataset.predictorId);
+      }
+      
+      // Save immediately on checkbox change
+      await saveExclusions();
+      
+      // Reload page to show updated statistics
+      window.location.reload();
+    });
+  });
+});
 </script>

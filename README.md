@@ -217,17 +217,18 @@ The application uses the Squiggle API (https://api.squiggle.com.au) to source ma
 
 The application includes an advanced ELO-based prediction system using a dual-model approach:
 - **Standard ELO Model**: Optimized for win probability accuracy
-- **Margin-Only ELO Model**: Optimized specifically for margin prediction accuracy (MAE ~30.1)
+- **Margin-Only ELO Model**: Optimized specifically for margin prediction accuracy
 
 ### Quick ELO Commands
 - `npm run daily-sync` - Complete daily synchronization (API refresh + ELO predictions + historical data)
 - `npm run import` - Initialize database with team data
 - `npm run sync-games` - Sync match data from Squiggle API
 
-### Detailed ELO Documentation
-For comprehensive ELO model training, optimization, and prediction workflows, see **[scripts/CLAUDE.md](scripts/CLAUDE.md)**. This includes:
+### ELO Scripts Documentation
+For comprehensive ELO model training, optimization, and prediction workflows, see **[scripts/README.md](scripts/README.md)**. This includes:
 - Complete step-by-step training workflow
-- Script parameters and usage instructions
+- Detailed script parameters and usage examples
+- Advanced usage examples and workflows
 - Margin prediction methods explanation
 - Troubleshooting guides and performance tips
 

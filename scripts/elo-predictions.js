@@ -26,13 +26,12 @@ async function runEloPredictions() {
     }
     
     const pythonArgs = [
-      'afl_elo_predictions.py',
+      'afl_elo_predict_combined.py',
       '--start-year', currentYear.toString(),
-      '--model-path', modelPath,
+      '--standard-model', modelPath,
       '--margin-model', marginModelPath,
       '--db-path', dbPath,
       '--output-dir', outputDir,
-      '--save-to-db',  // Ensure database writing is enabled
       '--predictor-id', predictorId.toString()
     ];
     

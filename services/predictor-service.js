@@ -211,7 +211,7 @@ async function getPredictorsWithAdminStatus() {
     logger.debug('Fetching predictors with admin status');
     
     const predictors = await getQuery(
-      'SELECT predictor_id, name, display_name, is_admin FROM predictors ORDER BY name'
+      'SELECT predictor_id, name, display_name, is_admin, stats_excluded FROM predictors ORDER BY name'
     );
     
     logger.info(`Retrieved ${predictors.length} predictors with admin status`);

@@ -185,8 +185,9 @@ router.get('/stats', catchAsync(async (req, res) => {
   // Ensure all predictors have predictions for completed matches
   await ensureDefaultPredictions(selectedYear);
   
-  // Get all predictors, but include admin status
-  const predictors = await predictorService.getPredictorsWithAdminStatus();
+  // Get all predictors, but include admin status and filter out excluded ones
+  const allPredictors = await predictorService.getPredictorsWithAdminStatus();
+  const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
   
   // Get matches with results for the selected year
   const completedMatches = await matchService.getCompletedMatchesForYear(selectedYear);
@@ -400,10 +401,23 @@ router.get('/stats', catchAsync(async (req, res) => {
     roundMatchCount: completedMatchesForRound.length
   });
 
+  // Create all predictors stats (including excluded ones) for admin controls
+  const allPredictorStats = [];
+  for (const predictor of allPredictors) {
+    if (!predictor.is_admin) {
+      allPredictorStats.push({
+        id: predictor.predictor_id,
+        name: predictor.name,
+        display_name: predictor.display_name
+      });
+    }
+  }
+
   res.render('stats', {
     years,
     selectedYear,
     predictorStats: filteredPredictorStats,
+    allPredictors: allPredictorStats,
     completedMatches,
     userPredictions,
     currentUser: req.session.user,
@@ -428,8 +442,9 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   
   logger.info(`AJAX round stats requested by user ${req.session.user.id} for year ${selectedYear}, round ${roundNumber}`);
   
-  // Get all predictors, but include admin status
-  const predictors = await predictorService.getPredictorsWithAdminStatus();
+  // Get all predictors, but include admin status and filter out excluded ones
+  const allPredictors = await predictorService.getPredictorsWithAdminStatus();
+  const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
   
   // Get completed matches for the specific round
   const completedMatchesForRound = await matchService.getCompletedMatchesForRound(selectedYear, roundNumber);

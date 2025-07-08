@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS "predictions" (
 	"match_id"	INTEGER NOT NULL,
 	"predictor_id"	INTEGER NOT NULL,
 	"home_win_probability"	NUMERIC NOT NULL,
-	"predicted_margin" NUMERIC,
+	"predicted_margin"	NUMERIC,
 	"prediction_time"	TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	"tipped_team"	TEXT DEFAULT 'home',
 	UNIQUE("match_id","predictor_id"),
@@ -44,13 +44,14 @@ CREATE TABLE IF NOT EXISTS "predictors" (
 	"is_admin"	INTEGER DEFAULT 0,
 	"year_joined"	INTEGER,
 	"display_name"	TEXT,
+	"stats_excluded"	INTEGER DEFAULT 0,
 	PRIMARY KEY("predictor_id")
 );
 CREATE TABLE IF NOT EXISTS "teams" (
 	"team_id"	INTEGER,
 	"name"	TEXT NOT NULL UNIQUE,
 	"abbrev"	TEXT,
-	"colour_hex"	INTEGER,
+	"colour_hex"	TEXT,
 	PRIMARY KEY("team_id")
 );
 COMMIT;

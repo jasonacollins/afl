@@ -72,6 +72,14 @@ app.use('/matches', matchesRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/elo', eloRoutes);
 
+// Global API endpoint for excluded predictors (accessible to all users)
+app.get('/api/excluded-predictors', catchAsync(async (req, res) => {
+  // Import admin routes to access the excluded predictors
+  const adminRoutes = require('./routes/admin');
+  const excludedPredictors = await adminRoutes.getExcludedPredictors();
+  res.json({ excludedPredictors });
+}));
+
 // Home route - updated to show featured predictions
 app.get('/', catchAsync(async (req, res) => {
   // Get current year

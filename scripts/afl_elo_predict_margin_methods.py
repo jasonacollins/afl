@@ -211,15 +211,85 @@ def fetch_afl_data(db_path, start_year, end_year=None):
     return df
 
 
+def save_predictions_to_db(predictions, db_path, predictor_id):
+    """Save predictions to database"""
+    if not predictor_id:
+        raise ValueError("predictor_id is required - no new predictors will be created")
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Verify the predictor_id exists
+    cursor.execute("SELECT predictor_id, name FROM predictors WHERE predictor_id = ?", (predictor_id,))
+    result = cursor.fetchone()
+    if not result:
+        raise ValueError(f"Predictor with ID {predictor_id} not found in database")
+    
+    predictor_id, actual_name = result
+    print(f"Using existing predictor: {actual_name} (ID: {predictor_id})")
+    
+    saved_count = 0
+    
+    for prediction in predictions:
+        # Get match_id from database
+        cursor.execute("""
+            SELECT m.match_id FROM matches m
+            JOIN teams h ON m.home_team_id = h.team_id
+            JOIN teams a ON m.away_team_id = a.team_id
+            WHERE h.name = ? AND a.name = ? AND m.match_date = ?
+        """, (prediction['home_team'], prediction['away_team'], prediction['match_date']))
+        
+        match_result = cursor.fetchone()
+        if not match_result:
+            print(f"Warning: Could not find match {prediction['home_team']} vs {prediction['away_team']} on {prediction['match_date']}")
+            continue
+        
+        match_id = match_result[0]
+        
+        # Determine tipped team based on win probability
+        tipped_team = 'home' if prediction['win_probability'] > 0.5 else 'away'
+        
+        # Use the best method margin as the main predicted margin
+        predicted_margin = prediction.get('predicted_margin_best', prediction.get('predicted_margin_linear', None))
+        
+        # Insert or update prediction
+        cursor.execute("""
+            INSERT OR REPLACE INTO predictions 
+            (match_id, predictor_id, home_win_probability, predicted_margin, tipped_team, prediction_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            match_id, 
+            predictor_id, 
+            prediction['win_probability'],
+            predicted_margin,
+            tipped_team,
+            datetime.now().isoformat()
+        ))
+        
+        saved_count += 1
+    
+    conn.commit()
+    conn.close()
+    
+    print(f"Saved {saved_count} predictions to database")
+    return saved_count
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Generate AFL predictions using optimal margin methods (CSV output only)')
+    parser = argparse.ArgumentParser(description='Generate AFL predictions using optimal margin methods')
     parser.add_argument('--start-year', type=int, default=2025, help='Start year for predictions')
     parser.add_argument('--elo-model', required=True, help='Path to trained ELO model JSON file')
     parser.add_argument('--margin-methods', required=True, help='Path to optimal margin methods JSON file')
     parser.add_argument('--output-dir', default='data', help='Output directory for files')
     parser.add_argument('--db-path', default='data/afl_predictions.db', help='Database path')
+    parser.add_argument('--no-save-to-db', action='store_true', help='Skip saving predictions to database')
+    parser.add_argument('--predictor-id', type=int, help='Existing predictor ID to use for saving predictions (required unless --no-save-to-db is used)')
     
     args = parser.parse_args()
+    
+    # Validate that predictor_id is provided unless --no-save-to-db is used
+    if not args.no_save_to_db and not args.predictor_id:
+        parser.error("--predictor-id is required unless --no-save-to-db is used")
     
     # Validate paths
     if not os.path.exists(args.elo_model):
@@ -326,12 +396,22 @@ def main():
         
         print(f"\nBest method used: {predictor.best_method}")
     
-    # Save predictions to CSV only
+    # Save predictions to CSV and optionally to database
     if predictor.predictions:
         predictions_df = pd.DataFrame(predictor.predictions)
         output_file = os.path.join(args.output_dir, f'margin_methods_predictions_{args.start_year}_{args.start_year}.csv')
         predictions_df.to_csv(output_file, index=False)
         print(f"\nSaved {len(predictor.predictions)} predictions to {output_file}")
+        
+        # Save to database unless --no-save-to-db is specified
+        if not args.no_save_to_db:
+            try:
+                save_predictions_to_db(predictor.predictions, args.db_path, args.predictor_id)
+            except Exception as e:
+                print(f"Error saving to database: {e}")
+                print("Continuing with CSV output only...")
+        else:
+            print("Skipping database save (--no-save-to-db specified)")
     
     print(f"\nPrediction generation complete using all three margin methods")
     print("CSV includes all margin methods for comparison")
