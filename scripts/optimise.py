@@ -17,7 +17,8 @@ from skopt.space import Real, Integer, Dimension
 from skopt.utils import use_named_args
 from abc import ABC, abstractmethod
 import time
-
+import json
+from collections import defaultdict
 
 @dataclass
 class OptimizationResult:
@@ -31,6 +32,182 @@ class OptimizationResult:
     metric: str
     additional_info: Dict[str, Any] = None
 
+
+class OptimizationDiagnostics:
+    """Track and log optimization diagnostics"""
+    
+    def __init__(self, parameter_space: ParameterSpace, log_file: str = 'optimization_diagnostics.json'):
+        self.parameter_space = parameter_space
+        self.log_file = log_file
+        self.iteration_history = []
+        self.constraint_violations = []
+        self.convergence_metrics = {
+            'improvement_rates': [],
+            'plateau_iterations': 0,
+            'best_score_history': [],
+            'parameter_variance': defaultdict(list)
+        }
+        self.start_time = datetime.now()
+    
+    def log_iteration(self, iteration: int, params: Dict[str, Any], score: float, is_best: bool = False):
+        """Log details of each iteration"""
+        entry = {
+            'iteration': iteration,
+            'timestamp': datetime.now().isoformat(),
+            'elapsed_seconds': (datetime.now() - self.start_time).total_seconds(),
+            'parameters': params.copy(),
+            'score': score,
+            'is_best': is_best
+        }
+        self.iteration_history.append(entry)
+        
+        # Track parameter variance
+        for param_name, value in params.items():
+            self.convergence_metrics['parameter_variance'][param_name].append(value)
+        
+        # Track best score history
+        if is_best:
+            self.convergence_metrics['best_score_history'].append({
+                'iteration': iteration,
+                'score': score,
+                'improvement': self._calculate_improvement_rate()
+            })
+    
+    def check_constraints(self, params: Dict[str, Any]) -> List[str]:
+        """Check for logical constraint violations"""
+        violations = []
+        
+        # Check interstate vs default home advantage
+        if 'default_home_advantage' in params and 'interstate_home_advantage' in params:
+            if params['interstate_home_advantage'] < params['default_home_advantage']:
+                violations.append(f"Interstate advantage ({params['interstate_home_advantage']:.2f}) < "
+                                f"Default advantage ({params['default_home_advantage']:.2f})")
+        
+        # Check parameter bounds
+        for dim in self.parameter_space.dimensions:
+            if dim.name in params:
+                value = params[dim.name]
+                if hasattr(dim, 'bounds'):
+                    low, high = dim.bounds
+                    if value < low or value > high:
+                        violations.append(f"{dim.name} = {value} outside bounds [{low}, {high}]")
+        
+        # Log violations
+        if violations:
+            self.constraint_violations.append({
+                'iteration': len(self.iteration_history),
+                'violations': violations,
+                'parameters': params.copy()
+            })
+        
+        return violations
+    
+    def _calculate_improvement_rate(self) -> float:
+        """Calculate improvement rate over last N iterations"""
+        if len(self.convergence_metrics['best_score_history']) < 2:
+            return 0.0
+        
+        recent = self.convergence_metrics['best_score_history'][-10:]  # Last 10 improvements
+        if len(recent) < 2:
+            return 0.0
+        
+        # Calculate average improvement per iteration
+        total_improvement = recent[0]['score'] - recent[-1]['score']
+        iterations_span = recent[-1]['iteration'] - recent[0]['iteration']
+        
+        return total_improvement / max(iterations_span, 1)
+    
+    def detect_plateau(self, tolerance: float = 1e-6, min_iterations: int = 20) -> bool:
+        """Detect if optimization has plateaued"""
+        if len(self.convergence_metrics['best_score_history']) < min_iterations:
+            return False
+        
+        recent_improvements = [h['improvement'] for h in self.convergence_metrics['best_score_history'][-10:]]
+        
+        # Check if all recent improvements are below tolerance
+        is_plateau = all(abs(imp) < tolerance for imp in recent_improvements)
+        
+        if is_plateau:
+            self.convergence_metrics['plateau_iterations'] += 1
+        else:
+            self.convergence_metrics['plateau_iterations'] = 0
+        
+        return is_plateau
+    
+    def save_diagnostics(self):
+        """Save all diagnostics to file"""
+        diagnostics = {
+            'summary': {
+                'total_iterations': len(self.iteration_history),
+                'total_time_seconds': (datetime.now() - self.start_time).total_seconds(),
+                'best_score': min((h['score'] for h in self.iteration_history), default=None),
+                'total_constraint_violations': len(self.constraint_violations),
+                'plateau_detected': self.convergence_metrics['plateau_iterations'] > 10
+            },
+            'iteration_history': self.iteration_history,
+            'constraint_violations': self.constraint_violations,
+            'convergence_metrics': {
+                'best_score_history': self.convergence_metrics['best_score_history'],
+                'plateau_iterations': self.convergence_metrics['plateau_iterations'],
+                'parameter_evolution': self._calculate_parameter_evolution()
+            }
+        }
+        
+        with open(self.log_file, 'w') as f:
+            json.dump(diagnostics, f, indent=2)
+    
+    def _calculate_parameter_evolution(self) -> Dict[str, Any]:
+        """Calculate how parameters evolved during optimization"""
+        evolution = {}
+        
+        for param_name, values in self.convergence_metrics['parameter_variance'].items():
+            if values:
+                evolution[param_name] = {
+                    'initial': values[0],
+                    'final': values[-1],
+                    'min': min(values),
+                    'max': max(values),
+                    'mean': np.mean(values),
+                    'std': np.std(values),
+                    'trend': 'increasing' if values[-1] > values[0] else 'decreasing'
+                }
+        
+        return evolution
+    
+    def print_summary(self):
+        """Print optimization summary"""
+        print("\n" + "="*60)
+        print("OPTIMIZATION DIAGNOSTICS SUMMARY")
+        print("="*60)
+        
+        print(f"\nTotal iterations: {len(self.iteration_history)}")
+        print(f"Total time: {(datetime.now() - self.start_time).total_seconds()/60:.1f} minutes")
+        
+        if self.iteration_history:
+            best_iter = min(self.iteration_history, key=lambda x: x['score'])
+            print(f"\nBest score: {best_iter['score']:.6f} (iteration {best_iter['iteration']})")
+            print(f"Best parameters:")
+            for param, value in best_iter['parameters'].items():
+                if isinstance(value, float):
+                    print(f"  {param}: {value:.4f}")
+                else:
+                    print(f"  {param}: {value}")
+        
+        print(f"\nConstraint violations: {len(self.constraint_violations)}")
+        if self.constraint_violations:
+            print("  Recent violations:")
+            for violation in self.constraint_violations[-3:]:
+                print(f"    Iteration {violation['iteration']}: {violation['violations'][0]}")
+        
+        if self.convergence_metrics['plateau_iterations'] > 10:
+            print(f"\n⚠️  Optimization appears to have plateaued after {self.convergence_metrics['plateau_iterations']} iterations")
+        
+        print("\nParameter evolution:")
+        evolution = self._calculate_parameter_evolution()
+        for param, stats in evolution.items():
+            print(f"  {param}: {stats['initial']:.4f} → {stats['final']:.4f} "
+                  f"({stats['trend']}, std={stats['std']:.4f})")
+            
 
 class ParameterSpace:
     """Parameter space definition and validation"""
@@ -140,25 +317,25 @@ class WalkForwardEvaluator(EvaluationStrategy):
                 
                 # Train model on historical data
                 prev_year = None
-                for _, match in train_data.iterrows():
+                for row in train_data.itertuples(index=False):
                     # Apply season carryover at the start of a new season
-                    if prev_year is not None and match['year'] != prev_year:
-                        model.apply_season_carryover(match['year'])
+                    if prev_year is not None and row.year != prev_year:
+                        model.apply_season_carryover(row.year)
                     
                     # Update ratings with venue information and database connection
                     model.update_ratings(
-                        match['home_team'],
-                        match['away_team'],
-                        match['hscore'],
-                        match['ascore'],
-                        match['year'],
-                        match_id=match.get('match_id'),
-                        round_number=match.get('round_number'),
-                        match_date=match.get('match_date'),
-                        venue=match.get('venue'),
+                        row.home_team,
+                        row.away_team,
+                        row.hscore,
+                        row.ascore,
+                        row.year,
+                        match_id=getattr(row, 'match_id', None),
+                        round_number=getattr(row, 'round_number', None),
+                        match_date=getattr(row, 'match_date', None),
+                        venue=getattr(row, 'venue', None),
                         db_connection=db_connection
                     )
-                    prev_year = match['year']
+                    prev_year = row.year
             
             # Apply season carryover before predicting test season
             if prev_year is not None and test_season != prev_year:
@@ -198,16 +375,16 @@ class WalkForwardEvaluator(EvaluationStrategy):
         predictions = []
         actuals = []
         
-        for _, match in test_data.iterrows():
+        for row in test_data.itertuples(index=False):
             prob = model.calculate_win_probability(
-                match['home_team'], match['away_team'], 
-                venue=match.get('venue'), db_connection=db_connection
+                row.home_team, row.away_team, 
+                venue=getattr(row, 'venue', None), db_connection=db_connection
             )
             predictions.append(max(min(prob, 0.999), 0.001))  # Clip probabilities
             
-            if match['hscore'] > match['ascore']:
+            if row.hscore > row.ascore:
                 actuals.append(1.0)
-            elif match['hscore'] < match['ascore']:
+            elif row.hscore < row.ascore:
                 actuals.append(0.0)
             else:
                 actuals.append(0.5)  # Draw
@@ -222,14 +399,14 @@ class WalkForwardEvaluator(EvaluationStrategy):
         predictions = []
         actuals = []
         
-        for _, match in test_data.iterrows():
+        for row in test_data.itertuples(index=False):
             # Get ELO-based prediction
             if margin_method == 'simple':
-                home_rating = model.team_ratings.get(match['home_team'], model.base_rating)
-                away_rating = model.team_ratings.get(match['away_team'], model.base_rating)
+                home_rating = model.team_ratings.get(row.home_team, model.base_rating)
+                away_rating = model.team_ratings.get(row.away_team, model.base_rating)
                 home_advantage = model.get_contextual_home_advantage(
-                    match['home_team'], match['away_team'], 
-                    venue=match.get('venue'), db_connection=db_connection
+                    row.home_team, row.away_team, 
+                    venue=getattr(row, 'venue', None), db_connection=db_connection
                 )
                 rating_diff = (home_rating + home_advantage) - away_rating
                 predicted_margin = rating_diff * margin_params[0]
@@ -237,7 +414,7 @@ class WalkForwardEvaluator(EvaluationStrategy):
                 # Other margin methods would be implemented here
                 raise NotImplementedError(f"Margin method {margin_method} not implemented")
             
-            actual_margin = match['hscore'] - match['ascore']
+            actual_margin = row.hscore - row.ascore
             
             predictions.append(predicted_margin)
             actuals.append(actual_margin)
@@ -249,16 +426,16 @@ class WalkForwardEvaluator(EvaluationStrategy):
         predictions = []
         actuals = []
         
-        for _, match in test_data.iterrows():
+        for row in test_data.itertuples(index=False):
             prob = model.calculate_win_probability(
-                match['home_team'], match['away_team'], 
-                venue=match.get('venue'), db_connection=db_connection
+                row.home_team, row.away_team, 
+                venue=getattr(row, 'venue', None), db_connection=db_connection
             )
             predictions.append(max(min(prob, 0.999), 0.001))  # Clip probabilities
             
-            if match['hscore'] > match['ascore']:
+            if row.hscore > row.ascore:
                 actuals.append(1.0)
-            elif match['hscore'] < match['ascore']:
+            elif row.hscore < row.ascore:
                 actuals.append(0.0)
             else:
                 actuals.append(0.5)  # Draw
@@ -318,21 +495,21 @@ class CrossValidationEvaluator(EvaluationStrategy):
                 
                 # Train on training data with proper season carryover
                 prev_year = None
-                for _, match in train_data.iterrows():
+                for row in train_data.itertuples(index=False):
                     # Apply season carryover at the start of a new season
-                    if prev_year is not None and match['year'] != prev_year:
-                        fold_model.apply_season_carryover(match['year'])
+                    if prev_year is not None and row.year != prev_year:
+                        fold_model.apply_season_carryover(row.year)
                     
                     fold_model.update_ratings(
-                        match['home_team'], match['away_team'],
-                        match['hscore'], match['ascore'],
-                        match['year'], match_id=match.get('match_id'),
-                        round_number=match.get('round_number'),
-                        match_date=match.get('match_date'),
-                        venue=match.get('venue'),
+                        row.home_team, row.away_team,
+                        row.hscore, row.ascore,
+                        row.year, match_id=getattr(row, 'match_id', None),
+                        round_number=getattr(row, 'round_number', None),
+                        match_date=getattr(row, 'match_date', None),
+                        venue=getattr(row, 'venue', None),
                         db_connection=db_connection
                     )
-                    prev_year = match['year']
+                    prev_year = row.year
             
                 # Apply season carryover before testing if needed
                 test_years = test_data['year'].unique()
@@ -402,9 +579,9 @@ class BayesianOptimizer(OptimizationStrategy):
         self.noise = noise
     
     def optimize(self, objective_function: Callable, parameter_space: ParameterSpace,
-                n_calls: int = 100, **kwargs) -> OptimizationResult:
+            n_calls: int = 100, **kwargs) -> OptimizationResult:
         """
-        Run Bayesian optimization
+        Run Bayesian optimization with enhanced diagnostics
         
         Parameters:
         -----------
@@ -421,6 +598,7 @@ class BayesianOptimizer(OptimizationStrategy):
             Optimization results
         """
         verbose = kwargs.get('verbose', True)
+        enable_diagnostics = kwargs.get('enable_diagnostics', True)
         
         # Multi-start optimization
         all_results = []
@@ -428,9 +606,18 @@ class BayesianOptimizer(OptimizationStrategy):
         overall_best_params = None
         overall_start_time = datetime.now()
         
+        # Create diagnostics tracker
+        if enable_diagnostics:
+            diagnostics = OptimizationDiagnostics(
+                parameter_space, 
+                log_file=kwargs.get('diagnostics_file', 'optimization_diagnostics.json')
+            )
+        
         if verbose:
             print(f"Running Bayesian optimization with {self.n_starts} starts...")
-            print(f"Each start will run {n_calls} iterations.\n")
+            print(f"Each start will run {n_calls} iterations.")
+            if enable_diagnostics:
+                print(f"Diagnostics will be saved to: {diagnostics.log_file}\n")
         
         for start_idx in range(self.n_starts):
             if verbose and self.n_starts > 1:
@@ -441,6 +628,7 @@ class BayesianOptimizer(OptimizationStrategy):
             # Progress tracking
             iteration = [0]
             start_time = datetime.now()
+            best_this_start = [float('inf')]
             
             # Create objective function wrapper for progress tracking
             @use_named_args(parameter_space.dimensions)
@@ -450,25 +638,47 @@ class BayesianOptimizer(OptimizationStrategy):
                 # Convert to parameter dictionary
                 param_dict = {name: params[name] for name in parameter_space.param_names}
                 
+                # Check constraints if diagnostics enabled
+                if enable_diagnostics:
+                    violations = diagnostics.check_constraints(param_dict)
+                    if violations and verbose:
+                        print(f"  ⚠️  Constraint violations: {', '.join(violations)}")
+                
                 # Evaluate
                 score = objective_function(param_dict)
                 
-                # Track best score for this start
-                if not hasattr(objective_wrapper, 'best_score') or score < objective_wrapper.best_score:
-                    objective_wrapper.best_score = score
-                    objective_wrapper.best_params = param_dict
+                # Track if this is best score
+                is_best = False
+                if score < best_this_start[0]:
+                    best_this_start[0] = score
+                    is_best = True
+                
+                # Log to diagnostics
+                if enable_diagnostics:
+                    diagnostics.log_iteration(iteration[0], param_dict, score, is_best)
+                    
+                    # Check for plateau every 20 iterations
+                    if iteration[0] % 20 == 0 and diagnostics.detect_plateau():
+                        if verbose:
+                            print(f"  ⚠️  Optimization may have plateaued")
                 
                 # Progress update
                 if verbose:
                     elapsed = (datetime.now() - start_time).total_seconds() / 60
                     if self.n_starts > 1:
                         print(f"Start {start_idx + 1} - Iter {iteration[0]}/{n_calls} - "
-                              f"Elapsed: {elapsed:.1f}min - Current: {score:.4f} - "
-                              f"Best this start: {objective_wrapper.best_score:.4f}")
+                            f"Elapsed: {elapsed:.1f}min - Current: {score:.4f} - "
+                            f"Best this start: {best_this_start[0]:.4f}")
                     else:
                         print(f"Iter {iteration[0]}/{n_calls} - "
-                              f"Elapsed: {elapsed:.1f}min - Current: {score:.4f} - "
-                              f"Best: {objective_wrapper.best_score:.4f}")
+                            f"Elapsed: {elapsed:.1f}min - Current: {score:.4f} - "
+                            f"Best: {best_this_start[0]:.4f}")
+                    
+                    # Print parameter values every 10 iterations if verbose
+                    if iteration[0] % 10 == 0:
+                        param_str = ", ".join([f"{k}={v:.2f}" if isinstance(v, float) else f"{k}={v}" 
+                                            for k, v in param_dict.items()])
+                        print(f"    Params: {param_str}")
                 
                 return score
             
@@ -501,6 +711,11 @@ class BayesianOptimizer(OptimizationStrategy):
                     print(f"  Best score: {result.fun:.4f}")
                     print(f"  Time elapsed: {elapsed}")
                     print(f"  Overall best so far: {overall_best_score:.4f}")
+        
+        # Save and print diagnostics
+        if enable_diagnostics:
+            diagnostics.save_diagnostics()
+            diagnostics.print_summary()
         
         # Use the result object with the best score
         best_result = min(all_results, key=lambda x: x.fun)
@@ -539,10 +754,10 @@ class BayesianOptimizer(OptimizationStrategy):
             additional_info={
                 'n_starts': self.n_starts,
                 'acq_func': self.acq_func,
-                'all_results': all_results
+                'all_results': all_results,
+                'diagnostics_file': diagnostics.log_file if enable_diagnostics else None
             }
         )
-
 
 class GridSearchOptimizer(OptimizationStrategy):
     """Grid search optimizer"""
@@ -559,7 +774,7 @@ class GridSearchOptimizer(OptimizationStrategy):
         require discrete parameter grids.
         """
         raise NotImplementedError("Grid search optimization not fully implemented")
-
+    
 
 # Parameter space definitions
 def get_elo_parameter_space() -> ParameterSpace:
@@ -720,6 +935,15 @@ def run_optimization(model_class, parameter_space: ParameterSpace,
         optimizer = GridSearchOptimizer(**kwargs)
     else:
         raise ValueError(f"Unknown optimization method: {method}")
+
+    # Run optimization with diagnostic options
+    result = optimizer.optimize(
+        objective, parameter_space, n_calls, 
+        verbose=verbose, metric=metric, 
+        enable_diagnostics=kwargs.get('enable_diagnostics', True),
+        diagnostics_file=kwargs.get('diagnostics_file', f'{method}_optimization_diagnostics.json'),
+        **kwargs
+    )
     
     # Create objective function
     objective = create_optimization_objective(
