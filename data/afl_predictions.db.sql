@@ -20,9 +20,11 @@ CREATE TABLE IF NOT EXISTS "matches" (
 	"abehinds"	INTEGER,
 	"year"	INTEGER,
 	"complete"	INTEGER NOT NULL DEFAULT 0,
+	"venue_id"	INTEGER,
 	PRIMARY KEY("match_id"),
 	FOREIGN KEY("away_team_id") REFERENCES "teams"("team_id"),
-	FOREIGN KEY("home_team_id") REFERENCES "teams"("team_id")
+	FOREIGN KEY("home_team_id") REFERENCES "teams"("team_id"),
+	FOREIGN KEY("venue_id") REFERENCES "venues"("venue_id")
 );
 CREATE TABLE IF NOT EXISTS "predictions" (
 	"prediction_id"	INTEGER,
@@ -53,5 +55,32 @@ CREATE TABLE IF NOT EXISTS "teams" (
 	"abbrev"	TEXT,
 	"colour_hex"	TEXT,
 	PRIMARY KEY("team_id")
+);
+CREATE TABLE IF NOT EXISTS "venue_aliases" (
+	"alias_id"	INTEGER,
+	"venue_id"	INTEGER NOT NULL,
+	"alias_name"	TEXT NOT NULL,
+	"start_date"	DATE,
+	"end_date"	DATE,
+	PRIMARY KEY("alias_id"),
+	UNIQUE("venue_id","alias_name"),
+	FOREIGN KEY("venue_id") REFERENCES "venues"("venue_id")
+);
+CREATE TABLE IF NOT EXISTS "venues" (
+	"venue_id"	INTEGER,
+	"name"	TEXT NOT NULL,
+	"city"	TEXT NOT NULL,
+	"state"	TEXT NOT NULL,
+	PRIMARY KEY("venue_id")
+);
+CREATE INDEX IF NOT EXISTS "idx_venue_aliases_dates" ON "venue_aliases" (
+	"start_date",
+	"end_date"
+);
+CREATE INDEX IF NOT EXISTS "idx_venue_aliases_name" ON "venue_aliases" (
+	"alias_name"
+);
+CREATE INDEX IF NOT EXISTS "idx_venues_state" ON "venues" (
+	"state"
 );
 COMMIT;
