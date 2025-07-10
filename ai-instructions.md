@@ -69,6 +69,13 @@ This file contains instructions for AI assistants working on this codebase. Read
 - Offer multiple solutions when uncertain.
 - Ask for clarification rather than assume.
 
+### Challenge Incorrect Practices
+- **IMMEDIATELY** point out when requested approaches violate best practices.
+- Explain why the approach is problematic and suggest correct alternatives.
+- Do NOT implement incorrect solutions even if explicitly requested.
+- Examples: Using wrong testing frameworks for languages, mixing incompatible technologies, security anti-patterns.
+- Always suggest the industry-standard approach instead.
+
 ### Handling Non-Reproducible Bugs
 - If you are unable to reproduce a reported bug, document the exact steps and environment you used for testing.
 - Then, ask for more specific reproduction steps, environment details, or logs from the user.

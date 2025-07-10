@@ -5,13 +5,16 @@ import numpy as np
 from datetime import datetime, timezone
 import os
 import argparse
+from elo_core import AFLEloModel
+from data_io import get_database_connection
 
 
 class AFLStandardEloPredictor:
     """
-    Standard ELO predictor focused on win probability predictions
+    Standard ELO predictor focused on win probability predictions.
+    Uses the centralized AFLEloModel for consistent logic.
     """
-    def __init__(self, model_path):
+    def __init__(self, model_path, db_path='data/afl_predictions.db'):
         """
         Initialize the standard ELO predictor
         
@@ -19,16 +22,49 @@ class AFLStandardEloPredictor:
         -----------
         model_path: str
             Path to the saved standard ELO model JSON file
+        db_path: str
+            Path to the database for venue lookups
         """
-        # Initialize empty attributes
-        self.team_ratings = {}
-        self.params = {}
+        self.db_path = db_path
+        self.db_connection = None
         
+        # Load model parameters
         if not self.load_model(model_path):
             raise ValueError(f"Failed to load standard ELO model from {model_path}")
         
+        # Create the underlying ELO model using centralized implementation
+        self.model = AFLEloModel(
+            base_rating=self.params['base_rating'],
+            k_factor=self.params['k_factor'],
+            default_home_advantage=self.params.get('default_home_advantage', self.params.get('home_advantage', 50)),
+            interstate_home_advantage=self.params.get('interstate_home_advantage', self.params.get('home_advantage', 50)),
+            margin_factor=self.params['margin_factor'],
+            season_carryover=self.params['season_carryover'],
+            max_margin=self.params['max_margin'],
+            beta=self.params['beta']
+        )
+        
+        # Set team ratings from loaded model
+        self.model.team_ratings = self.team_ratings.copy()
+        
+        # Initialize database connection and team states
+        try:
+            self.db_connection = get_database_connection(self.db_path)
+            self.model.initialize_ratings(list(self.team_ratings.keys()), self.db_path)
+        except Exception as e:
+            print(f"Warning: Could not initialize database connection: {e}")
+            print("Venue-based interstate advantage will not be available")
+        
         self.predictions = []
         self.rating_history = []
+    
+    def __del__(self):
+        """Clean up database connection when predictor is destroyed"""
+        if hasattr(self, 'db_connection') and self.db_connection:
+            try:
+                self.db_connection.close()
+            except Exception:
+                pass
     
     def load_model(self, model_path):
         """Load the trained standard ELO model"""
@@ -44,7 +80,14 @@ class AFLStandardEloPredictor:
             self.params = model_data['parameters']
             self.base_rating = self.params['base_rating']
             self.k_factor = self.params['k_factor']
-            self.home_advantage = self.params['home_advantage']
+            # Handle both old single home_advantage and new dual parameters
+            if 'default_home_advantage' in self.params:
+                self.default_home_advantage = self.params['default_home_advantage']
+                self.interstate_home_advantage = self.params['interstate_home_advantage']
+            else:
+                # Fallback for old models - use single home_advantage for both
+                self.default_home_advantage = self.params.get('home_advantage', 50)
+                self.interstate_home_advantage = self.params.get('home_advantage', 50)
             self.season_carryover = self.params['season_carryover']
             self.max_margin = self.params['max_margin']
             
@@ -77,74 +120,55 @@ class AFLStandardEloPredictor:
             self.params = {}
             return False
     
-    def _cap_margin(self, margin):
-        """Cap margin to reduce effect of blowouts"""
-        return min(abs(margin), self.max_margin) * np.sign(margin)
+    def calculate_win_probability(self, home_team, away_team, venue=None):
+        """Calculate probability of home team winning using centralized model"""
+        return self.model.calculate_win_probability(home_team, away_team, venue, self.db_connection)
     
-    def calculate_win_probability(self, home_team, away_team):
-        """Calculate probability of home team winning based on ELO difference"""
-        home_rating = self.team_ratings.get(home_team, self.base_rating)
-        away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
-        
-        # Convert rating difference to win probability using logistic function
-        win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
-        
-        return win_probability
-    
-    def predict_margin_builtin(self, home_team, away_team):
+    def predict_margin_builtin(self, home_team, away_team, venue=None):
         """
         Predict margin using built-in ELO calculation
         """
-        win_prob = self.calculate_win_probability(home_team, away_team)
-        predicted_margin = (win_prob - 0.5) / self.beta
+        win_prob = self.calculate_win_probability(home_team, away_team, venue)
+        predicted_margin = (win_prob - 0.5) / self.params['beta']
         return predicted_margin
     
     def apply_season_carryover(self, new_year):
-        """Apply regression to mean between seasons"""
+        """Apply regression to mean between seasons using centralized model"""
         print(f"Applying season carryover for {new_year}...")
         
         # Store current ratings before carryover
-        ratings_before = self.team_ratings.copy()
+        ratings_before = self.model.team_ratings.copy()
         
-        for team in self.team_ratings:
-            # Regress ratings toward base rating
-            self.team_ratings[team] = self.base_rating + self.season_carryover * (self.team_ratings[team] - self.base_rating)
+        # Apply carryover using centralized model
+        self.model.apply_season_carryover(new_year)
+        
+        # Update our local reference
+        self.team_ratings = self.model.team_ratings.copy()
         
         # Store the ratings transition in history
         self.rating_history.append({
             'event': 'season_carryover',
             'year': new_year,
             'ratings_before': ratings_before,
-            'ratings_after': self.team_ratings.copy()
+            'ratings_after': self.model.team_ratings.copy()
         })
     
     def update_ratings(self, home_team, away_team, hscore, ascore, match_id=None, year=None, round_number=None, match_date=None, venue=None):
         """
-        Update team ratings based on match result
+        Update team ratings based on match result using centralized model
         """
-        # Ensure teams exist in ratings
-        if home_team not in self.team_ratings:
-            print(f"Warning: {home_team} not found in ratings, using base rating")
-            self.team_ratings[home_team] = self.base_rating
-            
-        if away_team not in self.team_ratings:
-            print(f"Warning: {away_team} not found in ratings, using base rating")
-            self.team_ratings[away_team] = self.base_rating
+        # Get current ratings before update
+        home_rating = self.model.team_ratings.get(home_team, self.model.base_rating)
+        away_rating = self.model.team_ratings.get(away_team, self.model.base_rating)
         
-        # Get current ratings
-        home_rating = self.team_ratings[home_team]
-        away_rating = self.team_ratings[away_team]
+        # Calculate win probability using venue information
+        home_win_prob = self.calculate_win_probability(home_team, away_team, venue)
         
-        # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
-        
-        # Predict margin using built-in method
-        predicted_margin = self.predict_margin_builtin(home_team, away_team)
+        # Predict margin using built-in method  
+        predicted_margin = self.predict_margin_builtin(home_team, away_team, venue)
         
         # Store the pre-update prediction info
+        home_advantage = self.model.get_contextual_home_advantage(home_team, away_team, venue, self.db_connection)
         prediction_info = {
             'match_id': match_id,
             'round_number': round_number,
@@ -156,7 +180,7 @@ class AFLStandardEloPredictor:
             'pre_match_home_rating': home_rating,
             'pre_match_away_rating': away_rating,
             'rating_difference': home_rating - away_rating,
-            'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
+            'adjusted_rating_difference': (home_rating + home_advantage) - away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
@@ -164,30 +188,27 @@ class AFLStandardEloPredictor:
             'predicted_margin': predicted_margin,
         }
         
-        # If scores are provided, update ratings and add result info
+        # If scores are provided, update ratings using centralized model
         if hscore is not None and ascore is not None:
-            # Determine actual result (1 for home win, 0 for away win)
-            actual_result = 1.0 if hscore > ascore else 0.0
+            # Use centralized model to update ratings
+            self.model.update_ratings(
+                home_team, away_team, hscore, ascore, year,
+                match_id=match_id, round_number=round_number, 
+                match_date=match_date, venue=venue, 
+                db_connection=self.db_connection
+            )
             
-            # Handle draws (0.5 points each)
+            # Update our local reference to ratings
+            self.team_ratings = self.model.team_ratings.copy()
+            
+            # Calculate actual result and margin for history
+            actual_result = 1.0 if hscore > ascore else 0.0
             if hscore == ascore:
                 actual_result = 0.5
-            
-            # Calculate rating change based on result and margin
             margin = hscore - ascore
-            capped_margin = self._cap_margin(margin)
             
-            # Adjust K-factor by margin
-            margin_multiplier = 1.0
-            if self.margin_factor > 0:
-                margin_multiplier = np.log1p(abs(capped_margin) * self.margin_factor) / np.log1p(self.max_margin * self.margin_factor)
-            
-            # Calculate ELO update
-            rating_change = self.k_factor * margin_multiplier * (actual_result - home_win_prob)
-            
-            # Update ratings
-            self.team_ratings[home_team] += rating_change
-            self.team_ratings[away_team] -= rating_change
+            # Calculate rating change
+            rating_change = self.model.team_ratings[home_team] - home_rating
             
             # Add result info to prediction
             prediction_info.update({
@@ -196,8 +217,8 @@ class AFLStandardEloPredictor:
                 'actual_result': 'home_win' if hscore > ascore else ('away_win' if hscore < ascore else 'draw'),
                 'margin': margin,
                 'rating_change': rating_change,
-                'post_match_home_rating': self.team_ratings[home_team],
-                'post_match_away_rating': self.team_ratings[away_team],
+                'post_match_home_rating': self.model.team_ratings[home_team],
+                'post_match_away_rating': self.model.team_ratings[away_team],
                 'correct': (home_win_prob > 0.5 and hscore > ascore) or 
                            (home_win_prob < 0.5 and hscore < ascore) or 
                            (home_win_prob == 0.5 and hscore == ascore)
@@ -216,8 +237,8 @@ class AFLStandardEloPredictor:
                 'away_score': ascore,
                 'home_rating_before': home_rating,
                 'away_rating_before': away_rating,
-                'home_rating_after': self.team_ratings[home_team],
-                'away_rating_after': self.team_ratings[away_team],
+                'home_rating_after': self.model.team_ratings[home_team],
+                'away_rating_after': self.model.team_ratings[away_team],
                 'rating_change': rating_change
             })
         
@@ -230,26 +251,18 @@ class AFLStandardEloPredictor:
         """
         Predict the outcome of a match without updating ratings
         """
-        # Check if teams exist in ratings
-        if home_team not in self.team_ratings:
-            print(f"Warning: {home_team} not found in ratings, using base rating")
-            self.team_ratings[home_team] = self.base_rating
-            
-        if away_team not in self.team_ratings:
-            print(f"Warning: {away_team} not found in ratings, using base rating")
-            self.team_ratings[away_team] = self.base_rating
+        # Get current ratings from centralized model
+        home_rating = self.model.team_ratings.get(home_team, self.model.base_rating)
+        away_rating = self.model.team_ratings.get(away_team, self.model.base_rating)
         
-        # Get current ratings
-        home_rating = self.team_ratings[home_team]
-        away_rating = self.team_ratings[away_team]
-        
-        # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
+        # Calculate win probability using venue information
+        home_win_prob = self.calculate_win_probability(home_team, away_team, venue)
         
         # Predict margin using built-in method
-        predicted_margin = self.predict_margin_builtin(home_team, away_team)
+        predicted_margin = self.predict_margin_builtin(home_team, away_team, venue)
         
         # Create prediction result
+        home_advantage = self.model.get_contextual_home_advantage(home_team, away_team, venue, self.db_connection)
         prediction = {
             'match_id': match_id,
             'round_number': round_number,
@@ -261,7 +274,7 @@ class AFLStandardEloPredictor:
             'pre_match_home_rating': home_rating,
             'pre_match_away_rating': away_rating,
             'rating_difference': home_rating - away_rating,
-            'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
+            'adjusted_rating_difference': (home_rating + home_advantage) - away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_margin': predicted_margin,
@@ -491,13 +504,16 @@ def fetch_matches(db_path, start_year):
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
         m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team
+        ht.name as home_team, at.name as away_team,
+        v.state as venue_state
     FROM 
         matches m
     JOIN 
         teams ht ON m.home_team_id = ht.team_id
     JOIN 
         teams at ON m.away_team_id = at.team_id
+    LEFT JOIN 
+        venues v ON m.venue_id = v.venue_id
     WHERE 
         m.year >= ?
     ORDER BY 

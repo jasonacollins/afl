@@ -7,302 +7,11 @@ import json
 import os
 import argparse
 from datetime import datetime
-
-class AFLEloModel:
-    def __init__(self, base_rating=1500, k_factor=20, home_advantage=50, 
-            margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05):
-        """
-        Initialize the AFL ELO model with configurable parameters
-        
-        Parameters:
-        -----------
-        base_rating: int
-            Starting ELO rating for all teams
-        k_factor: float
-            Determines how quickly ratings change
-        home_advantage: float
-            Points added to home team's rating when calculating win probability
-        margin_factor: float
-            How much the margin of victory affects rating changes
-        season_carryover: float
-            Percentage of rating retained between seasons (0.75 = 75%)
-        max_margin: int
-            Maximum margin to consider (to limit effect of blowouts)
-        beta: float
-            Scaling factor for converting win probability to predicted margin
-        """
-        self.base_rating = base_rating
-        self.k_factor = k_factor
-        self.home_advantage = home_advantage
-        self.margin_factor = margin_factor
-        self.season_carryover = season_carryover
-        self.max_margin = max_margin
-        self.beta = beta
-        self.team_ratings = {}
-        self.yearly_ratings = {}
-        self.rating_history = []
-        self.predictions = []
-    
-    def initialize_ratings(self, teams):
-        """Initialize all team ratings to the base rating"""
-        self.team_ratings = {team: self.base_rating for team in teams}
-    
-    def _cap_margin(self, margin):
-        """Cap margin to reduce effect of blowouts"""
-        return min(abs(margin), self.max_margin) * np.sign(margin)
-    
-    def calculate_win_probability(self, home_team, away_team):
-        """Calculate probability of home team winning based on ELO difference"""
-        home_rating = self.team_ratings.get(home_team, self.base_rating)
-        away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
-        
-        # Convert rating difference to win probability using logistic function
-        win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
-        
-        return win_probability
-
-    def update_ratings(self, home_team, away_team, hscore, ascore, year, match_id=None, round_number=None, match_date=None, venue=None):
-        """
-        Update team ratings based on match result
-        
-        Parameters:
-        -----------
-        home_team: str
-            Name of home team
-        away_team: str
-            Name of away team
-        hscore: int
-            Score of home team
-        ascore: int
-            Score of away team
-        year: int
-            Season year (used for tracking)
-        match_id: int
-            Optional match ID for tracking
-        round_number: str
-            Optional round number for tracking
-        match_date: str
-            Optional match date for tracking
-        venue: str
-            Optional venue for tracking
-        
-        Returns:
-        --------
-        dict with updated ratings and prediction information
-        """
-        # Ensure teams exist in ratings
-        if home_team not in self.team_ratings:
-            self.team_ratings[home_team] = self.base_rating
-        if away_team not in self.team_ratings:
-            self.team_ratings[away_team] = self.base_rating
-        
-        # Get current ratings
-        home_rating = self.team_ratings[home_team]
-        away_rating = self.team_ratings[away_team]
-        
-        # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
-        
-        # Determine actual result (1 for home win, 0 for away win)
-        actual_result = 1.0 if hscore > ascore else 0.0
-        
-        # Handle draws (0.5 points each)
-        if hscore == ascore:
-            actual_result = 0.5
-        
-        # Calculate rating change based on result
-        margin = hscore - ascore
-        capped_margin = self._cap_margin(margin)
-        
-        # Adjust K-factor by margin
-        margin_multiplier = 1.0
-        if self.margin_factor > 0:
-            margin_multiplier = np.log1p(abs(capped_margin) * self.margin_factor) / np.log1p(self.max_margin * self.margin_factor)
-        
-        # Calculate ELO update
-        rating_change = self.k_factor * margin_multiplier * (actual_result - home_win_prob)
-        
-        # Update ratings
-        self.team_ratings[home_team] += rating_change
-        self.team_ratings[away_team] -= rating_change
-        
-        # Store the prediction and outcome
-        prediction_info = {
-            'match_id': match_id,
-            'round_number': round_number,
-            'match_date': match_date,
-            'venue': venue,
-            'year': year,
-            'home_team': home_team,
-            'away_team': away_team,
-            'hscore': hscore,
-            'ascore': ascore,
-            'pre_match_home_rating': home_rating,
-            'pre_match_away_rating': away_rating,
-            'rating_difference': home_rating - away_rating,
-            'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
-            'home_win_probability': home_win_prob,
-            'away_win_probability': 1 - home_win_prob,
-            'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
-            'confidence': max(home_win_prob, 1 - home_win_prob),
-            'actual_result': 'home_win' if hscore > ascore else ('away_win' if hscore < ascore else 'draw'),
-            'correct': (home_win_prob > 0.5 and hscore > ascore) or (home_win_prob < 0.5 and hscore < ascore) or (home_win_prob == 0.5 and hscore == ascore),
-            'margin': margin,
-            'rating_change': rating_change
-        }
-        
-        self.predictions.append(prediction_info)
-        
-        # Store rating history
-        self.rating_history.append({
-            'year': year,
-            'match_id': match_id,
-            'match_date': match_date,
-            'home_team': home_team,
-            'away_team': away_team,
-            'home_rating': self.team_ratings[home_team],
-            'away_rating': self.team_ratings[away_team]
-        })
-        
-        return prediction_info
-    
-    def apply_season_carryover(self, new_year):
-        """Apply regression to mean between seasons"""
-        for team in self.team_ratings:
-            # Regress ratings toward base rating
-            self.team_ratings[team] = self.base_rating + self.season_carryover * (self.team_ratings[team] - self.base_rating)
-        
-        # Store ratings before the season starts
-        self.yearly_ratings[f"{new_year}_start"] = self.team_ratings.copy()
-    
-    def save_yearly_ratings(self, year):
-        """Save the current ratings as end-of-year ratings"""
-        self.yearly_ratings[str(year)] = self.team_ratings.copy()
-    
-    def evaluate_model(self):
-        """Calculate accuracy and other metrics for model evaluation"""
-        if not self.predictions:
-            return {
-                'accuracy': 0,
-                'brier_score': 1.0,  # Worst possible Brier score
-                'log_loss': float('inf')
-            }
-        
-        y_true = [1 if p['actual_result'] == 'home_win' else (0.5 if p['actual_result'] == 'draw' else 0) for p in self.predictions]
-        y_pred = [p['home_win_probability'] for p in self.predictions]
-        
-        # Calculate binary prediction accuracy (did we predict the winner correctly?)
-        binary_predictions = [1 if prob >= 0.5 else 0 for prob in y_pred]
-        accuracy = sum(1 for true, pred in zip(y_true, binary_predictions) if 
-                      (true == 1 and pred == 1) or (true == 0 and pred == 0) or (true == 0.5)) / len(y_true)
-        
-        # Calculate Brier score (lower is better)
-        brier = sum((pred - true)**2 for true, pred in zip(y_true, y_pred)) / len(y_true)
-
-        # Calculate log loss (lower is better)
-        logloss = 0
-        for true, pred in zip(y_true, y_pred):
-            # Clip probability to avoid log(0) issues
-            p = max(min(pred, 0.999), 0.001)
-            
-            # Calculate loss based on actual outcome
-            if true == 1.0:
-                loss = -np.log(p)
-            elif true == 0.0:
-                loss = -np.log(1 - p)
-            else:  # Draw (0.5)
-                # For a draw, use proximity to 0.5 for the loss calculation
-                loss = -np.log(1 - abs(0.5 - p))
-            
-            logloss += loss
-        logloss /= len(y_true)
-        
-        return {
-            'accuracy': accuracy,
-            'brier_score': brier,
-            'log_loss': logloss
-        }
-    
-    def save_model(self, filename):
-        """Save the model parameters and team ratings"""
-        model_data = {
-            'parameters': {
-                'base_rating': self.base_rating,
-                'k_factor': self.k_factor,
-                'home_advantage': self.home_advantage,
-                'margin_factor': self.margin_factor,
-                'season_carryover': self.season_carryover,
-                'max_margin': self.max_margin,
-                'beta': self.beta
-            },
-            'team_ratings': self.team_ratings,
-            'yearly_ratings': self.yearly_ratings
-        }
-        
-        with open(filename, 'w') as f:
-            json.dump(model_data, f, indent=4)
-    
-    def save_predictions_to_csv(self, filename):
-        """Save all predictions to a CSV file"""
-        if not self.predictions:
-            print("No predictions to save")
-            return
-        
-        df = pd.DataFrame(self.predictions)
-        df.to_csv(filename, index=False)
-        print(f"Saved {len(df)} predictions to {filename}")
+from elo_core import AFLEloModel
+from data_io import fetch_afl_data, get_database_connection
 
 
-def fetch_afl_data(db_path, start_year=None, end_year=None):
-    """
-    Fetch historical AFL match data from SQLite database
-    
-    Parameters:
-    -----------
-    db_path: str
-        Path to SQLite database
-    start_year: int
-        Optional starting year for data. If provided, only games from this year onward are fetched.
-    end_year: int
-        Optional ending year for data. If provided, only games up to this year are fetched.
-        
-    Returns:
-    --------
-    pandas DataFrame with match data
-    """
-    conn = sqlite3.connect(db_path)
-    
-    year_clause = ""
-    if start_year:
-        year_clause += f"AND m.year >= {start_year} "
-    if end_year:
-        year_clause += f"AND m.year <= {end_year}"
-    
-    query = f"""
-    SELECT 
-        m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team
-    FROM 
-        matches m
-    JOIN 
-        teams ht ON m.home_team_id = ht.team_id
-    JOIN 
-        teams at ON m.away_team_id = at.team_id
-    WHERE 
-        m.hscore IS NOT NULL AND m.ascore IS NOT NULL
-        {year_clause}
-    ORDER BY 
-        m.year, m.match_date
-    """
-    
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    
-    return df
+
 
 
 def train_elo_model(data, params=None):
@@ -326,7 +35,8 @@ def train_elo_model(data, params=None):
         model = AFLEloModel(
             base_rating=params.get('base_rating', 1500),
             k_factor=params.get('k_factor', 20),
-            home_advantage=params.get('home_advantage', 50),
+            default_home_advantage=params.get('default_home_advantage', params.get('home_advantage', 30)),
+            interstate_home_advantage=params.get('interstate_home_advantage', params.get('home_advantage', 60)),
             margin_factor=params.get('margin_factor', 0.3),
             season_carryover=params.get('season_carryover', 0.6),
             max_margin=params.get('max_margin', 120),
@@ -345,8 +55,6 @@ def train_elo_model(data, params=None):
     for _, match in data.iterrows():
         # Apply season carryover at the start of a new season
         if prev_year is not None and match['year'] != prev_year:
-            # Save ratings at the end of the previous year
-            model.save_yearly_ratings(prev_year)
             # Apply carryover for the new year
             model.apply_season_carryover(match['year'])
         
@@ -354,8 +62,8 @@ def train_elo_model(data, params=None):
         model.update_ratings(
             home_team=match['home_team'],
             away_team=match['away_team'],
-            hscore=match['hscore'],
-            ascore=match['ascore'],
+            home_score=match['hscore'],
+            away_score=match['ascore'],
             year=match['year'],
             match_id=match['match_id'],
             round_number=match['round_number'],
@@ -365,9 +73,7 @@ def train_elo_model(data, params=None):
         
         prev_year = match['year']
     
-    # Save ratings for the final year
-    if prev_year:
-        model.save_yearly_ratings(prev_year)
+    # Training complete - model contains final ratings
     
     return model
 
@@ -406,21 +112,23 @@ def parameter_tuning(data, param_grid, cv=5, max_combinations=None):
     
     # Simple grid search using loops
     for k_factor in param_grid['k_factor']:
-        for home_advantage in param_grid['home_advantage']:
-            for margin_factor in param_grid['margin_factor']:
-                for season_carryover in param_grid['season_carryover']:
-                    for max_margin in param_grid['max_margin']:
-                        for beta in param_grid.get('beta', [0.05]):  # Default if not in grid
-                            params = {
-                                'base_rating': param_grid['base_rating'][0],  # Use first value
-                                'k_factor': k_factor,
-                                'home_advantage': home_advantage,
-                                'margin_factor': margin_factor,
-                                'season_carryover': season_carryover,
-                                'max_margin': max_margin,
-                                'beta': beta
-                            }
-                            param_combinations.append(params)
+        for default_home_advantage in param_grid['default_home_advantage']:
+            for interstate_home_advantage in param_grid['interstate_home_advantage']:
+                for margin_factor in param_grid['margin_factor']:
+                    for season_carryover in param_grid['season_carryover']:
+                        for max_margin in param_grid['max_margin']:
+                            for beta in param_grid.get('beta', [0.05]):  # Default if not in grid
+                                params = {
+                                    'base_rating': param_grid['base_rating'][0],  # Use first value
+                                    'k_factor': k_factor,
+                                    'default_home_advantage': default_home_advantage,
+                                    'interstate_home_advantage': interstate_home_advantage,
+                                    'margin_factor': margin_factor,
+                                    'season_carryover': season_carryover,
+                                    'max_margin': max_margin,
+                                    'beta': beta
+                                }
+                                param_combinations.append(params)
     
     # Limit the number of combinations if specified
     if max_combinations and len(param_combinations) > max_combinations:
@@ -653,7 +361,8 @@ def main():
         
         # Report the total number of combinations
         total_combos = (len(param_grid['k_factor']) * 
-                        len(param_grid['home_advantage']) * 
+                        len(param_grid['default_home_advantage']) * 
+                        len(param_grid['interstate_home_advantage']) * 
                         len(param_grid['margin_factor']) * 
                         len(param_grid['season_carryover']) * 
                         len(param_grid['max_margin']) *

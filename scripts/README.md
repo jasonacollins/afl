@@ -2,34 +2,37 @@
 
 This directory contains all the scripts for the AFL predictions system, including ELO model training, optimization, prediction generation, and data management.
 
-## Overview
+## Architecture
 
-The AFL prediction system uses a dual-model approach combining two specialized ELO models:
-- **Standard ELO Model**: Optimized for win probability accuracy
-- **Margin-Only ELO Model**: Optimized specifically for margin prediction accuracy
-
-## Script Structure
+The codebase is organized into modular components:
 
 ```
-Standard ELO (Win Predictions):
-├── afl_elo_optimize_standard.py      # Optimize for win probability
-├── afl_elo_train_standard.py         # Train standard ELO model
+Core Modules:
+├── data_io.py                        # Database operations and file I/O
+├── elo_core.py                       # ELO model implementation  
+└── optimise.py                       # Optimization strategies and evaluation
+
+Application Scripts:
+├── afl_elo_optimize_standard.py      # ELO parameter optimization
+├── afl_elo_train_standard.py         # Model training
 ├── afl_elo_predict_standard.py       # Generate win predictions
-└── afl_elo_margin_methods.py         # Margin methods from standard ELO
-
-Margin-Only ELO (Margin Predictions):
-├── afl_elo_optimize_margin.py        # Optimize for margin accuracy
-├── afl_elo_train_margin.py           # Train margin-only model
-└── afl_elo_predict_margin.py         # Generate margin predictions
-
-Combined Operations:
 ├── afl_elo_predict_combined.py       # Use both models for best results
-├── afl_elo_predict_margin_methods.py # All margin methods comparison
-└── afl_elo_history_generator.py      # Generate historical data
+├── afl_elo_history_generator.py      # Generate historical data
+└── afl_elo_margin_methods.py         # Margin methods optimization
 
-Analysis & Comparison:
-├── compare_margin_models.py          # Compare margin model performance
+Specialized Scripts:
+├── afl_elo_optimize_margin.py        # Margin-only ELO optimization
+├── afl_elo_train_margin.py           # Margin-only ELO training
+├── afl_elo_predict_margin.py         # Margin-only predictions
 └── afl_elo_predictions.py            # Legacy combined prediction script
+
+Tests & Development:
+└── tests/                           # Test and debug scripts
+    ├── test_optimization.py         # Optimization functionality tests
+    ├── test_home_advantage.py       # Home advantage logic tests
+    ├── test_venue_interstate_logic.py # Venue logic tests
+    ├── debug_optimization.py        # Optimization debugging
+    └── requirements-test.txt        # Test dependencies
 
 Node.js Scripts:
 ├── daily-sync.js                     # Daily synchronization workflow
@@ -39,13 +42,21 @@ Node.js Scripts:
 └── sync-games.js                     # Match data synchronization
 ```
 
+## Overview
+
+The AFL prediction system uses a three-tier approach:
+
+1. **Standard ELO Model**: Optimized for win probability accuracy
+2. **Margin Predictions from Standard ELO**: Uses the standard model's ratings with optimized margin calculation methods
+3. **Dedicated Margin-Only ELO Model**: Separate model optimized purely for margin prediction accuracy
+
 ## Complete ELO Model Training and Prediction Workflow
 
-### Standard ELO (Win Predictions)
+### 1. Standard ELO Model (Win Predictions)
 
 #### Optimize for win probability
 ```bash
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
+python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --start-year 2000 --end-year 2024 --output-path data/optimal_elo_params_standard.json
 ```
 
 #### Train standard ELO model
@@ -55,20 +66,22 @@ python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_
 
 #### Generate win predictions
 ```bash
-python3 scripts/afl_elo_predict_standard.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
+python3 scripts/afl_elo_predict_standard.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data --no-save-to-db
 ```
 
-#### Optimize margin methods built on ELO model
+### 2. Margin Predictions Built on Standard ELO Model
+
+#### Optimize margin methods using standard ELO ratings
 ```bash
-python3 scripts/afl_elo_margin_methods.py --elo-params data/afl_elo_trained_to_2024.json --n-calls 50 --output-path data/margin_methods.json
+python3 scripts/afl_elo_margin_methods.py --elo-params data/optimal_elo_params_standard.json --n-calls 50 --output-path data/optimal_margin_methods.json
 ```
 
-#### Generate predictions using all margin methods
+#### Generate predictions using optimized margin methods
 ```bash
-python3 scripts/afl_elo_predict_margin_methods.py --start-year 2025 --elo-model data/afl_elo_trained_to_2024.json --margin-methods data/margin_methods.json --output-dir data --no-save-to-db
+python3 scripts/afl_elo_predict_margin_methods.py --start-year 2025 --elo-model data/afl_elo_trained_to_2024.json --margin-methods data/optimal_margin_methods.json --output-dir data --no-save-to-db
 ```
 
-### Margin-Only ELO (Margin Predictions)
+### 3. Dedicated Margin-Only ELO Model
 
 #### Optimize for margin accuracy
 ```bash
@@ -99,24 +112,28 @@ python3 scripts/afl_elo_history_generator.py --model-path data/afl_elo_trained_t
 
 ## Complete Workflows
 
-### Option 1: Combined Approach (Recommended)
-Use both models for optimal predictions - standard ELO for win probabilities, margin-only ELO for margins:
+### Complete Workflow (All Three Tiers)
 
 ```bash
-# Standard ELO pipeline
+# 1. Standard ELO Model
 python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
 python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_standard.json --end-year 2024 --output-dir data
 
-# Margin-Only ELO pipeline
+# 2. Margin methods built on standard ELO
+python3 scripts/afl_elo_margin_methods.py --elo-params data/optimal_elo_params_standard.json --n-calls 50 --output-path data/optimal_margin_methods.json
+
+# 3. Dedicated margin-only ELO model
 python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 3 --end-year 2024
 python3 scripts/afl_elo_train_margin.py --params-file data/optimal_margin_only_elo_params.json --end-year 2024 --output-dir data
 
-# Combined predictions
+# Combined predictions using best of all approaches
 python3 scripts/afl_elo_predict_combined.py --start-year 2025 --standard-model data/afl_elo_trained_to_2024.json --margin-model data/afl_elo_margin_only_trained_to_2024.json --output-dir data --predictor-id 6
 ```
 
-### Option 2: Standard ELO Only
-For win probabilities with multiple margin calculation methods:
+### Individual Workflows
+
+#### Standard ELO Only
+For win probabilities:
 
 ```bash
 python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
@@ -124,8 +141,16 @@ python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_
 python3 scripts/afl_elo_predict_standard.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
 ```
 
-### Option 3: Margin-Only ELO
-For margin predictions with derived win probabilities:
+#### Margin Methods from Standard ELO
+For margins derived from standard ELO ratings:
+
+```bash
+# Requires trained standard ELO model first
+python3 scripts/afl_elo_predict_margin_methods.py --start-year 2025 --elo-model data/afl_elo_trained_to_2024.json --margin-methods data/optimal_margin_methods.json --output-dir data --no-save-to-db
+```
+
+#### Dedicated Margin-Only ELO
+For pure margin predictions:
 
 ```bash
 python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 3 --end-year 2024
@@ -135,19 +160,51 @@ python3 scripts/afl_elo_predict_margin.py --start-year 2025 --model-path data/af
 
 ## Script Documentation
 
-### Standard ELO Model Scripts (Win Prediction Focused)
+### Core Modules
+
+#### `data_io.py`
+Handles all database operations and file I/O:
+- Database connections and SQL queries
+- Parameter loading/saving (JSON files)
+- Team state lookups
+- Data validation and preprocessing
+
+#### `elo_core.py`
+Contains the consolidated ELO model implementation:
+- `AFLEloModel` class with all ELO logic
+- Win probability calculations
+- Rating updates with margin factors
+- Season carryover functionality
+- Interstate home advantage logic
+
+#### `optimise.py`
+Provides optimization strategies and evaluation methods:
+- Bayesian optimization with multi-start support
+- Walk-forward and cross-validation evaluation
+- Parameter space definitions
+- Progress tracking and convergence plotting
+
+### Application Scripts
 
 #### `afl_elo_optimize_standard.py`
-Find optimal standard ELO parameters using Bayesian optimization with multi-start support.
+Find optimal ELO parameters using Bayesian optimization.
 
 **Parameters:**
 - `--n-calls`: Number of optimization calls (default: 100)
-- `--n-starts`: Number of random starts for multi-start optimization (default: 3)
+- `--n-starts`: Number of random starts for multi-start optimization (default: 1)
+- `--start-year`: Start year for training data (default: 1990)
 - `--end-year`: End year for training data (default: 2024)
-- `--output-path`: Path to save optimal parameters JSON file
-- `--margin-mode`: Enable margin model optimization mode
-- `--elo-params`: Path to ELO parameters file (for margin mode)
-- `--output-margin-params`: Path to save margin parameters (for margin mode)
+- `--output-path`: Path to save optimal parameters JSON file (default: data/optimal_elo_params_standard.json)
+
+#### `afl_elo_margin_methods.py`
+Optimize margin prediction methods that build on standard ELO ratings.
+
+**Parameters:**
+- `--elo-params`: Path to standard ELO parameters JSON file (required)
+- `--n-calls`: Number of optimization calls per method (default: 50)
+- `--start-year`: Start year for training data (default: 1990)
+- `--end-year`: End year for training data (default: 2024)
+- `--output-path`: Path to save optimal margin methods (default: data/optimal_margin_methods.json)
 
 #### `afl_elo_train_standard.py`
 Train standard ELO model with optimal parameters.
@@ -396,6 +453,23 @@ The daily sync system (`npm run daily-sync`) automatically:
 
 ### Testing Scripts
 
+#### Python Script Tests
+Run the test suite for the ELO optimization and model functionality:
+
+```bash
+# Run all tests
+pytest scripts/tests/ -v
+
+# Run specific test files
+pytest scripts/tests/test_optimization.py -v
+pytest scripts/tests/test_home_advantage.py -v
+pytest scripts/tests/test_venue_interstate_logic.py -v
+
+# Run tests with coverage
+pytest scripts/tests/ --cov=scripts --cov-report=html
+```
+
+#### Node.js Workflow Tests
 Test the daily sync process:
 ```bash
 npm run daily-sync

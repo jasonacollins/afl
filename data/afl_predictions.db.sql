@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS "teams" (
 	"name"	TEXT NOT NULL UNIQUE,
 	"abbrev"	TEXT,
 	"colour_hex"	TEXT,
+	"state"	TEXT,
 	PRIMARY KEY("team_id")
 );
 CREATE TABLE IF NOT EXISTS "venue_aliases" (

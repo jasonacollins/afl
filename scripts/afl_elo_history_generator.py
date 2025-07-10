@@ -19,16 +19,39 @@ import os
 import argparse
 from datetime import datetime
 
+# Team state mapping for interstate home advantage calculation
+TEAM_STATES = {
+    'Adelaide': 'SA',
+    'Brisbane Lions': 'QLD',
+    'Carlton': 'VIC',
+    'Collingwood': 'VIC',
+    'Essendon': 'VIC',
+    'Fremantle': 'WA',
+    'Geelong': 'VIC',
+    'Gold Coast': 'QLD',
+    'Greater Western Sydney': 'NSW',
+    'Hawthorn': 'VIC',
+    'Melbourne': 'VIC',
+    'North Melbourne': 'VIC',
+    'Port Adelaide': 'SA',
+    'Richmond': 'VIC',
+    'St Kilda': 'VIC',
+    'Sydney': 'NSW',
+    'West Coast': 'WA',
+    'Western Bulldogs': 'VIC'
+}
+
 
 class AFLEloHistoryGenerator:
-    def __init__(self, base_rating=1500, k_factor=20, home_advantage=50, 
+    def __init__(self, base_rating=1500, k_factor=20, default_home_advantage=30, interstate_home_advantage=60, 
                  margin_factor=0.3, season_carryover=0.6, max_margin=120):
         """
         Initialize the AFL ELO history generator with model parameters
         """
         self.base_rating = base_rating
         self.k_factor = k_factor
-        self.home_advantage = home_advantage
+        self.default_home_advantage = default_home_advantage
+        self.interstate_home_advantage = interstate_home_advantage
         self.margin_factor = margin_factor
         self.season_carryover = season_carryover
         self.max_margin = max_margin
@@ -43,21 +66,36 @@ class AFLEloHistoryGenerator:
         """Cap margin to reduce effect of blowouts"""
         return min(abs(margin), self.max_margin) * np.sign(margin)
     
-    def calculate_win_probability(self, home_team, away_team):
+    def calculate_win_probability(self, home_team, away_team, venue_state=None):
         """Calculate probability of home team winning based on ELO difference"""
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+        # Apply contextual home ground advantage
+        home_advantage = self.get_contextual_home_advantage(home_team, away_team, venue_state)
+        rating_diff = (home_rating + home_advantage) - away_rating
         
         # Convert rating difference to win probability using logistic function
         win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
         
         return win_probability
     
+    def get_contextual_home_advantage(self, home_team, away_team, venue_state):
+        """Calculate home advantage based on whether away team is traveling interstate"""
+        away_team_state = TEAM_STATES.get(away_team)
+        
+        # Use venue state if available, otherwise fall back to home team state
+        if venue_state is None:
+            venue_state = TEAM_STATES.get(home_team)
+        
+        # If away team is from a different state than the venue, use interstate advantage
+        if away_team_state and venue_state and away_team_state != venue_state:
+            return self.interstate_home_advantage
+        else:
+            return self.default_home_advantage
+    
     def update_ratings(self, home_team, away_team, hscore, ascore, year, 
-                      match_id=None, round_number=None, match_date=None, venue=None):
+                      match_id=None, round_number=None, match_date=None, venue=None, venue_state=None):
         """
         Update team ratings based on match result and record complete history
         """
@@ -72,7 +110,7 @@ class AFLEloHistoryGenerator:
         away_rating_before = self.team_ratings[away_team]
         
         # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
+        home_win_prob = self.calculate_win_probability(home_team, away_team, venue_state=venue_state)
         
         # Determine actual result (1 for home win, 0 for away win)
         actual_result = 1.0 if hscore > ascore else 0.0
@@ -224,13 +262,16 @@ def fetch_afl_data(db_path, start_year=None, end_year=None):
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
         m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team
+        ht.name as home_team, at.name as away_team,
+        v.state as venue_state
     FROM 
         matches m
     JOIN 
         teams ht ON m.home_team_id = ht.team_id
     JOIN 
         teams at ON m.away_team_id = at.team_id
+    LEFT JOIN 
+        venues v ON m.venue_id = v.venue_id
     WHERE 
         m.hscore IS NOT NULL AND m.ascore IS NOT NULL
         {year_clause}
@@ -269,7 +310,8 @@ def generate_elo_history(data, params):
     generator = AFLEloHistoryGenerator(
         base_rating=params['base_rating'],
         k_factor=params['k_factor'],
-        home_advantage=params['home_advantage'],
+        default_home_advantage=params.get('default_home_advantage', params.get('home_advantage', 30)),
+        interstate_home_advantage=params.get('interstate_home_advantage', params.get('home_advantage', 60)),
         margin_factor=params['margin_factor'],
         season_carryover=params['season_carryover'],
         max_margin=params['max_margin']
@@ -294,6 +336,7 @@ def generate_elo_history(data, params):
             generator.apply_season_carryover(match['year'])
         
         # Update ratings based on match result
+        venue_state = match.get('venue_state') if pd.notna(match.get('venue_state')) else None
         generator.update_ratings(
             home_team=match['home_team'],
             away_team=match['away_team'],
@@ -303,7 +346,8 @@ def generate_elo_history(data, params):
             match_id=match['match_id'],
             round_number=match['round_number'],
             match_date=match['match_date'],
-            venue=match['venue']
+            venue=match['venue'],
+            venue_state=venue_state
         )
         
         matches_processed += 1

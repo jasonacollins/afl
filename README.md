@@ -216,8 +216,16 @@ The application uses the Squiggle API (https://api.squiggle.com.au) to source ma
 ## ELO Predictions Model
 
 The application includes an advanced ELO-based prediction system using a dual-model approach:
-- **Standard ELO Model**: Optimized for win probability accuracy
+- **Standard ELO Model**: Optimized for win probability accuracy with venue-based interstate advantage
 - **Margin-Only ELO Model**: Optimized specifically for margin prediction accuracy
+
+### Key ELO Features
+
+- **Venue-Based Interstate Advantage**: Automatically detects when teams travel interstate based on actual venue location rather than team designation
+- **Dual Home Advantage System**: Different advantage levels for same-state matchups vs interstate travel
+- **Comprehensive Venue Database**: Supports venue aliases and location mapping for accurate interstate detection
+- **Bayesian Parameter Optimization**: Automated optimization of ELO parameters using walk-forward validation
+- **Consolidated Core Logic**: Centralized implementation ensuring consistency across training, optimization, and prediction
 
 ### Quick ELO Commands
 - `npm run daily-sync` - Complete daily synchronization (API refresh + ELO predictions + historical data)

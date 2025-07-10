@@ -6,6 +6,28 @@ from datetime import datetime, timezone
 import os
 import argparse
 
+# Team state mapping for interstate home advantage calculation
+TEAM_STATES = {
+    'Adelaide': 'SA',
+    'Brisbane Lions': 'QLD',
+    'Carlton': 'VIC',
+    'Collingwood': 'VIC',
+    'Essendon': 'VIC',
+    'Fremantle': 'WA',
+    'Geelong': 'VIC',
+    'Gold Coast': 'QLD',
+    'Greater Western Sydney': 'NSW',
+    'Hawthorn': 'VIC',
+    'Melbourne': 'VIC',
+    'North Melbourne': 'VIC',
+    'Port Adelaide': 'SA',
+    'Richmond': 'VIC',
+    'St Kilda': 'VIC',
+    'Sydney': 'NSW',
+    'West Coast': 'WA',
+    'Western Bulldogs': 'VIC'
+}
+
 
 class AFLEloPredictor:
     def __init__(self, model_path, margin_model_path=None):
@@ -55,7 +77,14 @@ class AFLEloPredictor:
             self.params = model_data['parameters']
             self.base_rating = self.params['base_rating']
             self.k_factor = self.params['k_factor']
-            self.home_advantage = self.params['home_advantage']
+            # Handle both old single home_advantage and new dual parameters
+            if 'default_home_advantage' in self.params:
+                self.default_home_advantage = self.params['default_home_advantage']
+                self.interstate_home_advantage = self.params['interstate_home_advantage']
+            else:
+                # Fallback for old models - use single home_advantage for both
+                self.default_home_advantage = self.params.get('home_advantage', 50)
+                self.interstate_home_advantage = self.params.get('home_advantage', 50)
             self.season_carryover = self.params['season_carryover']
             self.max_margin = self.params['max_margin']
             
@@ -156,18 +185,33 @@ class AFLEloPredictor:
         """Cap margin to reduce effect of blowouts"""
         return min(abs(margin), self.max_margin) * np.sign(margin)
     
-    def calculate_win_probability(self, home_team, away_team):
+    def calculate_win_probability(self, home_team, away_team, venue_state=None):
         """Calculate probability of home team winning based on ELO difference"""
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
         
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+        # Apply contextual home ground advantage
+        home_advantage = self.get_contextual_home_advantage(home_team, away_team, venue_state)
+        rating_diff = (home_rating + home_advantage) - away_rating
         
         # Convert rating difference to win probability using logistic function
         win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
         
         return win_probability
+    
+    def get_contextual_home_advantage(self, home_team, away_team, venue_state):
+        """Calculate home advantage based on whether away team is traveling interstate"""
+        away_team_state = TEAM_STATES.get(away_team)
+        
+        # Use venue state if available, otherwise fall back to home team state
+        if venue_state is None:
+            venue_state = TEAM_STATES.get(home_team)
+        
+        # If away team is from a different state than the venue, use interstate advantage
+        if away_team_state and venue_state and away_team_state != venue_state:
+            return self.interstate_home_advantage
+        else:
+            return self.default_home_advantage
     
     def predict_margin(self, home_team, away_team):
         """
@@ -178,7 +222,7 @@ class AFLEloPredictor:
         
         # For margin-only models, use margin_scale approach
         if self.is_margin_only_model:
-            rating_diff = (home_rating + self.home_advantage) - away_rating
+            rating_diff = (home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - away_rating
             predicted_margin = rating_diff * self.margin_scale
             return predicted_margin
         
@@ -191,12 +235,12 @@ class AFLEloPredictor:
                 # Use separate margin-only model for dual-model approach
                 margin_home_rating = self.margin_model['team_ratings'].get(home_team, self.base_rating)
                 margin_away_rating = self.margin_model['team_ratings'].get(away_team, self.base_rating)
-                margin_rating_diff = (margin_home_rating + self.home_advantage) - margin_away_rating
+                margin_rating_diff = (margin_home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - margin_away_rating
                 predicted_margin = margin_rating_diff * params['margin_scale']
                 
             elif method == 'simple':
                 # Simple scaling: margin = rating_diff * scale_factor
-                rating_diff = (home_rating + self.home_advantage) - away_rating
+                rating_diff = (home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - away_rating
                 predicted_margin = rating_diff * params['scale_factor']
                 
             elif method == 'diminishing_returns':
@@ -206,7 +250,7 @@ class AFLEloPredictor:
                 
             elif method == 'linear':
                 # Linear regression: margin = rating_diff * slope + intercept
-                rating_diff = (home_rating + self.home_advantage) - away_rating
+                rating_diff = (home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - away_rating
                 predicted_margin = rating_diff * params['slope'] + params['intercept']
                 
             else:
@@ -225,7 +269,7 @@ class AFLEloPredictor:
         """
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+        rating_diff = (home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - away_rating
         
         margin_predictions = {}
         
@@ -250,7 +294,7 @@ class AFLEloPredictor:
                 # Use margin-only model ratings for margin prediction
                 margin_home_rating = self.margin_model['team_ratings'].get(home_team, self.base_rating)
                 margin_away_rating = self.margin_model['team_ratings'].get(away_team, self.base_rating)
-                margin_rating_diff = (margin_home_rating + self.home_advantage) - margin_away_rating
+                margin_rating_diff = (margin_home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - margin_away_rating
                 
                 margin_predictions['margin_only_elo'] = margin_rating_diff * params['margin_scale']
                 if not self.is_margin_only_model:
@@ -332,7 +376,7 @@ class AFLEloPredictor:
             'ratings_after': self.team_ratings.copy()
         })
     
-    def update_ratings(self, home_team, away_team, hscore, ascore, match_id=None, year=None, round_number=None, match_date=None, venue=None):
+    def update_ratings(self, home_team, away_team, hscore, ascore, match_id=None, year=None, round_number=None, match_date=None, venue=None, venue_state=None):
         """
         Update team ratings based on match result
         
@@ -375,7 +419,7 @@ class AFLEloPredictor:
         away_rating = self.team_ratings[away_team]
         
         # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
+        home_win_prob = self.calculate_win_probability(home_team, away_team, venue_state=venue_state)
         
         # Get all margin predictions for CSV export
         all_margins = self.predict_all_margins(home_team, away_team)
@@ -392,7 +436,7 @@ class AFLEloPredictor:
             'pre_match_home_rating': home_rating,
             'pre_match_away_rating': away_rating,
             'rating_difference': home_rating - away_rating,
-            'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
+            'adjusted_rating_difference': (home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
@@ -469,7 +513,7 @@ class AFLEloPredictor:
         
         return prediction_info
     
-    def predict_match(self, home_team, away_team, match_id=None, year=None, round_number=None, match_date=None, venue=None):
+    def predict_match(self, home_team, away_team, match_id=None, year=None, round_number=None, match_date=None, venue=None, venue_state=None):
         """
         Predict the outcome of a match without updating ratings
         
@@ -508,7 +552,7 @@ class AFLEloPredictor:
         away_rating = self.team_ratings[away_team]
         
         # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
+        home_win_prob = self.calculate_win_probability(home_team, away_team, venue_state=venue_state)
         
         # Get all margin predictions for CSV export
         all_margins = self.predict_all_margins(home_team, away_team)
@@ -525,7 +569,7 @@ class AFLEloPredictor:
             'pre_match_home_rating': home_rating,
             'pre_match_away_rating': away_rating,
             'rating_difference': home_rating - away_rating,
-            'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
+            'adjusted_rating_difference': (home_rating + self.get_contextual_home_advantage(home_team, away_team, None)) - away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_margin': self.predict_margin(home_team, away_team),
@@ -776,13 +820,16 @@ def fetch_matches(db_path, start_year):
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
         m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team
+        ht.name as home_team, at.name as away_team,
+        v.state as venue_state
     FROM 
         matches m
     JOIN 
         teams ht ON m.home_team_id = ht.team_id
     JOIN 
         teams at ON m.away_team_id = at.team_id
+    LEFT JOIN 
+        venues v ON m.venue_id = v.venue_id
     WHERE 
         m.year >= ?
     ORDER BY 
@@ -859,6 +906,7 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
         
         if has_scores:
             # For completed matches, update ratings
+            venue_state = match.get('venue_state') if pd.notna(match.get('venue_state')) else None
             predictor.update_ratings(
                 home_team=match['home_team'],
                 away_team=match['away_team'],
@@ -868,10 +916,12 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
                 year=match['year'],
                 round_number=match['round_number'],
                 match_date=match['match_date'].isoformat() if pd.notna(match['match_date']) else None,
-                venue=match['venue']
+                venue=match['venue'],
+                venue_state=venue_state
             )
         else:
             # For future matches, just predict without updating
+            venue_state = match.get('venue_state') if pd.notna(match.get('venue_state')) else None
             predictor.predict_match(
                 home_team=match['home_team'],
                 away_team=match['away_team'],
@@ -879,7 +929,8 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
                 year=match['year'],
                 round_number=match['round_number'],
                 match_date=match['match_date'].isoformat() if pd.notna(match['match_date']) else None,
-                venue=match['venue']
+                venue=match['venue'],
+                venue_state=venue_state
             )
     
     # Save predictions

@@ -317,19 +317,11 @@ def optimize_margin_method_parameters(elo_params, matches_df, n_calls=50, verbos
     Optimize margin prediction parameters for all methods
     Returns the best method and its parameters
     """
-    from skopt import gp_minimize
-    from skopt.space import Real
-    from skopt.utils import use_named_args
+    from optimise import get_margin_parameter_spaces, BayesianOptimizer, WalkForwardEvaluator
+    from elo_core import AFLEloModel
     
-    # Define parameter spaces for each method
-    margin_spaces = {
-        'simple': [Real(0.01, 0.2, name='scale_factor')],
-        'diminishing_returns': [Real(0.005, 0.2, name='beta')],  
-        'linear': [
-            Real(0.01, 0.2, name='slope'),
-            Real(-10, 10, name='intercept')
-        ]
-    }
+    # Get margin parameter spaces
+    margin_spaces = get_margin_parameter_spaces()
     
     best_method = None
     best_params = None
@@ -338,45 +330,44 @@ def optimize_margin_method_parameters(elo_params, matches_df, n_calls=50, verbos
     
     print("Testing margin prediction methods...")
     
-    for method_name, space in margin_spaces.items():
+    for method_name, parameter_space in margin_spaces.items():
         print(f"\n{'='*50}")
         print(f"OPTIMIZING: {method_name.upper().replace('_', ' ')} METHOD")
         print(f"{'='*50}")
         
-        iteration = [0]
+        # Create a specialized evaluator for margin methods
+        evaluator = WalkForwardEvaluator(metric='mae')
         
-        @use_named_args(space)
-        def objective(**params):
-            iteration[0] += 1
-            param_values = [params[name] for name in [dim.name for dim in space]]
-            
-            score = evaluate_margin_method_walkforward(
-                param_values, method_name, elo_params, matches_df, verbose=False
-            )
-            
-            if iteration[0] % 10 == 0 or iteration[0] == 1:
-                print(f"  Iteration {iteration[0]:3d}: MAE = {score:.2f}")
-            
-            return score
+        # Create objective function that includes the margin method and ELO params
+        def create_margin_objective(method, elo_parameters):
+            def objective(margin_params):
+                return evaluator.evaluate(
+                    AFLEloModel, elo_parameters, matches_df, None,
+                    margin_method=method, margin_params=list(margin_params.values())
+                )
+            return objective
+        
+        objective = create_margin_objective(method_name, elo_params)
         
         # Run optimization for this method
-        result = gp_minimize(objective, space, n_calls=n_calls, random_state=42)
+        optimizer = BayesianOptimizer(n_starts=1)
+        result = optimizer.optimize(objective, parameter_space, n_calls, verbose=verbose)
         
         all_results[method_name] = {
-            'score': float(result.fun),
-            'params': {space[i].name: float(result.x[i]) for i in range(len(space))},
-            'iterations': int(len(result.func_vals)),
-            'convergence': float(result.func_vals[-1]) if len(result.func_vals) > 0 else None
+            'score': float(result.best_score),
+            'params': {k: float(v) if isinstance(v, (int, float)) else v for k, v in result.best_params.items()},
+            'iterations': int(result.total_iterations),
+            'method': result.method
         }
         
         print(f"\n{method_name.upper().replace('_', ' ')} RESULTS:")
-        print(f"  Best MAE: {result.fun:.2f}")
+        print(f"  Best MAE: {result.best_score:.2f}")
         print("  Best parameters:")
-        for i, dim in enumerate(space):
-            print(f"    {dim.name}: {result.x[i]:.4f}")
+        for key, value in result.best_params.items():
+            print(f"    {key}: {value:.4f}")
         
-        if result.fun < best_score:
-            best_score = result.fun
+        if result.best_score < best_score:
+            best_score = result.best_score
             best_method = method_name
             best_params = all_results[method_name]['params']
     
@@ -472,43 +463,13 @@ def evaluate_margin_methods(matches_df, elo_ratings, methods_params=None):
     return results
 
 
-def fetch_afl_data(db_path, start_year=1990, end_year=None):
-    """Fetch AFL match data from database"""
-    conn = sqlite3.connect(db_path)
-    
-    query = """
-    SELECT 
-        m.year,
-        m.match_date,
-        m.hscore,
-        m.ascore,
-        ht.name as home_team,
-        at.name as away_team,
-        m.match_id as id,
-        m.round_number as round,
-        m.venue
-    FROM matches m
-    JOIN teams ht ON m.home_team_id = ht.team_id
-    JOIN teams at ON m.away_team_id = at.team_id
-    WHERE m.year >= ?
-    """
-    
-    params = [start_year]
-    if end_year:
-        query += " AND m.year <= ?"
-        params.append(end_year)
-    
-    query += " AND m.hscore IS NOT NULL AND m.ascore IS NOT NULL"
-    query += " ORDER BY m.year, m.match_date"
-    
-    matches = pd.read_sql_query(query, conn, params=params)
-    conn.close()
-    
-    return matches
+# Data loading moved to data_io module
 
 
 def main():
     """Main function for margin method optimization"""
+    from data_io import fetch_afl_data, load_parameters
+    
     parser = argparse.ArgumentParser(description='Optimize AFL ELO margin prediction methods')
     parser.add_argument('--elo-params', type=str, required=True,
                         help='Path to standard ELO parameters JSON file')
@@ -526,8 +487,7 @@ def main():
     args = parser.parse_args()
     
     # Load ELO parameters
-    with open(args.elo_params, 'r') as f:
-        elo_params = json.load(f)['parameters']
+    elo_params = load_parameters(args.elo_params)
     
     print("Loaded ELO parameters:")
     for key, value in elo_params.items():
