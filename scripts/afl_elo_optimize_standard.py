@@ -85,9 +85,7 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         n_calls=n_calls,
         metric='brier_score',
         verbose=True,
-        n_starts=n_starts,
-        enable_diagnostics=True,
-        diagnostics_file='elo_optimization_diagnostics.json'
+        n_starts=n_starts
     )
     
     # Add base_rating to parameters
