@@ -56,7 +56,7 @@ The AFL prediction system uses a three-tier approach:
 
 #### Optimize for win probability
 ```bash
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --start-year 2000 --end-year 2024 --output-path data/optimal_elo_params_standard.json
+python3 scripts/afl_elo_optimize_standard.py --start-year 2000 --end-year 2024 --output-path data/optimal_elo_params_standard.json
 ```
 
 #### Train standard ELO model
@@ -85,7 +85,7 @@ python3 scripts/afl_elo_predict_margin_methods.py --start-year 2025 --elo-model 
 
 #### Optimize for margin accuracy
 ```bash
-python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 5 --start-year 2000 --end-year 2024
+python3 scripts/afl_elo_optimize_margin.py --start-year 2000 --end-year 2024 --test-year 2024
 ```
 
 #### Train margin-only model
@@ -116,14 +116,14 @@ python3 scripts/afl_elo_history_generator.py --model-path data/afl_elo_trained_t
 
 ```bash
 # 1. Standard ELO Model
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
+python3 scripts/afl_elo_optimize_standard.py --end-year 2024 --test-year 2024 --output-path data/optimal_elo_params_standard.json
 python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_standard.json --end-year 2024 --output-dir data
 
 # 2. Margin methods built on standard ELO
 python3 scripts/afl_elo_margin_methods.py --elo-params data/optimal_elo_params_standard.json --n-calls 50 --output-path data/optimal_margin_methods.json
 
 # 3. Dedicated margin-only ELO model
-python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 3 --end-year 2024
+python3 scripts/afl_elo_optimize_margin.py --end-year 2024 --test-year 2024
 python3 scripts/afl_elo_train_margin.py --params-file data/optimal_margin_only_elo_params.json --end-year 2024 --output-dir data
 
 # Combined predictions using best of all approaches
@@ -136,7 +136,7 @@ python3 scripts/afl_elo_predict_combined.py --start-year 2025 --standard-model d
 For win probabilities:
 
 ```bash
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
+python3 scripts/afl_elo_optimize_standard.py --end-year 2024 --test-year 2024 --output-path data/optimal_elo_params_standard.json
 python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_standard.json --end-year 2024 --output-dir data
 python3 scripts/afl_elo_predict_standard.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
 ```
@@ -153,7 +153,7 @@ python3 scripts/afl_elo_predict_margin_methods.py --start-year 2025 --elo-model 
 For pure margin predictions:
 
 ```bash
-python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 3 --end-year 2024
+python3 scripts/afl_elo_optimize_margin.py --end-year 2024 --test-year 2024
 python3 scripts/afl_elo_train_margin.py --params-file data/optimal_margin_only_elo_params.json --end-year 2024 --output-dir data
 python3 scripts/afl_elo_predict_margin.py --start-year 2025 --model-path data/afl_elo_margin_only_trained_to_2024.json --output-dir data --predictor-id 7
 ```

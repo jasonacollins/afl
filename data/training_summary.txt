@@ -1,0 +1,40 @@
+Simple AFL ELO Model Training Summary
+====================================
+
+Training Date: 2025-07-11 20:45:34
+Database: data/afl_predictions.db
+Training Period: 1990-2024
+Model File: simple_elo_model.json
+
+Performance Metrics:
+  Matches: 6656
+  Accuracy: 0.662
+  Brier Score: 0.2102
+  Margin MAE: 43.3 points
+
+Model Parameters:
+  K-Factor: 32
+  Home Advantage: 30
+  Season Carryover: 0.75
+  Margin Scale: 0.2
+
+Current Ratings:
+  Brisbane Lions: 1682
+  Sydney: 1630
+  Port Adelaide: 1607
+  Collingwood: 1592
+  Geelong: 1579
+  Greater Western Sydney: 1579
+  Western Bulldogs: 1561
+  Hawthorn: 1552
+  Carlton: 1522
+  St Kilda: 1509
+  Fremantle: 1508
+  Melbourne: 1502
+  Fitzroy: 1500
+  Essendon: 1457
+  Adelaide: 1450
+  Gold Coast: 1447
+  Richmond: 1293
+  West Coast: 1288
+  North Melbourne: 1242

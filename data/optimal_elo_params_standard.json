@@ -1,15 +1,13 @@
 {
     "parameters": {
-        "k_factor": 30,
-        "default_home_advantage": 64,
-        "interstate_home_advantage": 57,
-        "margin_factor": 0.6292916631042356,
-        "season_carryover": 0.7497191876537252,
-        "max_margin": 154,
-        "beta": 0.07505098045990963,
+        "k_factor": 47.0,
+        "default_home_advantage": 52.0,
+        "interstate_home_advantage": 52.0,
+        "margin_factor": 0.47,
+        "season_carryover": 0.61,
+        "max_margin": 71.0,
+        "beta": 0.064589,
         "base_rating": 1500.0
     },
-    "optimization_method": "bayesian",
-    "log_loss": 0.21323202938623861,
-    "n_iterations": 500
+    "optimization_method": "bayesian"
 }
