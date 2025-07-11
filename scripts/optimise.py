@@ -33,41 +33,6 @@ class OptimizationResult:
     additional_info: Dict[str, Any] = None
 
 
-class ParameterSpace:
-    """Parameter space definition and validation"""
-    
-    def __init__(self, dimensions: List[Dimension], name: str = ""):
-        self.dimensions = dimensions
-        self.name = name
-        self.param_names = [dim.name for dim in dimensions]
-    
-    def validate_params(self, params: Dict[str, Any]) -> bool:
-        """Validate that parameters are within bounds"""
-        for dim in self.dimensions:
-            if dim.name not in params:
-                return False
-            value = params[dim.name]
-            if hasattr(dim, 'bounds'):
-                low, high = dim.bounds
-                if not (low <= value <= high):
-                    return False
-        return True
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert parameter space to dictionary representation"""
-        return {
-            'name': self.name,
-            'dimensions': [
-                {
-                    'name': dim.name,
-                    'type': type(dim).__name__,
-                    'bounds': getattr(dim, 'bounds', None)
-                }
-                for dim in self.dimensions
-            ]
-        }
-
-
 class OptimizationDiagnostics:
     """Track and log optimization diagnostics"""
     
@@ -189,17 +154,7 @@ class OptimizationDiagnostics:
         }
         
         with open(self.log_file, 'w') as f:
-            json.dump(diagnostics, f, indent=2, default=self._json_serializer)
-    
-    def _json_serializer(self, obj):
-        """Custom JSON serializer for numpy types"""
-        if isinstance(obj, (np.integer, np.int64, np.int32)):
-            return int(obj)
-        elif isinstance(obj, (np.floating, np.float64, np.float32)):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        raise TypeError(f'Object of type {type(obj)} is not JSON serializable')
+            json.dump(diagnostics, f, indent=2)
     
     def _calculate_parameter_evolution(self) -> Dict[str, Any]:
         """Calculate how parameters evolved during optimization"""
@@ -253,6 +208,41 @@ class OptimizationDiagnostics:
             print(f"  {param}: {stats['initial']:.4f} → {stats['final']:.4f} "
                   f"({stats['trend']}, std={stats['std']:.4f})")
             
+
+class ParameterSpace:
+    """Parameter space definition and validation"""
+    
+    def __init__(self, dimensions: List[Dimension], name: str = ""):
+        self.dimensions = dimensions
+        self.name = name
+        self.param_names = [dim.name for dim in dimensions]
+    
+    def validate_params(self, params: Dict[str, Any]) -> bool:
+        """Validate that parameters are within bounds"""
+        for dim in self.dimensions:
+            if dim.name not in params:
+                return False
+            value = params[dim.name]
+            if hasattr(dim, 'bounds'):
+                low, high = dim.bounds
+                if not (low <= value <= high):
+                    return False
+        return True
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert parameter space to dictionary representation"""
+        return {
+            'name': self.name,
+            'dimensions': [
+                {
+                    'name': dim.name,
+                    'type': type(dim).__name__,
+                    'bounds': getattr(dim, 'bounds', None)
+                }
+                for dim in self.dimensions
+            ]
+        }
+
 
 class EvaluationStrategy(ABC):
     """Base class for evaluation strategies"""
@@ -939,33 +929,31 @@ def run_optimization(model_class, parameter_space: ParameterSpace,
         raise ValueError(f"Unknown evaluation method: {evaluation}")
     
     # Create optimizer
-    # Extract optimizer-specific kwargs
-    optimizer_kwargs = {k: v for k, v in kwargs.items() 
-                       if k in ['n_starts', 'acq_func', 'xi', 'noise', 'max_combinations']}
-    
     if method == 'bayesian':
-        optimizer = BayesianOptimizer(**optimizer_kwargs)
+        optimizer = BayesianOptimizer(**kwargs)
     elif method == 'grid':
-        optimizer = GridSearchOptimizer(**optimizer_kwargs)
+        optimizer = GridSearchOptimizer(**kwargs)
     else:
         raise ValueError(f"Unknown optimization method: {method}")
 
+    # Run optimization with diagnostic options
+    result = optimizer.optimize(
+        objective, parameter_space, n_calls, 
+        verbose=verbose, metric=metric, 
+        enable_diagnostics=kwargs.get('enable_diagnostics', True),
+        diagnostics_file=kwargs.get('diagnostics_file', f'{method}_optimization_diagnostics.json'),
+        **kwargs
+    )
+    
     # Create objective function
     objective = create_optimization_objective(
         model_class, evaluator, data, db_path, **kwargs
     )
     
     # Run optimization
-    # Extract parameters for optimize method, avoiding duplicates
-    optimize_kwargs = {k: v for k, v in kwargs.items() 
-                      if k not in ['enable_diagnostics', 'diagnostics_file'] + list(optimizer_kwargs.keys())}
-    
     result = optimizer.optimize(
         objective, parameter_space, n_calls, 
-        verbose=verbose, metric=metric, 
-        enable_diagnostics=kwargs.get('enable_diagnostics', True),
-        diagnostics_file=kwargs.get('diagnostics_file', f'{method}_optimization_diagnostics.json'),
-        **optimize_kwargs
+        verbose=verbose, metric=metric, **kwargs
     )
     
     return result
