@@ -623,6 +623,120 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
     return np.mean(all_errors) if all_errors else np.inf
 
 
+def parameter_tuning_margin_grid_search(data: pd.DataFrame, param_grid: Dict, 
+                                       max_combinations: Optional[int] = None) -> Dict:
+    """
+    Find optimal margin ELO parameters using grid search
+    Returns MAE (lower is better)
+    
+    Parameters:
+    -----------
+    data : pd.DataFrame
+        Historical match data
+    param_grid : dict
+        Dictionary of parameter ranges to test
+    max_combinations : int, optional
+        Maximum number of parameter combinations to test (None for all)
+        
+    Returns:
+    --------
+    dict
+        Best parameters and results
+    """
+    best_score = float('inf')  # Using MAE, lower is better
+    best_params = None
+    all_results = []
+    
+    # Sort data by date to ensure chronological order
+    data = data.sort_values(['year', 'match_date'])
+    
+    # Create parameter combinations
+    param_combinations = []
+    
+    # Simple grid search using loops
+    for k_factor in param_grid['k_factor']:
+        for home_advantage in param_grid['home_advantage']:
+            for season_carryover in param_grid['season_carryover']:
+                for max_margin in param_grid['max_margin']:
+                    for margin_scale in param_grid['margin_scale']:
+                        for scaling_factor in param_grid['scaling_factor']:
+                            params = {
+                                'base_rating': param_grid['base_rating'][0],  # Use first value
+                                'k_factor': k_factor,
+                                'home_advantage': home_advantage,
+                                'season_carryover': season_carryover,
+                                'max_margin': max_margin,
+                                'margin_scale': margin_scale,
+                                'scaling_factor': scaling_factor
+                            }
+                            param_combinations.append(params)
+    
+    # Limit the number of combinations if specified
+    if max_combinations and len(param_combinations) > max_combinations:
+        print(f"Limiting to {max_combinations} random parameter combinations out of {len(param_combinations)} total")
+        import random
+        random.shuffle(param_combinations)
+        param_combinations = param_combinations[:max_combinations]
+    
+    total_combinations = len(param_combinations)
+    print(f"Testing {total_combinations} parameter combinations...")
+    
+    # Track progress
+    start_time = datetime.now()
+    
+    for i, params in enumerate(param_combinations):
+        if i % 10 == 0:  # Print progress every 10 combinations
+            elapsed = datetime.now() - start_time
+            if i > 0:
+                avg_time_per_combo = elapsed.total_seconds() / i
+                est_remaining = (total_combinations - i) * avg_time_per_combo
+                print(f"Testing combination {i+1}/{total_combinations} - "
+                      f"Elapsed: {elapsed.total_seconds()/60:.1f} min, "
+                      f"Est. remaining: {est_remaining/60:.1f} min")
+            else:
+                print(f"Testing combination {i+1}/{total_combinations}")
+        
+        # Use walk-forward validation for margin ELO
+        avg_score = evaluate_margin_elo_walkforward(
+            [params['k_factor'], params['home_advantage'], params['season_carryover'], 
+             params['margin_scale'], params['scaling_factor'], params['max_margin']],
+            data,
+            verbose=False
+        )
+        
+        result = {
+            'params': params,
+            'mae': avg_score,
+            'scores': [avg_score]  # Single score for consistency
+        }
+        all_results.append(result)
+        
+        # Update best parameters if this is better
+        if avg_score < best_score:
+            best_score = avg_score
+            best_params = params
+            print(f"\nNew best parameters found (MAE: {best_score:.4f}):")
+            for k, v in best_params.items():
+                print(f"  {k}: {v}")
+    
+    # Sort results by score
+    all_results.sort(key=lambda x: x['mae'])
+    
+    # Print the top 3 parameter combinations
+    print("\nTop 3 parameter combinations:")
+    for i, result in enumerate(all_results[:3]):
+        print(f"  {i+1}. MAE: {result['mae']:.4f}, Parameters: {result['params']}")
+    
+    total_time = datetime.now() - start_time
+    print(f"\nParameter tuning completed in {total_time.total_seconds()/60:.1f} minutes")
+    
+    return {
+        'best_params': best_params,
+        'best_score': best_score,
+        'all_results': all_results
+    }
+
+
 def evaluate_margin_elo_walkforward(params: List[float], matches_df: pd.DataFrame, 
                                   verbose: bool = False) -> float:
     """

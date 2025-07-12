@@ -1,20 +1,6521 @@
 {
     "model_type": "margin_only_elo",
     "parameters": {
-        "k_factor": 37.0,
-        "home_advantage": 52.0,
-        "season_carryover": 0.8172000724078177,
-        "margin_scale": 0.13305561116267395,
-        "scaling_factor": 72.425956258694,
-        "max_margin": 101.0,
-        "base_rating": 1500.0
+        "base_rating": 1500.0,
+        "k_factor": 20.0,
+        "home_advantage": 30.0,
+        "season_carryover": 0.5,
+        "max_margin": 60.0,
+        "margin_scale": 0.25,
+        "scaling_factor": 70.0
     },
-    "mae": 29.33416089322937,
+    "mae": 29.138458686515605,
     "optimization_details": {
-        "method": "bayesian",
-        "n_calls": 10,
-        "n_starts": 5,
+        "method": "grid_search",
+        "max_combinations": 500,
         "start_year": 2000,
         "end_year": 2024
-    }
+    },
+    "all_results": [
+        {
+            "params": {
+                "base_rating": 1500.0,
+                "k_factor": 20.0,
+                "home_advantage": 30.0,
+                "season_carryover": 0.5,
+                "max_margin": 60.0,
+                "margin_scale": 0.25,
+                "scaling_factor": 70.0
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 30,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 30,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 70,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 20,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 20,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 60,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 80
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 70,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 50,
+                "season_carryover": 0.6,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 40,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 20,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 30,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.02,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 90,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 80,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 90,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 80,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 60,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 100,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.2,
+                "scaling_factor": 40
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 60,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 60,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 70,
+                "season_carryover": 0.4,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 25,
+                "home_advantage": 60,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 50,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 70,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 50,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 45,
+                "home_advantage": 80,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 30,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.1,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 100,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 20,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 30,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.3,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 70
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 20,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.1,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 35,
+                "home_advantage": 70,
+                "season_carryover": 0.7,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 90,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 50,
+                "home_advantage": 50,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.2,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 30,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 90,
+                "season_carryover": 0.5,
+                "max_margin": 60,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 80,
+                "margin_scale": 0.3,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 100,
+                "season_carryover": 0.5,
+                "max_margin": 80,
+                "margin_scale": 0.05,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 40,
+                "season_carryover": 0.5,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 60
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 60,
+                "home_advantage": 90,
+                "season_carryover": 0.6,
+                "max_margin": 100,
+                "margin_scale": 0.25,
+                "scaling_factor": 20
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 30,
+                "home_advantage": 20,
+                "season_carryover": 0.4,
+                "max_margin": 100,
+                "margin_scale": 0.15,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 40,
+                "home_advantage": 80,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.2,
+                "scaling_factor": 30
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        },
+        {
+            "params": {
+                "base_rating": 1500,
+                "k_factor": 55,
+                "home_advantage": 100,
+                "season_carryover": 0.8,
+                "max_margin": 100,
+                "margin_scale": 0.02,
+                "scaling_factor": 50
+            },
+            "log_loss": 0.0,
+            "cv_scores": []
+        }
+    ]
 }
