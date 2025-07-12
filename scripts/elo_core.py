@@ -602,3 +602,111 @@ def create_simple_elo_model(params: Optional[Dict] = None) -> SimpleELO:
             season_carryover=params.get('season_carryover', 0.61),
             margin_scale=params.get('margin_scale', 0.47)
         )
+
+
+class MarginEloModel:
+    """
+    ELO model optimized specifically for margin prediction
+    
+    Unlike the standard AFLEloModel which predicts win probabilities and then converts
+    to margins, this model directly predicts margins from rating differences and updates
+    ratings based on margin prediction accuracy.
+    """
+    
+    def __init__(self, k_factor=35, home_advantage=40, season_carryover=0.75, 
+                 margin_scale=0.15, scaling_factor=50, max_margin=100, base_rating=1500):
+        """
+        Initialize the margin-focused ELO model
+        
+        Parameters:
+        -----------
+        k_factor : float
+            Learning rate for rating updates
+        home_advantage : float
+            Home advantage in rating points
+        season_carryover : float
+            Rating carryover between seasons (closer to 1.0 retains more)
+        margin_scale : float
+            How rating difference converts to predicted margin
+        scaling_factor : float
+            Converts margin prediction error to rating change
+        max_margin : int
+            Cap for blowouts to prevent extreme rating changes
+        base_rating : int
+            Starting rating for all teams
+        """
+        self.k_factor = k_factor
+        self.home_advantage = home_advantage
+        self.season_carryover = season_carryover
+        self.margin_scale = margin_scale
+        self.scaling_factor = scaling_factor
+        self.max_margin = max_margin
+        self.base_rating = base_rating
+        self.team_ratings = {}
+        
+    def initialize_ratings(self, teams):
+        """Initialize all teams with base rating"""
+        for team in teams:
+            self.team_ratings[team] = self.base_rating
+    
+    def predict_margin(self, home_team, away_team):
+        """Predict margin directly from ratings"""
+        home_rating = self.team_ratings.get(home_team, self.base_rating)
+        away_rating = self.team_ratings.get(away_team, self.base_rating)
+        
+        # Apply home ground advantage to rating difference
+        rating_diff = (home_rating + self.home_advantage) - away_rating
+        
+        # Convert to margin - simpler than win probability model
+        predicted_margin = rating_diff * self.margin_scale
+        
+        return predicted_margin
+    
+    def update_ratings(self, home_team, away_team, actual_margin):
+        """Update ratings based on actual margin"""
+        # Get current ratings
+        home_rating = self.team_ratings.get(home_team, self.base_rating)
+        away_rating = self.team_ratings.get(away_team, self.base_rating)
+        
+        # Predict margin
+        predicted_margin = self.predict_margin(home_team, away_team)
+        
+        # Cap actual margin to reduce impact of blowouts
+        capped_margin = np.sign(actual_margin) * min(abs(actual_margin), self.max_margin)
+        
+        # Calculate margin prediction error
+        margin_error = capped_margin - predicted_margin
+        
+        # Calculate the raw rating change
+        raw_rating_change = self.k_factor * margin_error / self.scaling_factor
+        
+        # Clip the rating change to prevent explosion and ensure stability
+        max_change = min(40, self.k_factor * 0.8)  # Dynamic clipping based on k_factor
+        rating_change = np.clip(raw_rating_change, -max_change, max_change)
+        
+        self.team_ratings[home_team] = home_rating + rating_change
+        self.team_ratings[away_team] = away_rating - rating_change
+    
+    def apply_season_carryover(self):
+        """Apply season carryover - regress ratings toward base rating"""
+        for team in self.team_ratings:
+            current_rating = self.team_ratings[team]
+            self.team_ratings[team] = (
+                self.base_rating + self.season_carryover * (current_rating - self.base_rating)
+            )
+    
+    def get_model_data(self):
+        """Get model data for saving"""
+        return {
+            'model_type': 'margin_elo',
+            'parameters': {
+                'k_factor': self.k_factor,
+                'home_advantage': self.home_advantage,
+                'season_carryover': self.season_carryover,
+                'margin_scale': self.margin_scale,
+                'scaling_factor': self.scaling_factor,
+                'max_margin': self.max_margin,
+                'base_rating': self.base_rating
+            },
+            'team_ratings': self.team_ratings.copy()
+        }

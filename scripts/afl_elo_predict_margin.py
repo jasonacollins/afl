@@ -1,10 +1,17 @@
-import json
-import sqlite3
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
 import os
 import argparse
+
+# Import core modules
+from data_io import (
+    fetch_matches_for_prediction,
+    save_predictions_to_csv,
+    save_predictions_to_database,
+    load_model
+)
+from elo_core import MarginEloModel
 
 
 class AFLMarginEloPredictor:
@@ -31,13 +38,12 @@ class AFLMarginEloPredictor:
         self.rating_history = []
     
     def load_model(self, model_path):
-        """Load the trained margin-only ELO model"""
+        """Load the trained margin-only ELO model using core function"""
         try:
-            with open(model_path, 'r') as f:
-                model_data = json.load(f)
+            model_data = load_model(model_path)
             
             # Verify this is a margin-only model
-            if model_data.get('model_type') != 'margin_only_elo':
+            if model_data.get('model_type') not in ['margin_only_elo', 'margin_elo']:
                 raise ValueError("This is not a margin-only ELO model. Use afl_elo_predict_standard.py instead.")
             
             # Set parameters
@@ -272,20 +278,12 @@ class AFLMarginEloPredictor:
         return prediction
     
     def save_predictions_to_csv(self, filename):
-        """Save predictions to CSV file"""
+        """Save predictions to CSV file using core function"""
         if not self.predictions:
             print("No predictions to save")
             return
         
-        # Convert predictions to DataFrame
-        df = pd.DataFrame(self.predictions)
-        
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
-        
-        # Save to CSV
-        df.to_csv(filename, index=False)
-        print(f"Saved {len(df)} predictions to {filename}")
+        save_predictions_to_csv(self.predictions, filename)
     
     def save_predictions_to_database(self, db_path, predictor_id=7):
         """
@@ -485,39 +483,7 @@ class AFLMarginEloPredictor:
         print(f"Saved rating history with {len(df)} records to {filename}")
 
 
-def fetch_matches(db_path, start_year):
-    """
-    Fetch AFL matches from the database starting from a specific year
-    """
-    conn = sqlite3.connect(db_path)
-    
-    query = f"""
-    SELECT 
-        m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team
-    FROM 
-        matches m
-    JOIN 
-        teams ht ON m.home_team_id = ht.team_id
-    JOIN 
-        teams at ON m.away_team_id = at.team_id
-    WHERE 
-        m.year >= ?
-    ORDER BY 
-        m.year, m.match_date
-    """
-    
-    matches = pd.read_sql_query(query, conn, params=(start_year,))
-    conn.close()
-    
-    # Convert match_date to datetime for sorting
-    matches['match_date'] = pd.to_datetime(matches['match_date'], errors='coerce')
-    
-    # Sort by date to ensure chronological order
-    matches = matches.sort_values(['year', 'match_date'])
-    
-    return matches
+# fetch_matches function replaced by data_io.fetch_matches_for_prediction
 
 
 def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=2025, 
@@ -528,8 +494,8 @@ def predict_matches(model_path, db_path='data/afl_predictions.db', start_year=20
     # Load the predictor
     predictor = AFLMarginEloPredictor(model_path)
     
-    # Get matches from database
-    matches = fetch_matches(db_path, start_year)
+    # Get matches from database using core function
+    matches = fetch_matches_for_prediction(db_path, start_year)
     
     if len(matches) == 0:
         print(f"No matches found from year {start_year} onwards")

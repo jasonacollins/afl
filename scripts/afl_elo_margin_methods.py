@@ -202,6 +202,7 @@ class ELOMarginMethods:
         return margin_predictions
 
 
+# Simple margin prediction functions - these are also available in optimise.py
 def predict_margin_simple(rating_diff, scale_factor):
     """Simple linear scaling method"""
     return rating_diff * scale_factor
@@ -217,170 +218,10 @@ def predict_margin_linear(rating_diff, slope, intercept):
     return rating_diff * slope + intercept
 
 
-def evaluate_margin_method_walkforward(params, method, elo_params, matches_df, verbose=False):
-    """
-    Evaluate margin prediction parameters using walk-forward validation
-    Returns Mean Absolute Error (lower is better)
-    """
-    from afl_elo_train_standard import AFLEloModel
-    
-    # Ensure chronological order
-    matches_df = matches_df.sort_values(['year', 'match_date'])
-    
-    seasons = sorted(matches_df['year'].unique())
-    if len(seasons) < 2:
-        return np.inf  # Not enough data for walk-forward
-    
-    # All unique teams
-    all_teams = pd.concat([matches_df['home_team'], matches_df['away_team']]).unique()
-    
-    all_errors = []
-    
-    for i in range(len(seasons) - 1):
-        train_seasons = seasons[:i + 1]
-        test_season = seasons[i + 1]
-        
-        train_data = matches_df[matches_df['year'].isin(train_seasons)]
-        test_data = matches_df[matches_df['year'] == test_season]
-        
-        # Create fresh ELO model for this split
-        model = AFLEloModel(**elo_params)
-        model.initialize_ratings(all_teams)
-        
-        # Train ELO model on historical data
-        prev_year = None
-        for _, match in train_data.iterrows():
-            # Apply season carryover at the start of a new season
-            if prev_year is not None and match['year'] != prev_year:
-                model.apply_season_carryover(match['year'])
-            
-            model.update_ratings(
-                match['home_team'],
-                match['away_team'],
-                match['hscore'],
-                match['ascore'],
-                match['year'],
-                match_id=match.get('id'),
-                round_number=match.get('round'),
-                match_date=match.get('match_date'),
-                venue=match.get('venue')
-            )
-            prev_year = match['year']
-        
-        # Apply season carryover before predicting test season
-        if prev_year is not None and test_season != prev_year:
-            model.apply_season_carryover(test_season)
-        
-        # Predict margins on test season (no ELO rating updates)
-        predicted_margins = []
-        actual_margins = []
-        
-        for _, match in test_data.iterrows():
-            # Get ELO-based predictions
-            win_prob = model.calculate_win_probability(match['home_team'], match['away_team'])
-            
-            home_rating = model.team_ratings.get(match['home_team'], model.base_rating)
-            away_rating = model.team_ratings.get(match['away_team'], model.base_rating)
-            rating_diff = (home_rating + model.home_advantage) - away_rating
-            
-            # Apply margin prediction method
-            if method == 'simple':
-                predicted_margin = predict_margin_simple(rating_diff, params[0])
-            elif method == 'diminishing_returns':
-                predicted_margin = predict_margin_diminishing_returns(win_prob, params[0])
-            elif method == 'linear':
-                predicted_margin = predict_margin_linear(rating_diff, params[0], params[1])
-            else:
-                raise ValueError(f"Unknown method: {method}")
-            
-            actual_margin = match['hscore'] - match['ascore']
-            
-            predicted_margins.append(predicted_margin)
-            actual_margins.append(actual_margin)
-        
-        # Calculate MAE for this split
-        if len(predicted_margins) > 0:
-            split_mae = np.mean([abs(p - a) for p, a in zip(predicted_margins, actual_margins)])
-            all_errors.extend([abs(p - a) for p, a in zip(predicted_margins, actual_margins)])
-            if verbose:
-                print(f"  Season {test_season}: MAE = {split_mae:.2f} ({len(predicted_margins)} matches)")
-    
-    if len(all_errors) == 0:
-        return np.inf
-    
-    mae = np.mean(all_errors)
-    return mae
+# Margin evaluation function moved to optimise.py - use that instead
 
 
-def optimize_margin_method_parameters(elo_params, matches_df, n_calls=50, verbose=True):
-    """
-    Optimize margin prediction parameters for all methods
-    Returns the best method and its parameters
-    """
-    from optimise import get_margin_parameter_spaces, BayesianOptimizer, WalkForwardEvaluator
-    from elo_core import AFLEloModel
-    
-    # Get margin parameter spaces
-    margin_spaces = get_margin_parameter_spaces()
-    
-    best_method = None
-    best_params = None
-    best_score = float('inf')
-    all_results = {}
-    
-    print("Testing margin prediction methods...")
-    
-    for method_name, parameter_space in margin_spaces.items():
-        print(f"\n{'='*50}")
-        print(f"OPTIMIZING: {method_name.upper().replace('_', ' ')} METHOD")
-        print(f"{'='*50}")
-        
-        # Create a specialized evaluator for margin methods
-        evaluator = WalkForwardEvaluator(metric='mae')
-        
-        # Create objective function that includes the margin method and ELO params
-        def create_margin_objective(method, elo_parameters):
-            def objective(margin_params):
-                return evaluator.evaluate(
-                    AFLEloModel, elo_parameters, matches_df, None,
-                    margin_method=method, margin_params=list(margin_params.values())
-                )
-            return objective
-        
-        objective = create_margin_objective(method_name, elo_params)
-        
-        # Run optimization for this method
-        optimizer = BayesianOptimizer(n_starts=1)
-        result = optimizer.optimize(objective, parameter_space, n_calls, verbose=verbose)
-        
-        all_results[method_name] = {
-            'score': float(result.best_score),
-            'params': {k: float(v) if isinstance(v, (int, float)) else v for k, v in result.best_params.items()},
-            'iterations': int(result.total_iterations),
-            'method': result.method
-        }
-        
-        print(f"\n{method_name.upper().replace('_', ' ')} RESULTS:")
-        print(f"  Best MAE: {result.best_score:.2f}")
-        print("  Best parameters:")
-        for key, value in result.best_params.items():
-            print(f"    {key}: {value:.4f}")
-        
-        if result.best_score < best_score:
-            best_score = result.best_score
-            best_method = method_name
-            best_params = all_results[method_name]['params']
-    
-    print(f"\n{'='*60}")
-    print("MARGIN OPTIMIZATION COMPLETE")
-    print(f"{'='*60}")
-    print(f"Best method: {best_method.upper().replace('_', ' ')}")
-    print(f"Best MAE: {best_score:.2f}")
-    print("Best parameters:")
-    for key, value in best_params.items():
-        print(f"  {key}: {value:.4f}")
-    
-    return best_method, best_params, best_score, all_results
+# Optimization function moved to optimise.py - use that instead
 
 
 def evaluate_margin_methods(matches_df, elo_ratings, methods_params=None):
@@ -463,12 +304,13 @@ def evaluate_margin_methods(matches_df, elo_ratings, methods_params=None):
     return results
 
 
-# Data loading moved to data_io module
+# Data loading functions moved to data_io module - use those instead
 
 
 def main():
     """Main function for margin method optimization"""
-    from data_io import fetch_afl_data, load_parameters
+    from data_io import fetch_afl_data, load_parameters, save_optimization_results
+    from optimise import evaluate_margin_method_walkforward
     
     parser = argparse.ArgumentParser(description='Optimize AFL ELO margin prediction methods')
     parser.add_argument('--elo-params', type=str, required=True,
@@ -498,12 +340,74 @@ def main():
     matches_df = fetch_afl_data(args.db_path, args.start_year, args.end_year)
     print(f"Loaded {len(matches_df)} matches")
     
-    # Optimize margin methods
-    best_method, best_params, best_score, all_results = optimize_margin_method_parameters(
-        elo_params, matches_df, args.n_calls
-    )
+    # Simple grid search optimization for margin methods (similar to what was done for ELO)
+    methods = {
+        'simple': [(0.05,), (0.1,), (0.125,), (0.15,), (0.2,)],
+        'diminishing_returns': [(0.02,), (0.03,), (0.04,), (0.05,), (0.06,)],
+        'linear': [(0.1, 0.0), (0.125, 0.0), (0.15, 0.0), (0.1, 1.0), (0.125, 1.0)]
+    }
     
-    # Save results
+    best_method = None
+    best_params = None
+    best_score = float('inf')
+    all_results = {}
+    
+    print("Testing margin prediction methods...")
+    
+    for method_name, param_sets in methods.items():
+        print(f"\n{'='*50}")
+        print(f"TESTING: {method_name.upper().replace('_', ' ')} METHOD")
+        print(f"{'='*50}")
+        
+        method_best_score = float('inf')
+        method_best_params = None
+        
+        for params in param_sets:
+            score = evaluate_margin_method_walkforward(
+                params, method_name, elo_params, matches_df, verbose=False
+            )
+            
+            if score < method_best_score:
+                method_best_score = score
+                method_best_params = params
+            
+            param_str = ', '.join([f'{p:.3f}' for p in params])
+            print(f"  Params ({param_str}): MAE = {score:.2f}")
+        
+        # Create properly named parameters for each method
+        if method_name == 'simple':
+            method_params = {'scale_factor': float(method_best_params[0])}
+        elif method_name == 'diminishing_returns':
+            method_params = {'beta': float(method_best_params[0])}
+        elif method_name == 'linear':
+            method_params = {'slope': float(method_best_params[0]), 'intercept': float(method_best_params[1])}
+        else:
+            method_params = {f'param_{i}': float(p) for i, p in enumerate(method_best_params)}
+        
+        all_results[method_name] = {
+            'score': float(method_best_score),
+            'params': method_params,
+        }
+        
+        print(f"\n{method_name.upper().replace('_', ' ')} BEST:")
+        print(f"  Best MAE: {method_best_score:.2f}")
+        print(f"  Best parameters: {method_best_params}")
+        
+        if method_best_score < best_score:
+            best_score = method_best_score
+            best_method = method_name
+            best_params = method_params
+    
+    print(f"\n{'='*60}")
+    print("MARGIN OPTIMIZATION COMPLETE")
+    print(f"{'='*60}")
+    print(f"Best method: {best_method.upper().replace('_', ' ')}")
+    print(f"Best MAE: {best_score:.2f}")
+    print("Best parameters:")
+    for key, value in best_params.items():
+        print(f"  {key}: {value:.4f}")
+    
+    # Save results using core save function
     output_data = {
         'best_method': best_method,
         'best_params': {k: float(v) if isinstance(v, (int, float)) else v for k, v in best_params.items()},
@@ -512,9 +416,7 @@ def main():
         'elo_params_used': elo_params
     }
     
-    with open(args.output_path, 'w') as f:
-        json.dump(output_data, f, indent=2)
-    
+    save_optimization_results(output_data, args.output_path)
     print(f"\nResults saved to {args.output_path}")
 
 

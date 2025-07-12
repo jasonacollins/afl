@@ -1,18 +1,18 @@
 {
     "model_type": "margin_only_elo",
     "parameters": {
-        "k_factor": 42.0,
-        "home_advantage": 34.0,
-        "season_carryover": 0.7599109414305691,
-        "margin_scale": 0.1811375987307693,
-        "scaling_factor": 79.01096714293811,
-        "max_margin": 71.0,
+        "k_factor": 37.0,
+        "home_advantage": 52.0,
+        "season_carryover": 0.8172000724078177,
+        "margin_scale": 0.13305561116267395,
+        "scaling_factor": 72.425956258694,
+        "max_margin": 101.0,
         "base_rating": 1500.0
     },
-    "mae": 29.151035940940677,
+    "mae": 29.33416089322937,
     "optimization_details": {
         "method": "bayesian",
-        "n_calls": 100,
+        "n_calls": 10,
         "n_starts": 5,
         "start_year": 2000,
         "end_year": 2024

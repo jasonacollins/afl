@@ -17,35 +17,27 @@ Usage:
 
 import pandas as pd
 import numpy as np
-import sqlite3
-from skopt import gp_minimize
-from skopt.space import Real, Integer
-from skopt.utils import use_named_args
 import json
 import argparse
 from datetime import datetime
-from afl_elo_train_standard import AFLEloModel, fetch_afl_data, train_elo_model
-from sklearn.model_selection import TimeSeriesSplit
+
+# Import core modules
+from data_io import (
+    fetch_afl_data,
+    save_optimization_results
+)
+from elo_core import AFLEloModel, train_elo_model
+from optimise import parameter_tuning_grid_search
 
 
-# Define the ELO parameter search space
-elo_space = [
-    Integer(10, 50, name='k_factor'),
-    Integer(0, 100, name='home_advantage'),
-    Real(0.1, 0.7, name='margin_factor'),
-    Real(0.3, 0.95, name='season_carryover'),
-    Integer(60, 180, name='max_margin'),
-    Real(0.02, 0.08, name='beta')
-]
-
-# Define margin parameter search spaces
-margin_spaces = {
-    'simple': [Real(0.01, 0.2, name='scale_factor')],
-    'diminishing_returns': [Real(0.005, 0.2, name='beta')],  
-    'linear': [
-        Real(0.01, 0.2, name='slope'),
-        Real(-10, 10, name='intercept')
-    ]
+# Define the ELO parameter grid for random search
+elo_param_grid = {
+    'base_rating': [1500],  # Usually kept fixed
+    'k_factor': [20, 25, 30, 35, 40, 45, 50, 55, 60],
+    'home_advantage': [20, 30, 40, 50, 60, 70, 80, 90, 100],
+    'margin_factor': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+    'season_carryover': [0.4, 0.5, 0.6, 0.7, 0.8],
+    'max_margin': [60, 80, 100]
 }
 
 
@@ -389,9 +381,9 @@ def optimize_margin_parameters(elo_params, matches_df, n_calls=50, verbose=True)
     return best_method, best_params, best_score, all_results
 
 
-def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, cv_folds=3, n_starts=1):
+def optimize_elo_grid_search(db_path, start_year=1990, end_year=2024, max_combinations=500, cv_folds=3):
     """
-    Find optimal ELO parameters using Bayesian optimization
+    Find optimal ELO parameters using random grid search
     
     Parameters:
     -----------
@@ -399,121 +391,34 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
         Path to SQLite database
     start_year: int
         Start year for training data
-    n_calls: int
-        Number of parameter combinations to try (default: 100)
+    end_year: int
+        End year for training data
+    max_combinations: int
+        Maximum number of parameter combinations to try
     cv_folds: int
         Number of cross-validation folds
-    n_starts: int
-        Number of optimization runs with different random seeds (default: 1)
     """
     print(f"Loading AFL data from {start_year} to {end_year}...")
     matches_df = fetch_afl_data(db_path, start_year=start_year, end_year=end_year)
     print(f"Loaded {len(matches_df)} matches")
     
-    # Multi-start optimization
-    all_results = []
-    overall_best_score = float('inf')
-    overall_best_params = None
-    overall_start_time = datetime.now()
+    # Use the grid search from core optimise module
+    print(f"\nRunning random grid search optimization...")
+    print(f"Max combinations to test: {max_combinations}")
     
-    print(f"\nRunning multi-start Bayesian optimization with {n_starts} starts...")
-    print(f"Each start will run {n_calls} iterations.\n")
+    tuning_results = parameter_tuning_grid_search(
+        matches_df, 
+        elo_param_grid, 
+        cv=cv_folds, 
+        max_combinations=max_combinations
+    )
     
-    for start_idx in range(n_starts):
-        print(f"{'='*60}")
-        print(f"START {start_idx + 1}/{n_starts} - Random seed: {42 + start_idx}")
-        print(f"{'='*60}")
-        
-        # Counter for progress tracking (reset for each start)
-        iteration = [0]
-        start_time = datetime.now()
-        
-        # Define objective function with decorators for named arguments
-        @use_named_args(elo_space)
-        def objective(**params):
-            iteration[0] += 1
-            
-            # Extract parameters
-            k_factor = params['k_factor']
-            home_advantage = params['home_advantage']
-            margin_factor = params['margin_factor']
-            season_carryover = params['season_carryover']
-            max_margin = params['max_margin']
-            beta = params['beta']
-            
-            # Evaluate parameters
-            score = evaluate_parameters_walkforward(
-                [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta],
-                matches_df,
-                verbose=False
-            )
-            
-            # Track best score for this start
-            if not hasattr(objective, 'best_score') or score < objective.best_score:
-                objective.best_score = score
-                objective.best_params = params
-            
-            # Progress update
-            elapsed = (datetime.now() - start_time).total_seconds() / 60
-            print(f"Start {start_idx + 1} - Iter {iteration[0]}/{n_calls} - "
-                  f"Elapsed: {elapsed:.1f}min - Current: {score:.4f} - "
-                  f"Best this start: {objective.best_score:.4f}")
-            
-            return score
-        
-        # Run Bayesian optimization for this start
-        result = gp_minimize(
-            func = objective,
-            dimensions = elo_space, # Note: Ensure this uses your 'elo_space' variable
-            n_calls = n_calls,
-            n_initial_points = max(25, n_calls // 4),  # More initial exploration
-            acq_func = 'EI',  # Expected Improvement for better exploration
-            xi = 0.05,  # Exploration-exploitation trade-off parameter
-            noise = 'gaussian',  # Handles noisy objectives
-            random_state = 42 + start_idx  # Different seed for each start
-        )
-        
-        # Store this result
-        all_results.append(result)
-        
-        # Update overall best if this start found something better
-        if result.fun < overall_best_score:
-            overall_best_score = result.fun
-            overall_best_params = result.x
-        
-        elapsed = datetime.now() - start_time
-        print(f"\nStart {start_idx + 1} complete!")
-        print(f"  Best score: {result.fun:.4f}")
-        print(f"  Best parameters this start:")
-        for i, dim in enumerate(elo_space):
-            print(f"    {dim.name}: {result.x[i]:.4f}")
-        print(f"  Time elapsed: {elapsed}")
-        print(f"  Overall best so far: {overall_best_score:.4f}")
-    
-    # Use the result object with the best score
-    result = min(all_results, key=lambda x: x.fun)
-    
-    # Convert to parameter dictionary
-    best_params = {
-        'k_factor': result.x[0],
-        'home_advantage': result.x[1],
-        'margin_factor': result.x[2],
-        'season_carryover': result.x[3],
-        'max_margin': result.x[4],
-        'beta': result.x[5],
-        'base_rating': 1500
-    }
+    best_params = tuning_results['best_params']
+    best_score = tuning_results['best_score']
     
     print("\n" + "="*50)
-    print("MULTI-START OPTIMIZATION COMPLETE")
+    print("GRID SEARCH OPTIMIZATION COMPLETE")
     print("="*50)
-    
-    # Show results from all starts
-    if n_starts > 1:
-        print(f"\nResults from {n_starts} optimization runs:")
-        for i, res in enumerate(all_results):
-            print(f"  Start {i+1}: {res.fun:.4f}")
-        print(f"\nBest across all starts: {result.fun:.4f}")
     
     print(f"\nBest parameters found:")
     for key, value in best_params.items():
@@ -521,32 +426,168 @@ def optimize_elo_bayesian(db_path, start_year=1990, end_year=2024, n_calls=100, 
             print(f"  {key}: {value:.4f}")
         else:
             print(f"  {key}: {value}")
-    print(f"\nBest Brier score: {result.fun:.4f}")
+    print(f"\nBest Brier score: {best_score:.4f}")
     
-    # Show convergence information
-    total_evaluations = sum(len(res.func_vals) for res in all_results)
-    print(f"\nTotal evaluations across all starts: {total_evaluations}")
-    print(f"Best start converged after {len(result.func_vals)} evaluations")
-    print(f"Best start improved from {result.func_vals[0]:.4f} to {result.fun:.4f}")
+    return best_params, tuning_results
+
+
+def check_parameter_sampling():
+    """Check if our parameter sampling is working correctly"""
+    print("Checking parameter sampling...")
     
-    # Plot convergence if matplotlib available
-    try:
-        from skopt.plots import plot_convergence
-        import matplotlib.pyplot as plt
-        
-        plot_convergence(result)
-        plt.title('Bayesian Optimization Convergence')
-        plt.tight_layout()
-        plt.savefig('elo_optimization_convergence.png')
-        print("\nConvergence plot saved to: elo_optimization_convergence.png")
-    except ImportError:
-        print("\nInstall matplotlib to see convergence plots")
+    # Check if simple good params are in our grid
+    simple_good = {
+        'k_factor': 45,
+        'home_advantage': 50, 
+        'margin_factor': 0.5,
+        'season_carryover': 0.6,
+        'max_margin': 80
+    }
     
-    return best_params, result
+    print("Simple good parameters:")
+    for key, value in simple_good.items():
+        if value in elo_param_grid[key]:
+            print(f"  ✓ {key}: {value} (IN GRID)")
+        else:
+            print(f"  ✗ {key}: {value} (NOT IN GRID) - Available: {elo_param_grid[key]}")
+    
+    # Test sampling by generating some combinations
+    print(f"\nTesting parameter combination generation...")
+    from optimise import parameter_tuning_grid_search
+    
+    # Generate just a few combinations to inspect
+    matches_df = fetch_afl_data('data/afl_predictions.db', start_year=1990, end_year=1992)  # Small dataset for speed
+    print(f"Using {len(matches_df)} matches for sampling test")
+    
+    # Run with max 10 combinations to see what gets generated
+    print("\nTesting with 10 random combinations...")
+    result = parameter_tuning_grid_search(matches_df, elo_param_grid, cv=2, max_combinations=10)
+    
+    print(f"\nGenerated combinations and scores:")
+    for i, res in enumerate(result['all_results'][:10]):
+        params = res['params']
+        score = res.get('brier_score', res.get('log_loss', 'unknown'))
+        print(f"  {i+1}. k={params['k_factor']}, home={params['home_advantage']}, "
+              f"margin={params['margin_factor']}, carry={params['season_carryover']}, "
+              f"max_margin={params['max_margin']} → Score: {score:.4f}")
+    
+    # Test if the exact simple good combination gets generated
+    print(f"\nChecking if simple good combination appears in random sampling...")
+    all_combinations = []
+    for k_factor in elo_param_grid['k_factor']:
+        for home_advantage in elo_param_grid['home_advantage']:
+            for margin_factor in elo_param_grid['margin_factor']:
+                for season_carryover in elo_param_grid['season_carryover']:
+                    for max_margin in elo_param_grid['max_margin']:
+                        combo = (k_factor, home_advantage, margin_factor, season_carryover, max_margin)
+                        all_combinations.append(combo)
+    
+    simple_good_tuple = (45, 50, 0.5, 0.6, 80)
+    if simple_good_tuple in all_combinations:
+        print(f"  ✓ Simple good combination IS in the full grid")
+    else:
+        print(f"  ✗ Simple good combination is NOT in the full grid")
+    
+    print(f"\nTotal possible combinations: {len(all_combinations)}")
+    return result
+
+
+def test_known_good_params():
+    """Test parameter sets to verify evaluation is working"""
+    
+    # Test 1: Your exact optimal parameters  
+    print("Testing exact optimal parameter set...")
+    optimal_params = {
+        'k_factor': 47.0,
+        'home_advantage': 52.0,
+        'margin_factor': 0.47,
+        'season_carryover': 0.61,
+        'max_margin': 71.0,
+        'beta': 0.064589,
+        'base_rating': 1500.0
+    }
+    
+    # Test 2: Simple "good enough" parameters from our search space
+    print("\nTesting simple 'good enough' parameter set...")
+    simple_params = {
+        'k_factor': 45.0,
+        'home_advantage': 50.0,
+        'margin_factor': 0.5,
+        'season_carryover': 0.6,
+        'max_margin': 80.0,
+        'beta': 0.05,
+        'base_rating': 1500.0
+    }
+    
+    # Load data
+    matches_df = fetch_afl_data('data/afl_predictions.db', start_year=1990, end_year=2024)
+    print(f"Loaded {len(matches_df)} matches")
+    
+    from optimise import evaluate_parameters_walkforward
+    
+    # Test optimal params
+    print("\n=== OPTIMAL PARAMETERS ===")
+    for key, value in optimal_params.items():
+        print(f"  {key}: {value}")
+    
+    optimal_score = evaluate_parameters_walkforward(
+        [optimal_params['k_factor'], optimal_params['home_advantage'], 
+         optimal_params['margin_factor'], optimal_params['season_carryover'], 
+         optimal_params['max_margin']],
+        matches_df,
+        verbose=False
+    )
+    
+    # Test simple params
+    print("\n=== SIMPLE 'GOOD ENOUGH' PARAMETERS ===")
+    for key, value in simple_params.items():
+        print(f"  {key}: {value}")
+    
+    simple_score = evaluate_parameters_walkforward(
+        [simple_params['k_factor'], simple_params['home_advantage'], 
+         simple_params['margin_factor'], simple_params['season_carryover'], 
+         simple_params['max_margin']],
+        matches_df,
+        verbose=False
+    )
+    
+    print(f"\nRESULTS:")
+    print(f"  Optimal params Brier score: {optimal_score:.4f}")
+    print(f"  Simple params Brier score:  {simple_score:.4f}")
+    print(f"  Difference: {simple_score - optimal_score:.4f}")
+    
+    if simple_score - optimal_score < 0.005:
+        print("  → Simple params are nearly as good! Search space should find similar results.")
+    else:
+        print("  → Simple params are noticeably worse. Need to expand search space.")
+    
+    return optimal_score, simple_score
+    
+    print("Test parameters:")
+    for key, value in test_params.items():
+        print(f"  {key}: {value}")
+    
+    # Load data
+    matches_df = fetch_afl_data('data/afl_predictions.db', start_year=1990, end_year=2024)
+    print(f"Loaded {len(matches_df)} matches")
+    
+    # Test with walk-forward validation
+    from optimise import evaluate_parameters_walkforward
+    score = evaluate_parameters_walkforward(
+        [test_params['k_factor'], test_params['home_advantage'], 
+         test_params['margin_factor'], test_params['season_carryover'], 
+         test_params['max_margin']],
+        matches_df,
+        verbose=True
+    )
+    
+    print(f"\nBrier score with known good params: {score:.4f}")
+    print("(Should be around 0.22 if evaluation is working correctly)")
+    return score
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Optimize AFL ELO parameters using Bayesian optimization')
+    parser = argparse.ArgumentParser(description='Optimize AFL ELO parameters using grid search')
     parser.add_argument('--db-path', type=str, default='data/afl_predictions.db',
                         help='Path to the SQLite database')
     parser.add_argument('--start-year', type=int, default=1990,
@@ -569,8 +610,21 @@ def main():
                         help='Path to existing ELO parameters JSON file (required for margin mode)')
     parser.add_argument('--output-margin-params', type=str, default='data/optimal_elo_margin_params.json',
                         help='Path to save optimal margin parameters (margin mode only)')
+    parser.add_argument('--test-known-params', action='store_true',
+                        help='Test known good parameter set instead of optimizing')
+    parser.add_argument('--check-sampling', action='store_true',
+                        help='Check if parameter sampling is working correctly')
     
     args = parser.parse_args()
+    
+    # Test modes
+    if args.test_known_params:
+        test_known_good_params()
+        return
+    
+    if args.check_sampling:
+        check_parameter_sampling()
+        return
     
     if args.margin_mode:
         # Margin optimization mode
@@ -626,32 +680,23 @@ def main():
         
     else:
         # Standard ELO optimization mode
-        best_params, result = optimize_elo_bayesian(
+        best_params, result = optimize_elo_grid_search(
             args.db_path, 
             args.start_year,
             args.end_year,
-            args.n_calls,
-            args.cv_folds,
-            args.n_starts
+            args.n_calls,  # Use n_calls as max_combinations
+            args.cv_folds
         )
         
-        # Save results - convert all values to native Python types for JSON serialization
-        json_safe_params = {}
-        for key, value in best_params.items():
-            if hasattr(value, 'item'):  # NumPy scalar
-                json_safe_params[key] = value.item()
-            else:
-                json_safe_params[key] = float(value) if isinstance(value, (int, float)) else value
-        
+        # Save results using the core save function
         output_data = {
-            'parameters': json_safe_params,
-            'log_loss': float(result.fun),
-            'n_iterations': len(result.func_vals),
-            'optimization_method': 'bayesian'
+            'parameters': best_params,
+            'best_score': result['best_score'],
+            'optimization_method': 'grid_search',
+            'all_results': result['all_results']
         }
         
-        with open(args.output_path, 'w') as f:
-            json.dump(output_data, f, indent=4)
+        save_optimization_results(output_data, args.output_path)
         
         print(f"\nOptimal parameters saved to: {args.output_path}")
         print("\nTo train a model with these parameters, run:")

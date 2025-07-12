@@ -1,10 +1,18 @@
 import json
-import sqlite3
 import pandas as pd
 import numpy as np
-from datetime import datetime, timezone
+from datetime import datetime
 import os
 import argparse
+
+# Import core modules
+from data_io import (
+    fetch_matches_for_prediction,
+    save_predictions_to_csv,
+    save_predictions_to_database,
+    load_model
+)
+from elo_core import AFLEloModel
 from afl_elo_margin_methods import ELOMarginMethods
 
 
@@ -38,9 +46,8 @@ class AFLOptimalMarginPredictor:
     def load_models(self, elo_model_path, margin_methods_path):
         """Load the trained ELO model and optimal margin methods"""
         try:
-            # Load ELO model
-            with open(elo_model_path, 'r') as f:
-                elo_data = json.load(f)
+            # Load ELO model using core function
+            elo_data = load_model(elo_model_path)
             
             # Set ELO parameters
             self.elo_params = elo_data['parameters']
@@ -172,107 +179,10 @@ class AFLOptimalMarginPredictor:
         print(f"Applied season carryover ({self.season_carryover:.3f}) from {current_season} to {new_season}")
 
 
-def fetch_afl_data(db_path, start_year, end_year=None):
-    """Fetch AFL match data from database"""
-    conn = sqlite3.connect(db_path)
-    
-    if end_year:
-        query = """
-        SELECT m.*, 
-               h.name as home_team, 
-               a.name as away_team,
-               m.hscore as home_score,
-               m.ascore as away_score,
-               m.match_date as date
-        FROM matches m
-        JOIN teams h ON m.home_team_id = h.team_id
-        JOIN teams a ON m.away_team_id = a.team_id
-        WHERE m.year >= ? AND m.year <= ?
-        ORDER BY m.match_date
-        """
-        df = pd.read_sql_query(query, conn, params=(start_year, end_year))
-    else:
-        query = """
-        SELECT m.*, 
-               h.name as home_team, 
-               a.name as away_team,
-               m.hscore as home_score,
-               m.ascore as away_score,
-               m.match_date as date
-        FROM matches m
-        JOIN teams h ON m.home_team_id = h.team_id
-        JOIN teams a ON m.away_team_id = a.team_id
-        WHERE m.year >= ?
-        ORDER BY m.match_date
-        """
-        df = pd.read_sql_query(query, conn, params=(start_year,))
-    
-    conn.close()
-    return df
+# fetch_afl_data function replaced by data_io.fetch_matches_for_prediction
 
 
-def save_predictions_to_db(predictions, db_path, predictor_id):
-    """Save predictions to database"""
-    if not predictor_id:
-        raise ValueError("predictor_id is required - no new predictors will be created")
-    
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Verify the predictor_id exists
-    cursor.execute("SELECT predictor_id, name FROM predictors WHERE predictor_id = ?", (predictor_id,))
-    result = cursor.fetchone()
-    if not result:
-        raise ValueError(f"Predictor with ID {predictor_id} not found in database")
-    
-    predictor_id, actual_name = result
-    print(f"Using existing predictor: {actual_name} (ID: {predictor_id})")
-    
-    saved_count = 0
-    
-    for prediction in predictions:
-        # Get match_id from database
-        cursor.execute("""
-            SELECT m.match_id FROM matches m
-            JOIN teams h ON m.home_team_id = h.team_id
-            JOIN teams a ON m.away_team_id = a.team_id
-            WHERE h.name = ? AND a.name = ? AND m.match_date = ?
-        """, (prediction['home_team'], prediction['away_team'], prediction['match_date']))
-        
-        match_result = cursor.fetchone()
-        if not match_result:
-            print(f"Warning: Could not find match {prediction['home_team']} vs {prediction['away_team']} on {prediction['match_date']}")
-            continue
-        
-        match_id = match_result[0]
-        
-        # Determine tipped team based on win probability
-        tipped_team = 'home' if prediction['win_probability'] > 0.5 else 'away'
-        
-        # Use the best method margin as the main predicted margin
-        predicted_margin = prediction.get('predicted_margin_best', prediction.get('predicted_margin_linear', None))
-        
-        # Insert or update prediction
-        cursor.execute("""
-            INSERT OR REPLACE INTO predictions 
-            (match_id, predictor_id, home_win_probability, predicted_margin, tipped_team, prediction_date)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            match_id, 
-            predictor_id, 
-            prediction['win_probability'],
-            predicted_margin,
-            tipped_team,
-            datetime.now().isoformat()
-        ))
-        
-        saved_count += 1
-    
-    conn.commit()
-    conn.close()
-    
-    print(f"Saved {saved_count} predictions to database")
-    return saved_count
+# save_predictions_to_db function replaced by data_io.save_predictions_to_database
 
 
 def main():
@@ -303,8 +213,8 @@ def main():
     # Initialize predictor
     predictor = AFLOptimalMarginPredictor(args.elo_model, args.margin_methods)
     
-    # Fetch upcoming matches
-    matches_df = fetch_afl_data(args.db_path, args.start_year)
+    # Fetch upcoming matches using core function
+    matches_df = fetch_matches_for_prediction(args.db_path, args.start_year)
     
     if matches_df.empty:
         print(f"No matches found for {args.start_year}")
@@ -324,13 +234,13 @@ def main():
         prediction = predictor.predict_match(
             match['home_team'], 
             match['away_team'],
-            match['date']
+            match['match_date'].isoformat() if pd.notna(match['match_date']) else None
         )
         
         # Update ratings if match has been played
-        if pd.notna(match['home_score']) and pd.notna(match['away_score']):
+        if pd.notna(match['hscore']) and pd.notna(match['ascore']):
             # Add actual results to prediction for evaluation
-            actual_margin = match['home_score'] - match['away_score']
+            actual_margin = match['hscore'] - match['ascore']
             actual_result = 'home_win' if actual_margin > 0 else 'away_win' if actual_margin < 0 else 'draw'
             
             # Update the prediction with actual results
@@ -342,8 +252,8 @@ def main():
             predictor.update_ratings(
                 match['home_team'], 
                 match['away_team'],
-                match['home_score'], 
-                match['away_score']
+                match['hscore'], 
+                match['ascore']
             )
     
     # Evaluate performance on completed matches
@@ -398,15 +308,30 @@ def main():
     
     # Save predictions to CSV and optionally to database
     if predictor.predictions:
-        predictions_df = pd.DataFrame(predictor.predictions)
-        output_file = os.path.join(args.output_dir, f'margin_methods_predictions_{args.start_year}_{args.start_year}.csv')
-        predictions_df.to_csv(output_file, index=False)
-        print(f"\nSaved {len(predictor.predictions)} predictions to {output_file}")
+        # Format predictions for CSV output
+        csv_output_file = os.path.join(args.output_dir, f'margin_methods_predictions_{args.start_year}.csv')
+        save_predictions_to_csv(predictor.predictions, csv_output_file)
+        print(f"\nSaved {len(predictor.predictions)} predictions to {csv_output_file}")
         
         # Save to database unless --no-save-to-db is specified
         if not args.no_save_to_db:
             try:
-                save_predictions_to_db(predictor.predictions, args.db_path, args.predictor_id)
+                # Convert predictions to format expected by core save function
+                formatted_predictions = []
+                for pred in predictor.predictions:
+                    formatted_pred = {
+                        'match_id': pred.get('match_id'),
+                        'home_team': pred['home_team'],
+                        'away_team': pred['away_team'],
+                        'match_date': pred['match_date'],
+                        'home_win_probability': pred['win_probability'],
+                        'predicted_margin': pred.get('predicted_margin_best'),
+                        'predicted_winner': pred['home_team'] if pred['win_probability'] > 0.5 else pred['away_team'],
+                        'confidence': max(pred['win_probability'], 1 - pred['win_probability'])
+                    }
+                    formatted_predictions.append(formatted_pred)
+                
+                save_predictions_to_database(formatted_predictions, args.db_path, args.predictor_id)
             except Exception as e:
                 print(f"Error saving to database: {e}")
                 print("Continuing with CSV output only...")

@@ -33,7 +33,7 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
     Parameters:
     -----------
     params : List[float]
-        ELO parameters [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta]
+        ELO parameters [k_factor, home_advantage, margin_factor, season_carryover, max_margin]
     matches_df : pd.DataFrame
         Historical match data
     cv_folds : int
@@ -46,7 +46,7 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
     float
         Average Brier score across folds
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta = params
+    k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
     
     # Create time-based splits
     tscv = TimeSeriesSplit(n_splits=cv_folds)
@@ -66,7 +66,7 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
-            beta=beta
+            beta=0.05  # Default beta for margin predictions
         )
         fold_model.initialize_ratings(all_teams)
         
@@ -132,7 +132,7 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
     Parameters:
     -----------
     params : List[float]
-        ELO parameters [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta]
+        ELO parameters [k_factor, home_advantage, margin_factor, season_carryover, max_margin]
     matches_df : pd.DataFrame
         Historical match data
     verbose : bool
@@ -143,7 +143,7 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
     float
         Average Brier score across splits
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta = params
+    k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
 
     # Ensure chronological order
     matches_df = matches_df.sort_values(['year', 'match_date'])
@@ -171,7 +171,7 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
-            beta=beta
+            beta=0.05  # Default beta for margin predictions
         )
         model.initialize_ratings(all_teams)
 
@@ -267,17 +267,16 @@ def parameter_tuning_grid_search(data: pd.DataFrame, param_grid: Dict,
             for margin_factor in param_grid['margin_factor']:
                 for season_carryover in param_grid['season_carryover']:
                     for max_margin in param_grid['max_margin']:
-                        for beta in param_grid.get('beta', [0.05]):  # Default if not in grid
-                            params = {
-                                'base_rating': param_grid['base_rating'][0],  # Use first value
-                                'k_factor': k_factor,
-                                'home_advantage': home_advantage,
-                                'margin_factor': margin_factor,
-                                'season_carryover': season_carryover,
-                                'max_margin': max_margin,
-                                'beta': beta
-                            }
-                            param_combinations.append(params)
+                        params = {
+                            'base_rating': param_grid['base_rating'][0],  # Use first value
+                            'k_factor': k_factor,
+                            'home_advantage': home_advantage,
+                            'margin_factor': margin_factor,
+                            'season_carryover': season_carryover,
+                            'max_margin': max_margin,
+                            'beta': 0.05  # Default beta for margin predictions
+                        }
+                        param_combinations.append(params)
     
     # Limit the number of combinations if specified
     if max_combinations and len(param_combinations) > max_combinations:
@@ -304,56 +303,18 @@ def parameter_tuning_grid_search(data: pd.DataFrame, param_grid: Dict,
             else:
                 print(f"Testing combination {i+1}/{total_combinations}")
         
-        # Cross-validation scores for this parameter set
-        cv_scores = []
-        
-        for train_idx, test_idx in tscv.split(data):
-            train_data = data.iloc[train_idx]
-            test_data = data.iloc[test_idx]
-            
-            # Train model on training data
-            from elo_core import train_elo_model
-            model = train_elo_model(train_data, params)
-            
-            # Predict on test data
-            test_probs = []
-            test_results = []
-            
-            # Get the year of the earliest test game
-            test_year = test_data['year'].min()
-            
-            # Apply season carryover if needed
-            if test_year > train_data['year'].max():
-                model.apply_season_carryover(test_year)
-            
-            for _, match in test_data.iterrows():
-                prob = model.calculate_win_probability(match['home_team'], match['away_team'])
-                test_probs.append(prob)
-                # Actual result (1 for home win, 0 for away win, 0.5 for draw)
-                if match['hscore'] > match['ascore']:
-                    result = 1.0
-                elif match['hscore'] < match['ascore']:
-                    result = 0.0
-                else:
-                    result = 0.5
-                test_results.append(result)
-            
-            # Clip probabilities to avoid log(0) issues
-            test_probs = [max(min(p, 0.999), 0.001) for p in test_probs]
-            
-            # Calculate Brier score for this fold
-            test_probs_arr = np.array(test_probs)
-            test_results_arr = np.array(test_results)
-            fold_score = np.mean((test_probs_arr - test_results_arr) ** 2)
-            cv_scores.append(fold_score)
-        
-        # Average score across CV folds
-        avg_score = np.mean(cv_scores)
+        # Use walk-forward validation instead of cross-validation for consistency
+        avg_score = evaluate_parameters_walkforward(
+            [params['k_factor'], params['home_advantage'], params['margin_factor'], 
+             params['season_carryover'], params['max_margin']],
+            data,
+            verbose=False
+        )
         
         result = {
             'params': params,
             'brier_score': avg_score,
-            'cv_scores': cv_scores
+            'cv_scores': [avg_score]  # Single score for consistency
         }
         all_results.append(result)
         
@@ -451,11 +412,10 @@ def optimize_elo_bayesian(matches_df: pd.DataFrame, n_calls: int = 100,
             margin_factor = params['margin_factor']
             season_carryover = params['season_carryover']
             max_margin = params['max_margin']
-            beta = params['beta']
             
             # Evaluate parameters
             score = evaluate_parameters_walkforward(
-                [k_factor, home_advantage, margin_factor, season_carryover, max_margin, beta],
+                [k_factor, home_advantage, margin_factor, season_carryover, max_margin],
                 matches_df,
                 verbose=False
             )
@@ -661,3 +621,125 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
             print(f"Train ≤ {test_season - 1}, test {test_season}: MAE {split_mae:.2f}")
     
     return np.mean(all_errors) if all_errors else np.inf
+
+
+def evaluate_margin_elo_walkforward(params: List[float], matches_df: pd.DataFrame, 
+                                  verbose: bool = False) -> float:
+    """
+    Evaluate margin-focused ELO parameters using walk-forward validation
+    Returns Mean Absolute Error (lower is better)
+    
+    Parameters:
+    -----------
+    params : List[float]
+        Margin ELO parameters [k_factor, home_advantage, season_carryover, 
+                              margin_scale, scaling_factor, max_margin]
+    matches_df : pd.DataFrame
+        Historical match data
+    verbose : bool
+        Print detailed output
+        
+    Returns:
+    --------
+    float
+        Mean Absolute Error across validation splits
+    """
+    from elo_core import MarginEloModel
+    
+    k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin = params
+    
+    # Mathematical stability constraints
+    max_rating_change = k_factor * max_margin / scaling_factor
+    if max_rating_change > 75:  # No more than 75 points change per match
+        return 1e10
+    
+    # Prevent numerical instability from extreme parameter combinations
+    if margin_scale < 0.03 and scaling_factor < 30:  # Very small values together
+        return 1e10
+    if k_factor > 50 and scaling_factor < 40:  # High k with low scaling
+        return 1e10
+        
+    # Basic parameter validation
+    if scaling_factor <= 0 or k_factor <= 0 or margin_scale <= 0:
+        return 1e10
+    
+    # Ensure chronological order
+    matches_df = matches_df.sort_values(['year', 'match_date'])
+    
+    seasons = sorted(matches_df['year'].unique())
+    if len(seasons) < 2:
+        return 1e10
+    
+    all_errors = []
+    
+    # Walk-forward validation by season
+    for test_season in seasons[1:]:
+        # Initialize model
+        model = MarginEloModel(
+            k_factor=k_factor,
+            home_advantage=home_advantage,
+            season_carryover=season_carryover,
+            margin_scale=margin_scale,
+            scaling_factor=scaling_factor,
+            max_margin=max_margin
+        )
+        
+        # Get all teams
+        all_teams = pd.concat([matches_df['home_team'], matches_df['away_team']]).unique()
+        model.initialize_ratings(all_teams)
+        
+        # Train on all seasons before test season
+        train_matches = matches_df[matches_df['year'] < test_season]
+        
+        # Process each training season
+        for season in sorted(train_matches['year'].unique()):
+            season_matches = train_matches[train_matches['year'] == season]
+            
+            # Update ratings for each match
+            for _, match in season_matches.iterrows():
+                actual_margin = match['hscore'] - match['ascore']
+                model.update_ratings(match['home_team'], match['away_team'], actual_margin)
+                
+                # Check for rating explosion during training
+                max_rating = max(model.team_ratings.values())
+                min_rating = min(model.team_ratings.values())
+                if max_rating > 2500 or min_rating < 500 or not np.isfinite(max_rating) or not np.isfinite(min_rating):
+                    return 1e10
+            
+            # Apply season carryover (except after last training season)
+            if season < test_season - 1:
+                model.apply_season_carryover()
+        
+        # Test on test season
+        test_matches = matches_df[matches_df['year'] == test_season]
+        predicted_margins = []
+        actual_margins = []
+        
+        for _, match in test_matches.iterrows():
+            # Predict
+            pred_margin = model.predict_margin(match['home_team'], match['away_team'])
+            actual_margin = match['hscore'] - match['ascore']
+            
+            predicted_margins.append(pred_margin)
+            actual_margins.append(actual_margin)
+            
+            # Update model with this match
+            model.update_ratings(match['home_team'], match['away_team'], actual_margin)
+        
+        # Calculate MAE for this season
+        season_mae = np.mean(np.abs(np.array(predicted_margins) - np.array(actual_margins)))
+        
+        # Return infinity if we get NaN or infinite values
+        if not np.isfinite(season_mae):
+            return 1e10
+            
+        all_errors.append(season_mae)
+        
+        # Early termination if any season shows instability
+        if season_mae > 1000:  # Clearly unstable
+            return 1e10
+        
+        if verbose:
+            print(f"Train ≤ {test_season - 1}, test {test_season}: MAE {season_mae:.2f}")
+    
+    return np.mean(all_errors) if all_errors else 1e10

@@ -12,7 +12,6 @@ Usage:
 
 import pandas as pd
 import numpy as np
-import sqlite3
 from skopt import gp_minimize
 from skopt.space import Real, Integer
 from skopt.utils import use_named_args
@@ -20,109 +19,16 @@ import json
 import argparse
 from datetime import datetime
 
-
-def fetch_afl_data(db_path, start_year=1990, end_year=None):
-    """Fetch AFL match data from database"""
-    conn = sqlite3.connect(db_path)
-    
-    query = """
-    SELECT 
-        m.year,
-        m.round_number as round,
-        ht.name as home_team,
-        at.name as away_team,
-        m.hscore,
-        m.ascore,
-        m.match_date
-    FROM matches m
-    JOIN teams ht ON m.home_team_id = ht.team_id
-    JOIN teams at ON m.away_team_id = at.team_id
-    WHERE m.year >= ?
-    """
-    
-    params = [start_year]
-    if end_year:
-        query += " AND m.year <= ?"
-        params.append(end_year)
-    
-    query += " ORDER BY m.year, m.round_number, m.match_date"
-    
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
-    
-    # Filter out incomplete matches
-    df = df.dropna(subset=['hscore', 'ascore'])
-    
-    # Convert match_date to datetime
-    df['match_date'] = pd.to_datetime(df['match_date'], errors='coerce')
-    
-    return df
+# Import core modules
+from data_io import fetch_afl_data, save_optimization_results
+from elo_core import MarginEloModel
+from optimise import evaluate_margin_elo_walkforward
 
 
-class MarginEloModel:
-    """ELO model optimized for margin prediction"""
-    
-    def __init__(self, k_factor=35, home_advantage=40, season_carryover=0.75, 
-                 margin_scale=0.15, scaling_factor=50, max_margin=100, base_rating=1500):
-        self.k_factor = k_factor
-        self.home_advantage = home_advantage
-        self.season_carryover = season_carryover
-        self.margin_scale = margin_scale
-        self.scaling_factor = scaling_factor
-        self.max_margin = max_margin
-        self.base_rating = base_rating
-        self.team_ratings = {}
-        
-    def initialize_ratings(self, teams):
-        """Initialize all teams with base rating"""
-        for team in teams:
-            self.team_ratings[team] = self.base_rating
-    
-    def predict_margin(self, home_team, away_team):
-        """Predict margin directly from ratings"""
-        home_rating = self.team_ratings.get(home_team, self.base_rating)
-        away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Apply home ground advantage to rating difference
-        rating_diff = (home_rating + self.home_advantage) - away_rating
-        
-        # Convert to margin - simpler than win probability model
-        predicted_margin = rating_diff * self.margin_scale
-        
-        return predicted_margin
-    
-    def update_ratings(self, home_team, away_team, actual_margin):
-        """Update ratings based on actual margin"""
-        # Get current ratings
-        home_rating = self.team_ratings.get(home_team, self.base_rating)
-        away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Predict margin
-        predicted_margin = self.predict_margin(home_team, away_team)
-        
-        # Cap actual margin to reduce impact of blowouts
-        capped_margin = np.sign(actual_margin) * min(abs(actual_margin), self.max_margin)
-        
-        # Calculate margin prediction error
-        margin_error = capped_margin - predicted_margin
-        
-        # Calculate the raw rating change
-        raw_rating_change = self.k_factor * margin_error / self.scaling_factor
-        
-        # Clip the rating change to prevent explosion and ensure stability
-        max_change = min(40, self.k_factor * 0.8)  # Dynamic clipping based on k_factor
-        rating_change = np.clip(raw_rating_change, -max_change, max_change)
-        
-        self.team_ratings[home_team] = home_rating + rating_change
-        self.team_ratings[away_team] = away_rating - rating_change
-    
-    def apply_season_carryover(self):
-        """Apply season carryover - regress ratings toward base rating (1500)"""
-        for team in self.team_ratings:
-            current_rating = self.team_ratings[team]
-            self.team_ratings[team] = (
-                self.base_rating + self.season_carryover * (current_rating - self.base_rating)
-            )
+# fetch_afl_data function replaced by data_io.fetch_afl_data
+
+
+# MarginEloModel class moved to elo_core.py
 
 
 # Define parameter search space for margin model - more conservative ranges
@@ -136,108 +42,7 @@ margin_space = [
 ]
 
 
-def evaluate_margin_params_walkforward(params, matches_df, verbose=False):
-    """
-    Evaluate margin parameters using walk-forward validation
-    Returns Mean Absolute Error (lower is better)
-    """
-    k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin = params
-    
-    # Mathematical stability constraints
-    max_rating_change = k_factor * max_margin / scaling_factor
-    if max_rating_change > 75:  # No more than 75 points change per match
-        return 1e10
-    
-    # Prevent numerical instability from extreme parameter combinations
-    if margin_scale < 0.03 and scaling_factor < 30:  # Very small values together
-        return 1e10
-    if k_factor > 50 and scaling_factor < 40:  # High k with low scaling
-        return 1e10
-        
-    # Basic parameter validation
-    if scaling_factor <= 0 or k_factor <= 0 or margin_scale <= 0:
-        return 1e10
-    
-    # Ensure chronological order
-    matches_df = matches_df.sort_values(['year', 'match_date'])
-    
-    seasons = sorted(matches_df['year'].unique())
-    if len(seasons) < 2:
-        return 1e10
-    
-    all_errors = []
-    
-    # Walk-forward validation by season
-    for test_season in seasons[1:]:
-        # Initialize model
-        model = MarginEloModel(
-            k_factor=k_factor,
-            home_advantage=home_advantage,
-            season_carryover=season_carryover,
-            margin_scale=margin_scale,
-            scaling_factor=scaling_factor,
-            max_margin=max_margin
-        )
-        
-        # Get all teams
-        all_teams = pd.concat([matches_df['home_team'], matches_df['away_team']]).unique()
-        model.initialize_ratings(all_teams)
-        
-        # Train on all seasons before test season
-        train_matches = matches_df[matches_df['year'] < test_season]
-        
-        # Process each training season
-        for season in sorted(train_matches['year'].unique()):
-            season_matches = train_matches[train_matches['year'] == season]
-            
-            # Update ratings for each match
-            for _, match in season_matches.iterrows():
-                actual_margin = match['hscore'] - match['ascore']
-                model.update_ratings(match['home_team'], match['away_team'], actual_margin)
-                
-                # Check for rating explosion during training
-                max_rating = max(model.team_ratings.values())
-                min_rating = min(model.team_ratings.values())
-                if max_rating > 2500 or min_rating < 500 or not np.isfinite(max_rating) or not np.isfinite(min_rating):
-                    return 1e10
-            
-            # Apply season carryover (except after last training season)
-            if season < test_season - 1:
-                model.apply_season_carryover()
-        
-        # Test on test season
-        test_matches = matches_df[matches_df['year'] == test_season]
-        predicted_margins = []
-        actual_margins = []
-        
-        for _, match in test_matches.iterrows():
-            # Predict
-            pred_margin = model.predict_margin(match['home_team'], match['away_team'])
-            actual_margin = match['hscore'] - match['ascore']
-            
-            predicted_margins.append(pred_margin)
-            actual_margins.append(actual_margin)
-            
-            # Update model with this match
-            model.update_ratings(match['home_team'], match['away_team'], actual_margin)
-        
-        # Calculate MAE for this season
-        season_mae = np.mean(np.abs(np.array(predicted_margins) - np.array(actual_margins)))
-        
-        # Return infinity if we get NaN or infinite values
-        if not np.isfinite(season_mae):
-            return 1e10
-            
-        all_errors.append(season_mae)
-        
-        # Early termination if any season shows instability
-        if season_mae > 1000:  # Clearly unstable
-            return 1e10
-        
-        if verbose:
-            print(f"Train ≤ {test_season - 1}, test {test_season}: MAE {season_mae:.2f}")
-    
-    return np.mean(all_errors) if all_errors else 1e10
+# evaluate_margin_params_walkforward function moved to optimise.py
 
 
 def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_starts=1):
@@ -282,7 +87,7 @@ def optimize_margin_elo(db_path, start_year=1990, end_year=2024, n_calls=200, n_
             ]
             
             # Calculate MAE using walk-forward validation
-            mae = evaluate_margin_params_walkforward(param_values, matches_df, verbose=False)
+            mae = evaluate_margin_elo_walkforward(param_values, matches_df, verbose=False)
             
             # Update best if needed
             if mae < best_so_far[0]:
@@ -441,15 +246,9 @@ def main():
         }
     }
     
-    with open(args.output_path, 'w') as f:
-        json.dump(output_data, f, indent=4)
+    save_optimization_results(output_data, args.output_path)
     
     print(f"\nOptimal margin parameters saved to: {args.output_path}")
-    print("\nNext steps:")
-    print("1. Train the margin model with these parameters")
-    print("2. Compare MAE with your current two-stage approach")
-    print("3. Run predictions using both models independently")
-
 
 if __name__ == '__main__':
     main()
