@@ -1,9 +1,9 @@
 {
   "parameters": {
-    "k_factor": 47,
-    "home_advantage": 52,
-    "season_carryover": 0.61,
-    "margin_scale": 0.47,
+    "k_factor": 32,
+    "home_advantage": 30,
+    "season_carryover": 0.75,
+    "margin_scale": 0.2,
     "base_rating": 1500
   },
   "ratings": {
@@ -28,5 +28,5 @@
     "Greater Western Sydney": 1578.5496959993054
   },
   "model_type": "SimpleELO",
-  "last_updated": "2025-07-11T20:45:34.338563"
+  "last_updated": "2025-07-12T07:52:20.276347"
 }

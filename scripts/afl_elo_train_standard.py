@@ -8,6 +8,18 @@ import os
 import argparse
 from datetime import datetime
 
+# Import core modules
+from data_io import (
+    fetch_afl_data,
+    save_model,
+    save_predictions_to_csv,
+    save_optimization_results,
+    load_parameters,
+    create_summary_file
+)
+from elo_core import AFLEloModel, train_elo_model
+from optimise import parameter_tuning_grid_search
+
 class AFLEloModel:
     def __init__(self, base_rating=1500, k_factor=20, home_advantage=50, 
             margin_factor=0.3, season_carryover=0.6, max_margin=120, beta=0.05):
@@ -256,291 +268,13 @@ class AFLEloModel:
         print(f"Saved {len(df)} predictions to {filename}")
 
 
-def fetch_afl_data(db_path, start_year=None, end_year=None):
-    """
-    Fetch historical AFL match data from SQLite database
-    
-    Parameters:
-    -----------
-    db_path: str
-        Path to SQLite database
-    start_year: int
-        Optional starting year for data. If provided, only games from this year onward are fetched.
-    end_year: int
-        Optional ending year for data. If provided, only games up to this year are fetched.
-        
-    Returns:
-    --------
-    pandas DataFrame with match data
-    """
-    conn = sqlite3.connect(db_path)
-    
-    year_clause = ""
-    if start_year:
-        year_clause += f"AND m.year >= {start_year} "
-    if end_year:
-        year_clause += f"AND m.year <= {end_year}"
-    
-    query = f"""
-    SELECT 
-        m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team
-    FROM 
-        matches m
-    JOIN 
-        teams ht ON m.home_team_id = ht.team_id
-    JOIN 
-        teams at ON m.away_team_id = at.team_id
-    WHERE 
-        m.hscore IS NOT NULL AND m.ascore IS NOT NULL
-        {year_clause}
-    ORDER BY 
-        m.year, m.match_date
-    """
-    
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    
-    return df
+# fetch_afl_data function replaced by data_io.fetch_afl_data
 
 
-def train_elo_model(data, params=None):
-    """
-    Train the ELO model on the provided data with optional parameters
-    
-    Parameters:
-    -----------
-    data: pandas DataFrame
-        Historical match data
-    params: dict
-        Optional model parameters
-        
-    Returns:
-    --------
-    trained ELO model
-    """
-    if params is None:
-        model = AFLEloModel()
-    else:
-        model = AFLEloModel(
-            base_rating=params.get('base_rating', 1500),
-            k_factor=params.get('k_factor', 20),
-            home_advantage=params.get('home_advantage', 50),
-            margin_factor=params.get('margin_factor', 0.3),
-            season_carryover=params.get('season_carryover', 0.6),
-            max_margin=params.get('max_margin', 120),
-            beta=params.get('beta', 0.05)
-        )
-    
-    # Get unique teams
-    all_teams = pd.concat([data['home_team'], data['away_team']]).unique()
-    
-    # Initialize ratings
-    model.initialize_ratings(all_teams)
-    
-    # Process matches chronologically
-    prev_year = None
-    
-    for _, match in data.iterrows():
-        # Apply season carryover at the start of a new season
-        if prev_year is not None and match['year'] != prev_year:
-            # Save ratings at the end of the previous year
-            model.save_yearly_ratings(prev_year)
-            # Apply carryover for the new year
-            model.apply_season_carryover(match['year'])
-        
-        # Update ratings based on match result
-        model.update_ratings(
-            home_team=match['home_team'],
-            away_team=match['away_team'],
-            hscore=match['hscore'],
-            ascore=match['ascore'],
-            year=match['year'],
-            match_id=match['match_id'],
-            round_number=match['round_number'],
-            match_date=match['match_date'],
-            venue=match['venue']
-        )
-        
-        prev_year = match['year']
-    
-    # Save ratings for the final year
-    if prev_year:
-        model.save_yearly_ratings(prev_year)
-    
-    return model
+# train_elo_model function replaced by elo_core.train_elo_model
 
 
-def parameter_tuning(data, param_grid, cv=5, max_combinations=None):
-    """
-    Find optimal ELO parameters using grid search
-    
-    Parameters:
-    -----------
-    data: pandas DataFrame
-        Historical match data
-    param_grid: dict
-        Dictionary of parameter ranges to test
-    cv: int
-        Number of cross-validation splits
-    max_combinations: int
-        Maximum number of parameter combinations to test (None for all)
-        
-    Returns:
-    --------
-    dict with best parameters and results
-    """
-    # Create time-based splits to avoid training on future data
-    tscv = TimeSeriesSplit(n_splits=cv)
-    
-    best_score = float('inf')  # Using log loss, lower is better
-    best_params = None
-    all_results = []
-    
-    # Sort data by date to ensure chronological order
-    data = data.sort_values(['year', 'match_date'])
-    
-    # Create parameter combinations
-    param_combinations = []
-    
-    # Simple grid search using loops
-    for k_factor in param_grid['k_factor']:
-        for home_advantage in param_grid['home_advantage']:
-            for margin_factor in param_grid['margin_factor']:
-                for season_carryover in param_grid['season_carryover']:
-                    for max_margin in param_grid['max_margin']:
-                        for beta in param_grid.get('beta', [0.05]):  # Default if not in grid
-                            params = {
-                                'base_rating': param_grid['base_rating'][0],  # Use first value
-                                'k_factor': k_factor,
-                                'home_advantage': home_advantage,
-                                'margin_factor': margin_factor,
-                                'season_carryover': season_carryover,
-                                'max_margin': max_margin,
-                                'beta': beta
-                            }
-                            param_combinations.append(params)
-    
-    # Limit the number of combinations if specified
-    if max_combinations and len(param_combinations) > max_combinations:
-        print(f"Limiting to {max_combinations} random parameter combinations out of {len(param_combinations)} total")
-        import random
-        random.shuffle(param_combinations)
-        param_combinations = param_combinations[:max_combinations]
-    
-    total_combinations = len(param_combinations)
-    print(f"Testing {total_combinations} parameter combinations with {cv}-fold cross-validation...")
-    
-    # Print a few examples of parameter combinations
-    print("\nSample of parameter combinations to test:")
-    for i, params in enumerate(param_combinations[:3]):
-        print(f"  Combination {i+1}: {params}")
-    if len(param_combinations) > 3:
-        print(f"  ... plus {len(param_combinations) - 3} more combinations")
-    
-    # Track progress
-    start_time = datetime.now()
-    
-    for i, params in enumerate(param_combinations):
-        if i % 10 == 0:  # Print progress every 10 combinations
-            elapsed = datetime.now() - start_time
-            if i > 0:
-                avg_time_per_combo = elapsed.total_seconds() / i
-                est_remaining = (total_combinations - i) * avg_time_per_combo
-                print(f"Testing combination {i+1}/{total_combinations} - "
-                      f"Elapsed: {elapsed.total_seconds()/60:.1f} min, "
-                      f"Est. remaining: {est_remaining/60:.1f} min")
-            else:
-                print(f"Testing combination {i+1}/{total_combinations}")
-        
-        # Cross-validation scores for this parameter set
-        cv_scores = []
-        
-        for train_idx, test_idx in tscv.split(data):
-            train_data = data.iloc[train_idx]
-            test_data = data.iloc[test_idx]
-            
-            # Train model on training data
-            model = train_elo_model(train_data, params)
-            
-            # Predict on test data
-            test_probs = []
-            test_results = []
-            
-            # Get the year of the earliest test game
-            test_year = test_data['year'].min()
-            
-            # Apply season carryover if needed
-            if test_year > train_data['year'].max():
-                model.apply_season_carryover(test_year)
-            
-            for _, match in test_data.iterrows():
-                prob = model.calculate_win_probability(match['home_team'], match['away_team'])
-                test_probs.append(prob)
-                # Actual result (1 for home win, 0 for away win, 0.5 for draw)
-                if match['hscore'] > match['ascore']:
-                    result = 1.0
-                elif match['hscore'] < match['ascore']:
-                    result = 0.0
-                else:
-                    result = 0.5
-                test_results.append(result)
-            
-            # Clip probabilities to avoid log(0) issues
-            test_probs = [max(min(p, 0.999), 0.001) for p in test_probs]
-            
-            # Calculate log loss for this fold
-            log_losses = []
-            for true_val, pred_val in zip(test_results, test_probs):
-                # Calculate loss based on actual outcome
-                if true_val == 1.0:
-                    loss = -np.log(pred_val)
-                elif true_val == 0.0:
-                    loss = -np.log(1 - pred_val)
-                else:  # Draw (0.5)
-                    # For a draw, use proximity to 0.5 for the loss calculation
-                    loss = -np.log(1 - abs(0.5 - pred_val))
-                
-                log_losses.append(loss)
-
-            fold_loss = np.mean(log_losses)
-            cv_scores.append(fold_loss)
-        
-        # Average score across CV folds
-        avg_score = np.mean(cv_scores)
-        
-        result = {
-            'params': params,
-            'log_loss': avg_score,
-            'cv_scores': cv_scores
-        }
-        all_results.append(result)
-        
-        # Update best parameters if this is better
-        if avg_score < best_score:
-            best_score = avg_score
-            best_params = params
-            print(f"\nNew best parameters found (log loss: {best_score:.4f}):")
-            for k, v in best_params.items():
-                print(f"  {k}: {v}")
-    
-    # Sort results by score
-    all_results.sort(key=lambda x: x['log_loss'])
-    
-    # Print the top 3 parameter combinations
-    print("\nTop 3 parameter combinations:")
-    for i, result in enumerate(all_results[:3]):
-        print(f"  {i+1}. Log loss: {result['log_loss']:.4f}, Parameters: {result['params']}")
-    
-    total_time = datetime.now() - start_time
-    print(f"\nParameter tuning completed in {total_time.total_seconds()/60:.1f} minutes")
-    
-    return {
-        'best_params': best_params,
-        'best_score': best_score,
-        'all_results': all_results
-    }
+# parameter_tuning function replaced by optimise.parameter_tuning_grid_search
 
 def train_margin_model(data, elo_model, margin_params):
     """
@@ -621,14 +355,7 @@ def main():
     
     if args.params_file:
         print(f"\nLoading parameters from {args.params_file}...")
-        with open(args.params_file, 'r') as f:
-            params_data = json.load(f)
-        
-        # Handle both old format and new format
-        if 'parameters' in params_data:
-            best_params = params_data['parameters']
-        else:
-            best_params = params_data
+        best_params = load_parameters(args.params_file)
         
         print("Loaded parameters:")
         for key, value in best_params.items():
@@ -662,7 +389,7 @@ def main():
         print(f"Parameter grid has {total_combos} possible combinations")
         
         # Perform parameter tuning
-        tuning_results = parameter_tuning(data, param_grid, cv=args.cv_folds, max_combinations=args.max_combinations)
+        tuning_results = parameter_tuning_grid_search(data, param_grid, cv=args.cv_folds, max_combinations=args.max_combinations)
         
         # Display best parameters
         best_params = tuning_results['best_params']
@@ -673,23 +400,7 @@ def main():
         
         # Save tuning results
         tuning_file = os.path.join(args.output_dir, f"afl_elo_tuning_results_{args.end_year}.json")
-        with open(tuning_file, 'w') as f:
-            # Convert numpy arrays to lists for JSON serialization
-            tuning_results_json = {
-                'best_params': best_params,
-                'best_score': float(tuning_results['best_score']),
-                'all_results': [
-                    {
-                        'params': result['params'],
-                        'log_loss': float(result['log_loss']),
-                        'cv_scores': [float(score) for score in result['cv_scores']]
-                    }
-                    for result in tuning_results['all_results']
-                ]
-            }
-            json.dump(tuning_results_json, f, indent=4)
-        
-        print(f"Tuning results saved to {tuning_file}")
+        save_optimization_results(tuning_results, tuning_file)
         
         # Train model with best parameters
         print("\nTraining model with best parameters...")
@@ -725,7 +436,7 @@ def main():
     model_file = os.path.join(args.output_dir, f"{output_prefix}.json")
     predictions_file = os.path.join(args.output_dir, f"{output_prefix}_predictions.csv")
     
-    model.save_model(model_file)
+    save_model(model.get_model_data(), model_file)
 
     # Train margin model if margin parameters provided
     margin_model = None
@@ -750,7 +461,7 @@ def main():
 
     print(f"\nModel saved to {model_file}")
     
-    model.save_predictions_to_csv(predictions_file)
+    save_predictions_to_csv(model.predictions, predictions_file)
     
     # Display final team ratings
     print("\nFinal Team Ratings:")

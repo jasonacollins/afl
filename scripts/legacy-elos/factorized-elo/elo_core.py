@@ -242,35 +242,11 @@ class AFLEloModel:
         return min(abs(margin), self.max_margin) * np.sign(margin)
     
     def update_ratings(self, home_team: str, away_team: str, home_score: int, away_score: int,
-                      year: int, match_id: Optional[int] = None, round_number: Optional[int] = None,
-                      match_date: Optional[str] = None, venue: Optional[str] = None,
-                      db_connection: Optional[sqlite3.Connection] = None) -> None:
-        """
-        Update team ratings based on match result.
+                  year: int, match_id: Optional[int] = None, round_number: Optional[int] = None,
+                  match_date: Optional[str] = None, venue: Optional[str] = None,
+                  db_connection: Optional[sqlite3.Connection] = None) -> None:
+        """Update team ratings based on match result."""
         
-        Parameters:
-        -----------
-        home_team : str
-            Name of home team
-        away_team : str
-            Name of away team
-        home_score : int
-            Home team score
-        away_score : int
-            Away team score
-        year : int
-            Year of the match
-        match_id : int, optional
-            Match ID for tracking
-        round_number : int, optional
-            Round number
-        match_date : str, optional
-            Match date
-        venue : str, optional
-            Venue name
-        db_connection : sqlite3.Connection, optional
-            Database connection for venue lookup
-        """
         # Get current ratings
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
@@ -289,16 +265,17 @@ class AFLEloModel:
         else:
             actual_result = 0.5  # Draw
         
-        # Calculate rating change with margin factor
-        base_change = self.k_factor * (actual_result - predicted_prob)
-        margin_adjustment = self.margin_factor * capped_margin / 100
+        # FIXED: Use logarithmic margin multiplier instead of linear adjustment
+        margin_multiplier = 1.0
+        if self.margin_factor > 0:
+            margin_multiplier = np.log1p(abs(capped_margin) * self.margin_factor) / np.log1p(self.max_margin * self.margin_factor)
         
-        home_change = base_change + margin_adjustment
-        away_change = -base_change - margin_adjustment
+        # Calculate rating change
+        rating_change = self.k_factor * margin_multiplier * (actual_result - predicted_prob)
         
         # Update ratings
-        self.team_ratings[home_team] = home_rating + home_change
-        self.team_ratings[away_team] = away_rating + away_change
+        self.team_ratings[home_team] = home_rating + rating_change
+        self.team_ratings[away_team] = away_rating - rating_change
         
         # Store prediction for evaluation
         self.predictions.append({

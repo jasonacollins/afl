@@ -13,13 +13,13 @@ from simple_elo import SimpleELO, load_afl_data
 
 def main():
     parser = argparse.ArgumentParser(description='Train Simple AFL ELO Model')
-    parser.add_argument('--db-path', default='../data/afl_predictions.db',
+    parser.add_argument('--db-path', default='../../data/afl_predictions.db',
                        help='Path to SQLite database')
     parser.add_argument('--start-year', type=int, default=1990,
                        help='Start year for training data')
     parser.add_argument('--end-year', type=int, default=2024,
                        help='End year for training data')
-    parser.add_argument('--output-dir', default='data',
+    parser.add_argument('--output-dir', default='outputs',
                        help='Directory to save trained model')
     parser.add_argument('--model-name', default='simple_elo_model.json',
                        help='Name of the saved model file')

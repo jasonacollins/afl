@@ -1479,5 +1479,7 @@
             "Gold Coast": 1443.3950499427901,
             "Greater Western Sydney": 1567.4692078391968
         }
-    }
+    },
+    "model_type": "standard_elo",
+    "last_updated": "2025-07-12T12:46:43.035604"
 }

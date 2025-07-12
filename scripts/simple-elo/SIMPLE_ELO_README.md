@@ -20,7 +20,7 @@ A clean, functional AFL ELO rating system.
 ### Train the Model
 
 ```bash
-python3 scripts/simple-elo/elo_train.py --db-path data/afl_predictions.db --end-year 2024
+python3 elo_train.py --db-path ../../data/afl_predictions.db --end-year 2024
 ```
 
 Creates `simple_elo_model.json` with trained ratings.
@@ -30,7 +30,7 @@ Creates `simple_elo_model.json` with trained ratings.
 Add `--save-to-db` flag to save predictions to database.
 
 ```bash
-python3 scripts/simple-elo/elo_predict.py --model-path data/simple_elo_model.json
+python3 elo_predict.py --model-path outputs/simple_elo_model.json
 ```
 
 Generates predictions for 2025+ matches and saves to database.

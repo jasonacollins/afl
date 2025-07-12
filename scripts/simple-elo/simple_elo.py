@@ -21,8 +21,8 @@ class SimpleELO:
     Predicts both win probabilities and margins using a single model.
     """
     
-    def __init__(self, k_factor: int = 32, home_advantage: int = 30,
-                 season_carryover: float = 0.75, margin_scale: float = 0.2):
+    def __init__(self, k_factor: int = 47, home_advantage: int = 52,
+                 season_carryover: float = 0.61, margin_scale: float = 0.47):
         """
         Initialize with proven default parameters.
         
@@ -69,13 +69,18 @@ class SimpleELO:
         """
         Predict winning margin for home team.
         
-        Simple linear relationship: margin = rating_diff * scale
+        Logarithmic scaling: margin = sign(rating_diff) * log1p(abs(rating_diff)) * scale
+        Provides diminishing returns for larger margins rather than linear scaling.
         """
         home_rating = self.get_rating(home_team) + self.home_advantage
         away_rating = self.get_rating(away_team)
         rating_diff = home_rating - away_rating
         
-        return rating_diff * self.margin_scale
+        # Apply logarithmic scaling with diminishing returns
+        sign = 1 if rating_diff >= 0 else -1
+        log_scaled_diff = sign * np.log1p(abs(rating_diff))
+        
+        return log_scaled_diff * self.margin_scale
     
     def update_ratings(self, home_team: str, away_team: str, 
                       home_score: int, away_score: int) -> None:
@@ -352,7 +357,7 @@ if __name__ == "__main__":
     print("===================")
     
     # Load some test data
-    db_path = "data/afl_predictions.db"
+    db_path = "../../data/afl_predictions.db"
     
     try:
         # Load historical data

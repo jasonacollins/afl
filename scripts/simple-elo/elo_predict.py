@@ -122,7 +122,7 @@ def main():
     parser = argparse.ArgumentParser(description='Generate AFL ELO Predictions for 2025')
     parser.add_argument('--model-path', required=True,
                        help='Path to trained ELO model JSON file')
-    parser.add_argument('--db-path', default='data/afl_predictions.db',
+    parser.add_argument('--db-path', default='../../data/afl_predictions.db',
                        help='Path to SQLite database')
     parser.add_argument('--year', type=int, default=2025,
                        help='Year to generate predictions for')
