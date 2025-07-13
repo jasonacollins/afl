@@ -6,9 +6,9 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "import": "node scripts/import-data.js",
-    "sync-games": "node scripts/sync-games.js",
-    "daily-sync": "node scripts/daily-sync.js",
+    "import": "node scripts/automation/import-data.js",
+    "sync-games": "node scripts/automation/sync-games.js",
+    "daily-sync": "node scripts/automation/daily-sync.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

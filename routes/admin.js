@@ -82,9 +82,9 @@ router.get('/', catchAsync(async (req, res) => {
   // Get all rounds for the selected year
   const rounds = await roundService.getRoundsForYear(selectedYear);
   
-  // Get featured predictor ID
+  // Get featured predictor IDs
   const featuredPredictionsService = require('../services/featured-predictions');
-  const featuredPredictorId = await featuredPredictionsService.getFeaturedPredictorId();
+  const featuredPredictorIds = await featuredPredictionsService.getHomepageAvailablePredictorIds();
   
   res.render('admin', {
     predictors,
@@ -92,7 +92,7 @@ router.get('/', catchAsync(async (req, res) => {
     years,
     selectedYear,
     selectedUser: null,
-    featuredPredictorId,
+    featuredPredictorIds,
     success: req.query.success || null,
     error: req.query.error || null,
     isAdmin: true
@@ -464,7 +464,7 @@ router.post('/api-refresh', catchAsync(async (req, res) => {
   });
   
   // Import the refreshAPIData function
-  const { refreshAPIData } = require('../scripts/api-refresh');
+  const { refreshAPIData } = require('../scripts/automation/api-refresh');
   
   // Call the function with the year and options object
   const result = await refreshAPIData(parseInt(year), { forceScoreUpdate });
@@ -521,7 +521,7 @@ router.get('/export/database', catchAsync(async (req, res) => {
   logger.info(`Database export initiated by admin ${req.session.user.id}`);
   
   // Get database path from models/db.js
-  const dbPath = require('../models/db').dbPath || path.join(__dirname, '../data/afl_predictions.db');
+  const dbPath = require('../models/db').dbPath || path.join(__dirname, '../data/database/afl_predictions.db');
   
   // Get current timestamp for filename
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -611,7 +611,7 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
   
   try {
     // Create backup of current database first
-    const backupDir = path.join(__dirname, '..', 'data', 'backups');
+    const backupDir = path.join(__dirname, '..', 'data', 'database', 'backups');
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
@@ -666,32 +666,38 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
   }
 }));
 
-// Set featured predictor for login page
-router.post('/set-featured-predictor', async (req, res, next) => {
+// Set featured predictors for homepage
+router.post('/set-featured-predictors', async (req, res, next) => {
   try {
-    const { predictorId } = req.body;
+    const { predictorIds } = req.body;
+    const selectedIds = Array.isArray(predictorIds) ? predictorIds : (predictorIds ? [predictorIds] : []);
     
-    logger.info(`Admin ${req.session.user.id} setting featured predictor ID: ${predictorId}`);
+    logger.info(`Admin ${req.session.user.id} setting featured predictors: ${selectedIds.join(', ')}`);
     
-    // Validate predictor exists
-    const predictor = await predictorService.getPredictorById(predictorId);
+    // Reset all predictors to not homepage available
+    await runQuery('UPDATE predictors SET homepage_available = 0, is_default_featured = 0');
     
-    if (!predictor) {
-      return res.redirect('/admin?error=' + encodeURIComponent('Predictor not found'));
+    // Set selected predictors as homepage available
+    if (selectedIds.length > 0) {
+      const placeholders = selectedIds.map(() => '?').join(',');
+      await runQuery(
+        `UPDATE predictors SET homepage_available = 1 WHERE predictor_id IN (${placeholders})`,
+        selectedIds
+      );
+      
+      // Set the first selected predictor as default featured
+      await runQuery(
+        'UPDATE predictors SET is_default_featured = 1 WHERE predictor_id = ?',
+        [selectedIds[0]]
+      );
     }
     
-    // Save to database config
-    await runQuery(
-      'INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)',
-      ['featured_predictor', predictorId]
-    );
+    logger.info(`Featured predictors updated: ${selectedIds.join(', ')}`);
     
-    logger.info(`Featured predictor set to ID: ${predictorId}`);
-    
-    res.redirect('/admin?success=Featured predictor updated successfully');
+    res.redirect('/admin?success=Featured predictors updated successfully');
   } catch (error) {
-    logger.error('Unexpected error setting featured predictor', { 
-      predictorId: req.body.predictorId,
+    logger.error('Unexpected error setting featured predictors', { 
+      predictorIds: req.body.predictorIds,
       error: error.message 
     });
     next(error);

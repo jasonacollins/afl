@@ -450,6 +450,34 @@ textarea {
   max-width: 500px;
 }
 
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.75rem;
+  background-color: var(--background-light);
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.checkbox-item input[type="checkbox"] {
+  margin: 0;
+}
+
+.checkbox-item label {
+  margin: 0;
+  font-weight: normal;
+  cursor: pointer;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;

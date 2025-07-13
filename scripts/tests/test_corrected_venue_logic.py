@@ -20,13 +20,13 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from elo_core import AFLEloModel
-    from data_io import get_team_states
-    from afl_elo_optimize_standard import evaluate_parameters_walkforward
+    from core.elo_core import AFLEloModel
+    from core.data_io import get_team_states
+    from core.optimise import evaluate_parameters_walkforward
     
     # Get TEAM_STATES from data_io
     import os
-    db_path = os.path.join(os.path.dirname(__file__), '../../data/afl_predictions.db')
+    db_path = os.path.join(os.path.dirname(__file__), '../../data/database/afl_predictions.db')
     TEAM_STATES = get_team_states(db_path)
     
 except ImportError as e:

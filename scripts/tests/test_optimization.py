@@ -18,15 +18,15 @@ import json
 from unittest.mock import patch, MagicMock
 
 # Add scripts directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from elo_core import AFLEloModel
-    from data_io import get_team_states
-    from optimise import get_elo_parameter_space, WalkForwardEvaluator, CrossValidationEvaluator, create_optimization_objective
+    from core.elo_core import AFLEloModel
+    from core.data_io import get_team_states
+    from core.optimise import get_elo_parameter_space, WalkForwardEvaluator, CrossValidationEvaluator, create_optimization_objective
     
     # Get TEAM_STATES from data_io
-    TEAM_STATES = get_team_states('data/afl_predictions.db')
+    TEAM_STATES = get_team_states('data/database/afl_predictions.db')
     elo_space = get_elo_parameter_space().dimensions
     
     # Create a basic evaluation function for testing
@@ -78,7 +78,7 @@ class TestAFLEloModel:
     
     def test_dual_home_advantage_application(self):
         """Test that correct home advantage is applied based on game context"""
-        from data_io import get_database_connection
+        from core.data_io import get_database_connection
         
         model = AFLEloModel(
             default_home_advantage=20,
@@ -90,7 +90,7 @@ class TestAFLEloModel:
         model.initialize_ratings(teams)
         
         # Get database connection and find venues
-        db_connection = get_database_connection('data/afl_predictions.db')
+        db_connection = get_database_connection('data/database/afl_predictions.db')
         cursor = db_connection.cursor()
         cursor.execute("SELECT name, state FROM venues WHERE state IN ('VIC', 'SA') LIMIT 2")
         venues = cursor.fetchall()
@@ -121,7 +121,7 @@ class TestAFLEloModel:
     
     def test_contextual_home_advantage_logic(self):
         """Test get_contextual_home_advantage method directly"""
-        from data_io import get_database_connection
+        from core.data_io import get_database_connection
         
         model = AFLEloModel(
             default_home_advantage=25,
@@ -129,7 +129,7 @@ class TestAFLEloModel:
         )
         
         # Get database connection and find venues
-        db_connection = get_database_connection('data/afl_predictions.db')
+        db_connection = get_database_connection('data/database/afl_predictions.db')
         cursor = db_connection.cursor()
         cursor.execute("SELECT name, state FROM venues WHERE state IN ('VIC', 'SA', 'WA') LIMIT 6")
         venues = cursor.fetchall()

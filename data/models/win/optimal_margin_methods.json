@@ -1,0 +1,37 @@
+{
+    "best_method": "simple",
+    "best_params": {
+        "scale_factor": 0.125
+    },
+    "best_score": 32.09816714139023,
+    "all_methods": {
+        "simple": {
+            "score": 32.09816714139023,
+            "params": {
+                "scale_factor": 0.125
+            }
+        },
+        "diminishing_returns": {
+            "score": 32.84799495665357,
+            "params": {
+                "beta": 0.02
+            }
+        },
+        "linear": {
+            "score": 32.09816714139023,
+            "params": {
+                "slope": 0.125,
+                "intercept": 0.0
+            }
+        }
+    },
+    "elo_params_used": {
+        "base_rating": 1500,
+        "k_factor": 60,
+        "home_advantage": 70,
+        "margin_factor": 0.1,
+        "season_carryover": 0.6,
+        "max_margin": 80,
+        "beta": 0.05
+    }
+}

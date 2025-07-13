@@ -3,13 +3,13 @@
 Test optimization with different random seeds
 """
 
-import sys
-sys.path.append('scripts')
 from skopt import gp_minimize
-from scripts.afl_elo_optimize_standard import elo_space, evaluate_parameters_walkforward
-from afl_elo_train_standard import fetch_afl_data
+from core.optimise import evaluate_parameters_walkforward, get_elo_parameter_space
+from core.data_io import fetch_afl_data
 
-matches_df = fetch_afl_data('data/afl_predictions.db', start_year=1990, end_year=2024)
+elo_space = get_elo_parameter_space().dimensions
+
+matches_df = fetch_afl_data('data/database/afl_predictions.db', start_year=1990, end_year=2024)
 
 def test_seed(seed):
     print(f"\n=== Testing with random seed {seed} ===")

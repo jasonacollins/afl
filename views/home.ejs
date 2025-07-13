@@ -20,7 +20,7 @@
     <% if (locals.featuredPredictorStats) { %>
       <div class="performance-card">
         <div class="performance-header">
-          <h2><%= featuredPredictor.display_name %>'s Performance</h2>
+          <h2>Model Performance</h2>
           <div class="year-selector-performance">
             <select id="performance-year-selector" onchange="updatePerformanceYear(this.value)">
               <option value="<%= currentYear %>" selected><%= currentYear %></option>
@@ -31,6 +31,15 @@
               <% } %>
             </select>
           </div>
+        </div>
+        <div class="model-selector">
+          <select id="predictor-selector" onchange="updateSelectedPredictor(this.value)">
+            <% homepageAvailablePredictors.forEach(predictor => { %>
+              <option value="<%= predictor.predictor_id %>" <%= predictor.is_default_featured ? 'selected' : '' %>>
+                <%= predictor.display_name %>
+              </option>
+            <% }) %>
+          </select>
         </div>
         <div class="performance-metrics" id="performance-metrics-container">
           <div class="metric">
@@ -242,8 +251,11 @@
       document.getElementById('predictions-table-container').innerHTML = 
         '<div style="text-align: center; padding: 2rem;">Loading predictions...</div>';
       
-      // Fetch predictions for this round
-      fetch(`/featured-predictions/${round}?year=<%= currentYear %>`)
+      // Get current selected predictor
+      const selectedPredictorId = document.getElementById('predictor-selector').value;
+      
+      // Fetch predictions for this round and predictor
+      fetch(`/featured-predictions/${round}?year=<%= currentYear %>&predictorId=${selectedPredictorId}`)
         .then(response => response.json())
         .then(data => {
           renderPredictionsTable(data.matches, data.predictions);
@@ -251,7 +263,7 @@
         .catch(error => {
           console.error('Error fetching predictions:', error);
           document.getElementById('predictions-table-container').innerHTML = 
-            '<div style="text-align: center; padding: 2rem;">Error loading predictions</div>';
+            '<div style="text-align: center; padding: 2rem; color: #666;">Error loading predictions</div>';
         });
     }
     
@@ -398,15 +410,23 @@
       document.getElementById('predictions-table-container').innerHTML = tableHtml;
     }
     
-    // Function to update performance card when year changes
-    function updatePerformanceYear(selectedYear) {
+    // Function to update performance card when year or predictor changes
+    function updatePerformanceData(selectedYear = null, selectedPredictorId = null) {
       const container = document.getElementById('performance-metrics-container');
+      
+      // Get current values if not provided
+      if (!selectedYear) {
+        selectedYear = document.getElementById('performance-year-selector').value;
+      }
+      if (!selectedPredictorId) {
+        selectedPredictorId = document.getElementById('predictor-selector').value;
+      }
       
       // Show loading state
       container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">Loading performance data...</div>';
       
-      // Fetch performance data for selected year
-      fetch(`/api/featured-predictor-stats?year=${selectedYear}`)
+      // Fetch performance data for selected year and predictor
+      fetch(`/api/predictor-stats?year=${selectedYear}&predictorId=${selectedPredictorId}`)
         .then(response => response.json())
         .then(data => {
           if (data.success && data.stats) {
@@ -419,6 +439,23 @@
           console.error('Error loading performance data:', error);
           container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">Error loading performance data.</div>';
         });
+    }
+    
+    // Function to update performance card when year changes
+    function updatePerformanceYear(selectedYear) {
+      updatePerformanceData(selectedYear, null);
+    }
+    
+    // Function to update performance card when predictor changes
+    function updateSelectedPredictor(selectedPredictorId) {
+      updatePerformanceData(null, selectedPredictorId);
+      
+      // Also refresh the predictions table for the currently selected round
+      const selectedRoundButton = document.querySelector('.round-button.selected');
+      if (selectedRoundButton) {
+        const currentRound = selectedRoundButton.textContent.trim();
+        fetchRoundPredictions(currentRound);
+      }
     }
     
     // Function to update performance metrics display
@@ -674,6 +711,30 @@
     margin: 0;
     color: var(--primary-color);
     font-size: 1.3rem;
+  }
+  
+  .model-selector {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .model-selector select {
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: white;
+    color: var(--text-color);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: auto;
+    text-align: center;
+  }
+  
+  .model-selector select:focus {
+    outline: none;
+    border-color: var(--primary-color);
   }
   
   .year-selector-performance {

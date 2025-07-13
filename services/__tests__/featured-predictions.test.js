@@ -31,54 +31,69 @@ describe('Featured Predictions Service', () => {
     jest.clearAllMocks();
   });
 
-  describe('getFeaturedPredictorId', () => {
-    it('should return the configured featured predictor ID', async () => {
-      getOne.mockResolvedValue({ value: 'predictor-123' });
-      const id = await featuredPredictions.getFeaturedPredictorId();
-      expect(id).toBe('predictor-123');
-      expect(getOne).toHaveBeenCalledWith('SELECT value FROM app_config WHERE key = ?', ['featured_predictor']);
+  describe('getHomepageAvailablePredictorIds', () => {
+    it('should return homepage available predictor IDs', async () => {
+      getQuery.mockResolvedValue([{ predictor_id: 1 }, { predictor_id: 2 }]);
+      const ids = await featuredPredictions.getHomepageAvailablePredictorIds();
+      expect(ids).toEqual(['1', '2']);
+      expect(getQuery).toHaveBeenCalledWith('SELECT predictor_id FROM predictors WHERE homepage_available = 1 ORDER BY display_name');
     });
 
-    it('should fall back to the first predictor if none is configured', async () => {
-      getOne.mockResolvedValueOnce(null); // No config
-      getOne.mockResolvedValueOnce({ predictor_id: 'first-predictor' }); // Fallback query
-      const id = await featuredPredictions.getFeaturedPredictorId();
-      expect(id).toBe('first-predictor');
+    it('should return empty array on database error', async () => {
+      getQuery.mockRejectedValue(new Error('DB Error'));
+      const ids = await featuredPredictions.getHomepageAvailablePredictorIds();
+      expect(ids).toEqual([]);
+    });
+  });
+
+  describe('getDefaultFeaturedPredictorId', () => {
+    it('should return the default featured predictor ID', async () => {
+      getOne.mockResolvedValue({ predictor_id: 123 });
+      const id = await featuredPredictions.getDefaultFeaturedPredictorId();
+      expect(id).toBe(123);
+      expect(getOne).toHaveBeenCalledWith('SELECT predictor_id FROM predictors WHERE is_default_featured = 1');
     });
 
-    it('should return null if no predictor is configured and no predictors exist', async () => {
+    it('should fall back to first homepage available if no default is set', async () => {
+      getOne.mockResolvedValueOnce(null); // No default
+      getOne.mockResolvedValueOnce({ predictor_id: 456 }); // First available
+      const id = await featuredPredictions.getDefaultFeaturedPredictorId();
+      expect(id).toBe(456);
+    });
+
+    it('should return null if no predictors exist', async () => {
       getOne.mockResolvedValue(null);
-      const id = await featuredPredictions.getFeaturedPredictorId();
+      const id = await featuredPredictions.getDefaultFeaturedPredictorId();
       expect(id).toBe(null);
     });
 
     it('should return null on database error', async () => {
       getOne.mockRejectedValue(new Error('DB Error'));
-      const id = await featuredPredictions.getFeaturedPredictorId();
+      const id = await featuredPredictions.getDefaultFeaturedPredictorId();
       expect(id).toBe(null);
     });
   });
 
-  describe('getFeaturedPredictor', () => {
-    it('should return predictor details for the featured predictor', async () => {
+  describe('getDefaultFeaturedPredictor', () => {
+    it('should return predictor details for the default featured predictor', async () => {
       const mockPredictor = { id: 'predictor-123', name: 'Test Predictor' };
-      getOne.mockResolvedValue({ value: 'predictor-123' }); // Mock getFeaturedPredictorId dependency
+      getOne.mockResolvedValue({ predictor_id: 'predictor-123' });
       predictorService.getPredictorById.mockResolvedValue(mockPredictor);
 
-      const predictor = await featuredPredictions.getFeaturedPredictor();
+      const predictor = await featuredPredictions.getDefaultFeaturedPredictor();
 
       expect(predictor).toEqual(mockPredictor);
       expect(predictorService.getPredictorById).toHaveBeenCalledWith('predictor-123');
     });
 
-    it('should return null if no featured predictor is found', async () => {
+    it('should return null if no default featured predictor is found', async () => {
       getOne.mockResolvedValue(null);
-      const predictor = await featuredPredictions.getFeaturedPredictor();
+      const predictor = await featuredPredictions.getDefaultFeaturedPredictor();
       expect(predictor).toBe(null);
     });
   });
 
-  describe('getFeaturedPredictionsForRound', () => {
+  describe('getPredictionsForRound', () => {
     it('should return a full prediction object with calculated metrics', async () => {
       // Arrange: Mock all dependencies
       const mockPredictor = { predictor_id: 'pred-1', name: 'The Predictor' };
@@ -90,7 +105,6 @@ describe('Featured Predictions Service', () => {
         { match_id: 1, home_win_probability: 0.75, tipped_team: 'home' },
       ];
 
-      getOne.mockResolvedValue({ value: 'pred-1' }); // Featured predictor ID
       predictorService.getPredictorById.mockResolvedValue(mockPredictor);
       matchService.getMatchesByRoundAndYear.mockResolvedValue(mockMatches);
       predictionService.getPredictionsForUser.mockResolvedValue(mockPredictions);
@@ -101,7 +115,7 @@ describe('Featured Predictions Service', () => {
       scoringService.calculateBitsScore.mockReturnValue(0.5);
 
       // Act
-      const result = await featuredPredictions.getFeaturedPredictionsForRound(1, 2024);
+      const result = await featuredPredictions.getPredictionsForRound('pred-1', 1, 2024);
 
       // Assert
       expect(result.predictor).toEqual(mockPredictor);
@@ -121,20 +135,17 @@ describe('Featured Predictions Service', () => {
       expect(futureMatch.metrics).toBeUndefined();
     });
 
-    it('should return empty object if no featured predictor is found', async () => {
-      getOne.mockResolvedValue(null);
-      const result = await featuredPredictions.getFeaturedPredictionsForRound(1, 2024);
+    it('should return empty object if no predictor ID is provided', async () => {
+      const result = await featuredPredictions.getPredictionsForRound(null, 1, 2024);
       expect(result.predictor).toBe(null);
       expect(result.matches).toEqual([]);
       expect(Object.keys(result.predictions).length).toBe(0);
     });
 
     it('should throw AppError on failure', async () => {
-      // This time, we mock a failure deeper in the call stack
-      getOne.mockResolvedValue({ value: 'pred-1' }); // Let the first call succeed
-      predictorService.getPredictorById.mockRejectedValue(new Error('Predictor DB Error')); // Fail the next call
+      predictorService.getPredictorById.mockRejectedValue(new Error('Predictor DB Error'));
 
-      await expect(featuredPredictions.getFeaturedPredictionsForRound(1, 2024)).rejects.toThrow();
+      await expect(featuredPredictions.getPredictionsForRound('pred-1', 1, 2024)).rejects.toThrow();
     });
   });
 });

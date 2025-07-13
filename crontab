@@ -1,1 +1,1 @@
-0 18 * * * cd /app && npm run daily-sync >> /app/logs/afl-sync.log 2>&1
+0 18 * * * cd /app && npm run daily-sync

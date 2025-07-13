@@ -8,58 +8,87 @@ const predictionService = require('./prediction-service');
 const predictorService = require('./predictor-service');
 const scoringService = require('../services/scoring-service');
 
-// Get the ID of the featured predictor
-async function getFeaturedPredictorId() {
+// Get all homepage available predictor IDs
+async function getHomepageAvailablePredictorIds() {
   try {
-    logger.debug('Fetching featured predictor ID');
+    logger.debug('Fetching homepage available predictor IDs');
     
-    const config = await getOne(
-      'SELECT value FROM app_config WHERE key = ?',
-      ['featured_predictor']
+    const predictors = await getQuery(
+      'SELECT predictor_id FROM predictors WHERE homepage_available = 1 ORDER BY display_name'
     );
     
-    // Default to the first predictor if none is set
-    if (!config) {
-      const firstPredictor = await getOne(
-        'SELECT predictor_id FROM predictors LIMIT 1'
+    return predictors.map(p => p.predictor_id.toString());
+  } catch (error) {
+    logger.error('Error fetching homepage available predictors', { error: error.message });
+    return [];
+  }
+}
+
+// Get the default featured predictor ID
+async function getDefaultFeaturedPredictorId() {
+  try {
+    logger.debug('Fetching default featured predictor ID');
+    
+    const predictor = await getOne(
+      'SELECT predictor_id FROM predictors WHERE is_default_featured = 1'
+    );
+    
+    // If no default is set, use the first homepage available predictor
+    if (!predictor) {
+      const firstAvailable = await getOne(
+        'SELECT predictor_id FROM predictors WHERE homepage_available = 1 ORDER BY display_name LIMIT 1'
       );
       
-      const defaultId = firstPredictor ? firstPredictor.predictor_id : null;
-      logger.info(`No featured predictor set, using default: ${defaultId}`);
+      const defaultId = firstAvailable ? firstAvailable.predictor_id : null;
+      logger.info(`No default featured predictor set, using first available: ${defaultId}`);
       return defaultId;
     }
     
-    return config.value;
+    return predictor.predictor_id;
   } catch (error) {
-    logger.error('Error fetching featured predictor', { error: error.message });
+    logger.error('Error fetching default featured predictor', { error: error.message });
     return null;
   }
 }
 
-// Get the featured predictor's details
-async function getFeaturedPredictor() {
+// Get homepage available predictors with details
+async function getHomepageAvailablePredictors() {
   try {
-    const predictorId = await getFeaturedPredictorId();
+    logger.debug('Fetching homepage available predictors');
+    
+    const predictors = await getQuery(
+      'SELECT predictor_id, name, display_name, is_default_featured FROM predictors WHERE homepage_available = 1 ORDER BY display_name'
+    );
+    
+    return predictors;
+  } catch (error) {
+    logger.error('Error fetching homepage available predictors', { error: error.message });
+    return [];
+  }
+}
+
+// Get the default featured predictor's details
+async function getDefaultFeaturedPredictor() {
+  try {
+    const predictorId = await getDefaultFeaturedPredictorId();
     
     if (!predictorId) {
-      logger.warn('No featured predictor found');
+      logger.warn('No default featured predictor found');
       return null;
     }
     
     return await predictorService.getPredictorById(predictorId);
   } catch (error) {
-    logger.error('Error fetching featured predictor details', { error: error.message });
+    logger.error('Error fetching default featured predictor details', { error: error.message });
     return null;
   }
 }
 
-// Get predictions for the featured predictor for a specific round and year
-async function getFeaturedPredictionsForRound(round, year) {
+// Get predictions for a specific predictor for a specific round and year
+async function getPredictionsForRound(predictorId, round, year) {
   try {
-    const predictorId = await getFeaturedPredictorId();
-    
     if (!predictorId) {
-      logger.warn('No featured predictor found');
+      logger.warn('No predictor ID provided');
       return {
         predictor: null,
         matches: [],
@@ -136,7 +165,9 @@ async function getFeaturedPredictionsForRound(round, year) {
 }
 
 module.exports = {
-  getFeaturedPredictorId,
-  getFeaturedPredictor,
-  getFeaturedPredictionsForRound
+  getHomepageAvailablePredictorIds,
+  getDefaultFeaturedPredictorId,
+  getHomepageAvailablePredictors,
+  getDefaultFeaturedPredictor,
+  getPredictionsForRound
 };

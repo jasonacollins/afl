@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const { logger } = require('../utils/logger');
 
 // Database path
-const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/afl_predictions.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database/afl_predictions.db');
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     logger.error('Error connecting to database', { error: err.message, path: dbPath });

@@ -44,7 +44,7 @@ app.use(methodOverride('_method'));
 app.use(session({
   store: new SqliteStore({
     db: 'sessions.db',
-    dir: path.join(__dirname, 'data')  // Use absolute path
+    dir: path.join(__dirname, 'data/database')  // Use absolute path
   }),
   secret: process.env.SESSION_SECRET || 'afl-predictions-secret-key',
   resave: true,                       // Changed to true
@@ -85,9 +85,10 @@ app.get('/', catchAsync(async (req, res) => {
   // Get current year
   const currentYear = new Date().getFullYear();
   
-  // Get featured predictor
+  // Get homepage available predictors and default featured predictor
   const featuredPredictionsService = require('./services/featured-predictions');
-  const featuredPredictor = await featuredPredictionsService.getFeaturedPredictor();
+  const homepageAvailablePredictors = await featuredPredictionsService.getHomepageAvailablePredictors();
+  const defaultFeaturedPredictor = await featuredPredictionsService.getDefaultFeaturedPredictor();
   
   // Get rounds for current year ordered by the round ordering logic
   const allRounds = await roundService.getRoundsForYear(currentYear);
@@ -214,18 +215,18 @@ app.get('/', catchAsync(async (req, res) => {
     logger.warn(`Falling back to Opening Round as no suitable round found`);
   }
   
-  // Get featured predictions for the target round
+  // Get predictions for the default featured predictor for the target round
   const { predictor, matches, predictions } = 
-    await featuredPredictionsService.getFeaturedPredictionsForRound(targetRound, currentYear);
+    await featuredPredictionsService.getPredictionsForRound(defaultFeaturedPredictor?.predictor_id, targetRound, currentYear);
   
-  // Calculate overall performance metrics for featured predictor
+  // Calculate overall performance metrics for default featured predictor
   let featuredPredictorStats = null;
-  if (predictor) {
+  if (defaultFeaturedPredictor) {
     const predictionService = require('./services/prediction-service');
     const scoringService = require('./services/scoring-service');
     
     // Get all predictions with results for this predictor for the current year
-    const predictionResults = await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, currentYear);
+    const predictionResults = await predictionService.getPredictionsWithResultsForYear(defaultFeaturedPredictor.predictor_id, currentYear);
     
     if (predictionResults.length > 0) {
       let tipPoints = 0;
@@ -288,8 +289,9 @@ app.get('/', catchAsync(async (req, res) => {
   res.render('home', { 
     user: req.session.user,
     isAdmin: req.session.isAdmin,
-    featuredPredictor: predictor,
+    featuredPredictor: defaultFeaturedPredictor,
     featuredPredictorStats: featuredPredictorStats,
+    homepageAvailablePredictors: homepageAvailablePredictors,
     rounds: roundsWithStatus,
     selectedRound: targetRound,
     currentRound: currentRound,
@@ -299,16 +301,21 @@ app.get('/', catchAsync(async (req, res) => {
   });
 }));
 
-// API endpoint for featured predictor performance stats
-app.get('/api/featured-predictor-stats', catchAsync(async (req, res) => {
+// API endpoint for predictor performance stats
+app.get('/api/predictor-stats', catchAsync(async (req, res) => {
   const selectedYear = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
+  const predictorId = req.query.predictorId;
   
-  // Get featured predictor
-  const featuredPredictionsService = require('./services/featured-predictions');
-  const featuredPredictor = await featuredPredictionsService.getFeaturedPredictor();
+  if (!predictorId) {
+    return res.json({ success: false, message: 'Predictor ID is required' });
+  }
   
-  if (!featuredPredictor) {
-    return res.json({ success: false, message: 'No featured predictor found' });
+  // Get predictor details
+  const predictorService = require('./services/predictor-service');
+  const predictor = await predictorService.getPredictorById(predictorId);
+  
+  if (!predictor) {
+    return res.json({ success: false, message: 'Predictor not found' });
   }
   
   // Calculate performance metrics for the selected year
@@ -316,7 +323,7 @@ app.get('/api/featured-predictor-stats', catchAsync(async (req, res) => {
   const scoringService = require('./services/scoring-service');
   
   // Get all predictions with results for this predictor for the selected year
-  const predictionResults = await predictionService.getPredictionsWithResultsForYear(featuredPredictor.predictor_id, selectedYear);
+  const predictionResults = await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, selectedYear);
   
   if (predictionResults.length === 0) {
     return res.json({ success: false, message: 'No prediction data available for this year' });
@@ -384,10 +391,19 @@ app.get('/api/featured-predictor-stats', catchAsync(async (req, res) => {
 app.get('/featured-predictions/:round', catchAsync(async (req, res) => {
   const round = req.params.round;
   const year = req.query.year || new Date().getFullYear();
+  const predictorId = req.query.predictorId;
   
   const featuredPredictionsService = require('./services/featured-predictions');
+  
+  // If no predictor ID is provided, use the default featured predictor
+  let targetPredictorId = predictorId;
+  if (!targetPredictorId) {
+    const defaultFeaturedPredictor = await featuredPredictionsService.getDefaultFeaturedPredictor();
+    targetPredictorId = defaultFeaturedPredictor?.predictor_id;
+  }
+  
   const { predictor, matches, predictions } = 
-    await featuredPredictionsService.getFeaturedPredictionsForRound(round, year);
+    await featuredPredictionsService.getPredictionsForRound(targetPredictorId, round, year);
   
   res.json({
     predictor,

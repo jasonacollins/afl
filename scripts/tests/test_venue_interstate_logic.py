@@ -18,8 +18,12 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from afl_elo_train_standard import AFLEloModel, TEAM_STATES
-    from afl_elo_optimize_standard import evaluate_parameters_walkforward
+    from core.elo_core import AFLEloModel
+    from core.data_io import get_team_states
+    from core.optimise import evaluate_parameters_walkforward
+    
+    # Get TEAM_STATES from data_io
+    TEAM_STATES = get_team_states('data/database/afl_predictions.db')
 except ImportError as e:
     pytest.skip(f"Required modules not available: {e}", allow_module_level=True)
 

@@ -81,20 +81,29 @@
   <% } %>
   
   <div class="admin-section">
-    <h2>Set Featured Predictor</h2>
-    <p>Select which predictor's results will be featured on the login page:</p>
-    <form action="/admin/set-featured-predictor" method="POST" class="admin-form">
+    <h2>Featured Predictors</h2>
+    <p>Select which predictors can be featured on the homepage dropdown:</p>
+    <form action="/admin/set-featured-predictors" method="POST" class="admin-form">
       <div class="form-group">
-        <label for="predictorId">Featured Predictor</label>
-        <select id="predictorId" name="predictorId" required>
+        <label>Featured Predictors</label>
+        <div class="checkbox-group">
           <% predictors.forEach(predictor => { %>
-            <option value="<%= predictor.predictor_id %>" <%= predictor.predictor_id == featuredPredictorId ? 'selected' : '' %>>
-              <%= predictor.display_name %>
-            </option>
+            <div class="checkbox-item">
+              <input 
+                type="checkbox" 
+                id="predictor_<%= predictor.predictor_id %>" 
+                name="predictorIds" 
+                value="<%= predictor.predictor_id %>"
+                <%= (featuredPredictorIds && featuredPredictorIds.includes(predictor.predictor_id.toString())) ? 'checked' : '' %>
+              >
+              <label for="predictor_<%= predictor.predictor_id %>">
+                <%= predictor.display_name %>
+              </label>
+            </div>
           <% }) %>
-        </select>
+        </div>
       </div>
-      <button type="submit" class="button primary-button">Save Setting</button>
+      <button type="submit" class="button primary-button">Save Settings</button>
     </form>
   </div>
 

@@ -132,7 +132,7 @@ module.exports = {
   
   // Database
   database: {
-    path: optional('DB_PATH', path.join(__dirname, '../data/afl_predictions.db')),
+    path: optional('DB_PATH', path.join(__dirname, '../data/database/afl_predictions.db')),
     backupDir: optional('BACKUP_DIR', path.join(__dirname, '../data/backups'))
   },
   

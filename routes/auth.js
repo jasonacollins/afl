@@ -119,10 +119,19 @@ function isAdmin(req, res, next) {
 router.get('/featured-predictions/:round', catchAsync(async (req, res) => {
   const round = req.params.round;
   const year = req.query.year || new Date().getFullYear();
+  const predictorId = req.query.predictorId;
   
   const featuredPredictionsService = require('../services/featured-predictions');
+  
+  // If no predictor ID is provided, use the default featured predictor
+  let targetPredictorId = predictorId;
+  if (!targetPredictorId) {
+    const defaultFeaturedPredictor = await featuredPredictionsService.getDefaultFeaturedPredictor();
+    targetPredictorId = defaultFeaturedPredictor?.predictor_id;
+  }
+  
   const { predictor, matches, predictions } = 
-    await featuredPredictionsService.getFeaturedPredictionsForRound(round, year);
+    await featuredPredictionsService.getPredictionsForRound(targetPredictorId, round, year);
   
   res.json({
     predictor,

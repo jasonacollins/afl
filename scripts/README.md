@@ -1,426 +1,242 @@
-# AFL Predictions Scripts Documentation
+# AFL Predictions Scripts
 
-This directory contains all the scripts for the AFL predictions system, including ELO model training, optimization, prediction generation, and data management.
+This directory contains the AFL predictions system - a modular ELO-based approach using specialized models for optimal accuracy.
 
-## Overview
+## Architecture
 
-The AFL prediction system uses a dual-model approach combining two specialized ELO models:
-- **Standard ELO Model**: Optimized for win probability accuracy
-- **Margin-Only ELO Model**: Optimized specifically for margin prediction accuracy
+The system uses a dual-model approach with shared core components:
 
-## Script Structure
+- **Win ELO Model**: Optimized for win probability accuracy  
+- **Margin ELO Model**: Optimized for margin prediction accuracy
+- **Core Modules**: Shared components for data handling, model operations, and optimization
+
+## Structure
 
 ```
-Standard ELO (Win Predictions):
-├── afl_elo_optimize_standard.py      # Optimize for win probability
-├── afl_elo_train_standard.py         # Train standard ELO model
-├── afl_elo_predict_standard.py       # Generate win predictions
-└── afl_elo_margin_methods.py         # Margin methods from standard ELO
-
-Margin-Only ELO (Margin Predictions):
-├── afl_elo_optimize_margin.py        # Optimize for margin accuracy
-├── afl_elo_train_margin.py           # Train margin-only model
-└── afl_elo_predict_margin.py         # Generate margin predictions
-
-Combined Operations:
-├── afl_elo_predict_combined.py       # Use both models for best results
-├── afl_elo_predict_margin_methods.py # All margin methods comparison
-└── afl_elo_history_generator.py      # Generate historical data
-
-Analysis & Comparison:
-├── compare_margin_models.py          # Compare margin model performance
-└── afl_elo_predictions.py            # Legacy combined prediction script
-
-Node.js Scripts:
-├── daily-sync.js                     # Daily synchronization workflow
-├── elo-predictions.js                # ELO prediction management
-├── api-refresh.js                    # API data refresh
-├── import-data.js                    # Database initialization
-└── sync-games.js                     # Match data synchronization
+scripts/
+├── core/                          # Shared utilities
+│   ├── data_io.py                # Data handling & I/O operations
+│   ├── elo_core.py               # ELO model implementations  
+│   └── optimise.py               # Optimization functions
+├── elo_win_*.py                  # Win ELO workflows
+├── elo_margin_*.py               # Margin ELO workflows
+├── elo_margin_methods_*.py       # Win ELO + margin methods
+├── elo_predict_combined.py       # Combined predictions
+├── experiments/                   # Development & testing new ideas
+├── automation/                    # Node.js automation scripts
+└── tests/                        # Test suite
 ```
 
-## Complete ELO Model Training and Prediction Workflow
+## Core Modules
 
-### Standard ELO (Win Predictions)
+### `core/elo_core.py`
+Contains ELO model implementations:
+- `AFLEloModel`: Win ELO with margin-adjusted K-factor
+- `MarginEloModel`: Margin-focused ELO for direct margin prediction
+- `train_elo_model()`: Unified training function
 
-#### Optimize for win probability
+### `core/data_io.py` 
+Handles all data operations:
+- `fetch_afl_data()`: Load match data from database
+- `load_model()` / `save_model()`: Model persistence
+- `fetch_matches_for_prediction()`: Get prediction targets
+- `save_predictions_to_csv()`: Export predictions
+
+### `core/optimise.py`
+Optimization infrastructure:
+- `evaluate_model_walkforward()`: Unified evaluation for both model types
+- `parameter_tuning_grid_search_unified()`: Unified grid search
+- Backward compatibility wrappers for existing scripts
+
+## Scripts
+
+### Win ELO (Win Predictions)
 ```bash
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
+elo_win_optimize.py         # Optimize parameters for win accuracy
+elo_win_train.py            # Train win model
+elo_win_predict.py          # Generate win probability predictions
 ```
 
-#### Train standard ELO model
+### Margin ELO (Margin Predictions)  
 ```bash
-python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_standard.json --end-year 2024 --output-dir data
+elo_margin_optimize.py      # Optimize parameters for margin accuracy
+elo_margin_train.py         # Train margin model
+elo_margin_predict.py       # Generate margin predictions
 ```
 
-#### Generate win predictions
+### Combined Operations
 ```bash
-python3 scripts/afl_elo_predict_standard.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
+elo_predict_combined.py     # Use both models for optimal results
+elo_history_generator.py    # Generate historical rating data
 ```
 
-#### Optimize margin methods built on ELO model
+### Margin Methods (Standard ELO Extension)
 ```bash
-python3 scripts/afl_elo_margin_methods.py --elo-params data/afl_elo_trained_to_2024.json --n-calls 50 --output-path data/margin_methods.json
+elo_margin_methods_optimize.py    # Optimize margin methods on standard ELO
+elo_margin_methods_predict.py     # Generate predictions using all margin methods
 ```
 
-#### Generate predictions using all margin methods
+### Automation
 ```bash
-python3 scripts/afl_elo_predict_margin_methods.py --start-year 2025 --elo-model data/afl_elo_trained_to_2024.json --margin-methods data/margin_methods.json --output-dir data --no-save-to-db
+node scripts/automation/daily-sync.js           # Automated daily workflow
+node scripts/automation/elo-predictions.js      # ELO prediction management  
+node scripts/automation/api-refresh.js          # Update match data
 ```
 
-### Margin-Only ELO (Margin Predictions)
+## Workflows
 
-#### Optimize for margin accuracy
+### Combined Approach (Recommended)
+**Run from project root directory:**
 ```bash
-python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 5 --start-year 2000 --end-year 2024
+# Optimize both models
+python3 scripts/elo_win_optimize.py \
+  --n-calls 100 \
+  --end-year 2024 \
+  --output-path data/models/win/optimal_elo_params_win.json
+python3 scripts/elo_margin_optimize.py \
+  --max-combinations 500 \
+  --end-year 2024
+
+# Train both models
+python3 scripts/elo_win_train.py --end-year 2024 --params-file data/models/win/optimal_elo_params_win.json
+python3 scripts/elo_margin_train.py --end-year 2024 --params-file data/models/margin/optimal_margin_only_elo_params.json
+
+# Generate combined predictions
+python3 scripts/elo_predict_combined.py --start-year 2025 \
+  --win-model data/models/win/afl_elo_win_trained_to_2024.json \
+  --margin-model data/models/margin/afl_elo_margin_only_trained_to_2024.json
 ```
 
-#### Train margin-only model
+### Individual Models
+**Run from project root directory:**
 ```bash
-python3 scripts/afl_elo_train_margin.py --params-file data/optimal_margin_only_elo_params.json --end-year 2024 --output-dir data
+# Win ELO only
+python3 scripts/elo_win_optimize.py --n-calls 500 --end-year 2024 --output-path data/models/win/optimal_elo_params_win.json
+python3 scripts/elo_win_train.py --end-year 2024 --params-file data/models/win/optimal_elo_params_win.json
+python3 scripts/elo_win_predict.py --start-year 2025 --model-path data/models/win/afl_elo_win_trained_to_2024.json --no-save-to-db 
+
+# Margin ELO
+python3 scripts/elo_margin_optimize.py --max-combinations 500 --end-year 2024
+python3 scripts/elo_margin_train.py --end-year 2024 --params-file data/models/margin/optimal_margin_only_elo_params.json  
+python3 scripts/elo_margin_predict.py --start-year 2025 --model-path data/models/margin/afl_elo_margin_only_trained_to_2024.json --predictor-id 8
+
+# Win ELO with optimized margin methods
+python3 scripts/elo_margin_methods_optimize.py --elo-params data/models/win/afl_elo_win_trained_to_2024.json --n-calls 50
+python3 scripts/elo_margin_methods_predict.py --start-year 2025 --elo-model data/models/win/afl_elo_win_trained_to_2024.json --margin-methods data/models/win/optimal_margin_methods.json --predictor-id 7
 ```
 
-#### Generate margin predictions
+## Quick Development
+
+### Running Scripts
+All scripts run from the project root directory:
 ```bash
-python3 scripts/afl_elo_predict_margin.py --start-year 2025 --model-path data/afl_elo_margin_only_trained_to_2024.json --output-dir data --no-save-to-db
+python3 scripts/elo_win_optimize.py --help
+python3 scripts/elo_margin_train.py --help
 ```
 
-### Unified Operations
+### Experimenting with New Models
+1. Copy any existing script to `experiments/`:
+   ```bash
+   cp scripts/elo_win_optimize.py scripts/experiments/elo_v2_with_weather.py
+   ```
+2. Modify and test your ideas
+3. Import core utilities: `from core.elo_core import AFLEloModel`
 
-#### Use both models for best results (saves to existing predictor Dad's AI)
-```bash
-python3 scripts/afl_elo_predict_combined.py --start-year 2025 --standard-model data/afl_elo_trained_to_2024.json --margin-model data/afl_elo_margin_only_trained_to_2024.json --output-dir data --predictor-id 6
-```
+### Development Tips
+- **Quick access**: All main scripts at top level
+- **Clear naming**: Know exactly what each script does
+- **Simple imports**: `from core.data_io import fetch_afl_data`
+- **Experiments folder**: Try ideas without cluttering main scripts
 
-#### Generate historical data
-```bash
-python3 scripts/afl_elo_history_generator.py --model-path data/afl_elo_trained_to_2024.json --output-dir data
-```
+## Model Parameters
 
-## Complete Workflows
+### Win ELO Model
+- `base_rating`: Initial rating (1500)
+- `k_factor`: Learning rate (20-60)
+- `home_advantage`: Home ground points (20-100)
+- `margin_factor`: Margin influence on rating changes (0.1-0.7)
+- `season_carryover`: Rating retention between seasons (0.4-0.8)
+- `max_margin`: Margin cap for calculations (60-100)
+- `beta`: Win probability to margin conversion (0.02-0.08)
 
-### Option 1: Combined Approach (Recommended)
-Use both models for optimal predictions - standard ELO for win probabilities, margin-only ELO for margins:
+### Margin ELO Model  
+- `base_rating`: Initial rating (1500)
+- `k_factor`: Learning rate (20-60)
+- `home_advantage`: Home ground points (20-100)
+- `season_carryover`: Rating retention between seasons (0.4-0.8)
+- `max_margin`: Margin cap for calculations (60-100)
+- `margin_scale`: Rating difference to margin conversion (0.02-0.3)
+- `scaling_factor`: Margin error to rating change conversion (20-80)
 
-```bash
-# Standard ELO pipeline
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
-python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_standard.json --end-year 2024 --output-dir data
+## Output Files
 
-# Margin-Only ELO pipeline
-python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 3 --end-year 2024
-python3 scripts/afl_elo_train_margin.py --params-file data/optimal_margin_only_elo_params.json --end-year 2024 --output-dir data
+### Trained Models (data/models/)
+- `win/afl_elo_win_trained_to_YYYY.json`: Win model with ratings
+- `win/optimal_elo_params_win.json`: Optimized win ELO parameters
+- `win/margin_methods.json`: Optimized margin prediction methods (derived from win ELO)
+- `win/optimal_margin_methods.json`: Best margin method parameters
+- `margin/afl_elo_margin_only_trained_to_YYYY.json`: Margin model with ratings
+- `margin/optimal_margin_only_elo_params.json`: Optimized margin ELO parameters
 
-# Combined predictions
-python3 scripts/afl_elo_predict_combined.py --start-year 2025 --standard-model data/afl_elo_trained_to_2024.json --margin-model data/afl_elo_margin_only_trained_to_2024.json --output-dir data --predictor-id 6
-```
+### Predictions (data/predictions/)
+- `win/win_elo_predictions_YYYY_YYYY.csv`: Win probabilities + built-in margins
+- `win/afl_elo_win_trained_to_YYYY_predictions.csv`: Training predictions from win model
+- `win/margin_methods_predictions_YYYY.csv`: Margin methods derived from win ELO
+- `margin/margin_elo_predictions_YYYY_YYYY.csv`: Direct margin predictions from margin model
+- `combined/combined_elo_predictions_YYYY_YYYY.csv`: Best of both models combined
 
-### Option 2: Standard ELO Only
-For win probabilities with multiple margin calculation methods:
+### Historical Data (data/historical/)
+- `afl_elo_complete_history.csv`: Match-by-match rating changes
+- `*_rating_history_from_YYYY.csv`: Rating evolution from specific year
 
-```bash
-python3 scripts/afl_elo_optimize_standard.py --n-calls 100 --n-starts 3 --end-year 2024 --output-path data/optimal_elo_params_standard.json
-python3 scripts/afl_elo_train_standard.py --params-file data/optimal_elo_params_standard.json --end-year 2024 --output-dir data
-python3 scripts/afl_elo_predict_standard.py --start-year 2025 --model-path data/afl_elo_trained_to_2024.json --output-dir data
-```
+## Database Integration
 
-### Option 3: Margin-Only ELO
-For margin predictions with derived win probabilities:
+Predictions are stored in the `predictions` table with predictor IDs:
+- Predictor 6: Combined model (win probabilities + margin margins)
+- Predictor 7: Margin model
+- Predictor 5: Win model
 
-```bash
-python3 scripts/afl_elo_optimize_margin.py --n-calls 100 --n-starts 3 --end-year 2024
-python3 scripts/afl_elo_train_margin.py --params-file data/optimal_margin_only_elo_params.json --end-year 2024 --output-dir data
-python3 scripts/afl_elo_predict_margin.py --start-year 2025 --model-path data/afl_elo_margin_only_trained_to_2024.json --output-dir data --predictor-id 7
-```
+## Daily Automation
 
-## Script Documentation
+The `daily-sync.js` script automatically:
+1. Refreshes match data from Squiggle API
+2. Generates combined predictions using both models
+3. Updates database with new predictions
+4. Regenerates historical CSV when matches change
 
-### Standard ELO Model Scripts (Win Prediction Focused)
+## Margin Prediction Methods
 
-#### `afl_elo_optimize_standard.py`
-Find optimal standard ELO parameters using Bayesian optimization with multi-start support.
+The system provides multiple approaches to margin prediction:
 
-**Parameters:**
-- `--n-calls`: Number of optimization calls (default: 100)
-- `--n-starts`: Number of random starts for multi-start optimization (default: 3)
-- `--end-year`: End year for training data (default: 2024)
-- `--output-path`: Path to save optimal parameters JSON file
-- `--margin-mode`: Enable margin model optimization mode
-- `--elo-params`: Path to ELO parameters file (for margin mode)
-- `--output-margin-params`: Path to save margin parameters (for margin mode)
-
-#### `afl_elo_train_standard.py`
-Train standard ELO model with optimal parameters.
-
-**Parameters:**
-- `--params-file`: Path to ELO parameters JSON file
-- `--margin-params`: Path to margin model parameters (optional)
-- `--end-year`: End year for training (default: 2024)
-- `--output-dir`: Directory to save trained model (default: data)
-
-#### `afl_elo_predict_standard.py`
-Generate standard ELO predictions for future matches (win probabilities with built-in margin calculation).
-
-**Parameters:**
-- `--start-year`: Start year for predictions (usually 2025)
-- `--model-path`: Path to trained standard ELO model file
-- `--output-dir`: Directory to save output files (usually `data`)
-- `--db-path`: Path to database (default: `data/afl_predictions.db`)
-- `--save-to-db`: Save predictions directly to database (default: True)
-- `--predictor-id`: Predictor ID for database storage (default: 6)
-
-**Output:** `standard_elo_predictions_YYYY_YYYY.csv` and database entries
-
-### Margin-Only ELO Model Scripts (Margin Prediction Focused)
-
-#### `afl_elo_optimize_margin.py`
-Optimize parameters specifically for margin-only ELO model.
-
-**Parameters:**
-- `--n-calls`: Number of optimization calls (default: 100)
-- `--n-starts`: Number of random starts (default: 3)
-- `--end-year`: End year for training data (default: 2024)
-
-**Output:** Creates `data/optimal_margin_only_elo_params.json`
-
-#### `afl_elo_train_margin.py`
-Train margin-only ELO model with optimal parameters.
-
-**Parameters:**
-- `--params-file`: Path to margin-only ELO parameters JSON file
-- `--start-year`: Start year for training (default: 1990)
-- `--end-year`: End year for training (default: 2024)
-- `--db-path`: Path to database (default: `data/afl_predictions.db`)
-- `--output-dir`: Directory to save trained model (default: data)
-
-**Output:** `afl_elo_margin_only_trained_to_YYYY.json`
-
-#### `afl_elo_predict_margin.py`
-Generate margin-only ELO predictions for future matches (margins with derived win probabilities).
-
-**Parameters:**
-- `--start-year`: Start year for predictions (usually 2025)
-- `--model-path`: Path to trained margin-only ELO model file
-- `--output-dir`: Directory to save output files (usually `data`)
-- `--db-path`: Path to database (default: `data/afl_predictions.db`)
-- `--save-to-db`: Save predictions directly to database (default: True)
-- `--predictor-id`: Predictor ID for database storage (default: 7)
-
-**Output:** `margin_elo_predictions_YYYY_YYYY.csv` and database entries
-
-### Combined ELO Model Scripts (Best of Both)
-
-#### `afl_elo_predict_combined.py`
-Generate optimal predictions using both standard and margin-only models.
-
-**Parameters:**
-- `--start-year`: Start year for predictions (usually 2025)
-- `--standard-model`: Path to trained standard ELO model file
-- `--margin-model`: Path to trained margin-only ELO model file
-- `--output-dir`: Directory to save output files (usually `data`)
-- `--db-path`: Path to database (default: `data/afl_predictions.db`)
-- `--save-to-db`: Save predictions directly to database (default: True)
-- `--predictor-id`: Predictor ID for database storage (default: 6)
-
-**Output:** `combined_elo_predictions_YYYY_YYYY.csv` and database entries
-
-**Key Features:**
-- Win probabilities from standard ELO model (optimized for accuracy)
-- Margin predictions from margin-only model (optimized for MAE)
-- Maintains separate rating systems for each model
-- Comprehensive CSV output with both prediction methods
-
-#### `afl_elo_predict_margin_methods.py`
-Generate predictions using all margin methods for comparison.
-
-**Parameters:**
-- `--start-year`: Start year for predictions (usually 2025)
-- `--elo-model`: Path to trained ELO model file
-- `--margin-methods`: Path to margin methods parameters JSON file
-- `--output-dir`: Directory to save output files (usually `data`)
-- `--db-path`: Path to database (default: `data/afl_predictions.db`)
-- `--no-save-to-db`: Skip database save (CSV only)
-- `--predictor-id`: Predictor ID for database storage (required if saving to DB)
-
-**Output:** `margin_methods_predictions_YYYY_YYYY.csv` and optional database entries
-
-#### `afl_elo_history_generator.py`
-Generate comprehensive historical ELO data for charting and analysis purposes.
-
-**Parameters:**
-- `--model-path`: Path to the trained ELO model JSON file containing optimal parameters
-- `--start-year`: Start year for history generation (optional, defaults to all available data)
-- `--end-year`: End year for history generation (optional, defaults to all available data)
-- `--db-path`: Path to the SQLite database (default: `data/afl_predictions.db`)
-- `--output-dir`: Directory to save output files (default: current directory)
-- `--output-prefix`: Prefix for output files (default: `afl_elo_complete_history`)
-
-**Output:**
-- CSV format for easy data analysis and charting
-- Complete match-by-match rating changes for every team
-- Season carryover events between years
-- Team performance summaries
-
-### Node.js Management Scripts
-
-#### `daily-sync.js`
-Run comprehensive daily synchronization: API refresh, ELO predictions, and historical data regeneration.
-
-**Usage:**
-```bash
-npm run daily-sync
-```
-
-**Process:**
-1. Refreshes API data from Squiggle
-2. Generates ELO predictions using dual-model approach
-3. Regenerates historical ELO data if matches were updated
-
-#### `elo-predictions.js`
-Manage ELO prediction generation and database integration.
-
-**Usage:**
-```bash
-node scripts/elo-predictions.js
-```
-
-#### `api-refresh.js`
-Refresh match data from Squiggle API.
-
-**Usage:**
-```bash
-node scripts/api-refresh.js
-```
-
-#### `import-data.js`
-Initialize database with team data.
-
-**Usage:**
-```bash
-npm run import
-```
-
-#### `sync-games.js`
-Sync match data from Squiggle API.
-
-**Usage:**
-```bash
-npm run sync-games
-```
-
-## Margin Prediction Methods Explained
-
-The system provides 5 different approaches to margin prediction for comprehensive analysis:
-
-### 1. **Margin-Only ELO Model** (Standalone)
+### 1. Margin ELO Model (Independent)
+- **Purpose**: Standalone model optimized purely for margin accuracy
 - **Formula**: `margin = rating_diff * margin_scale`
-- **Usage**: Database storage for production predictions
-- **Description**: Completely independent ELO model optimized purely for margin prediction
+- **Usage**: Primary method for database storage
 
-### 2. **Linear Regression Model** (From Win Prediction Model)
-- **Formula**: `margin = rating_diff * slope + intercept`
-- **Usage**: CSV comparison and fallback method
-- **Description**: Uses rating differences from win prediction model with linear regression
+### 2. Win ELO Margin Methods (Derived)
+Built on win ELO win probabilities with optimized parameters:
 
-### 3. **Built-in ELO Margin** (From Win Prediction Model)
-- **Formula**: `margin = (win_probability - 0.5) / beta`
-- **Usage**: CSV comparison
-- **Description**: Traditional ELO margin calculation using win probability and beta parameter
+- **Linear Regression**: `margin = rating_diff * slope + intercept`
+- **Built-in ELO**: `margin = (win_probability - 0.5) / beta`
+- **Simple Scaling**: `margin = rating_diff * scale_factor`
+- **Diminishing Returns**: `margin = (win_probability - 0.5) / beta_optimized`
 
-### 4. **Simple Scaling** (From Win Prediction Model)
-- **Formula**: `margin = rating_diff * scale_factor`
-- **Usage**: CSV comparison
-- **Description**: Basic proportional scaling of rating difference
+### Method Selection
+- **Margin model**: Use when margin accuracy is the primary goal
+- **Win ELO methods**: Use when you need both accurate win probabilities and margins from the same model
+- **Combined approach**: Use margin model for margins, win ELO for probabilities (best of both)
 
-### 5. **Diminishing Returns** (From Win Prediction Model)
-- **Formula**: `margin = (win_probability - 0.5) / beta`
-- **Usage**: CSV comparison
-- **Description**: Similar to built-in but with optimized beta parameter from margin model
+## Parameter Relationships
 
-**Key Insight**: Methods 2-5 all derive margins from the win prediction model using different mathematical approaches, while Method 1 uses a completely separate model optimized specifically for margin accuracy.
+**Win Model `margin_factor`**: Controls how victory margins affect rating changes
+**Margin Model `margin_scale`**: Converts rating differences to predicted margins  
+**Margin Model `scaling_factor`**: Converts margin errors to rating adjustments
 
-## Daily Sync Integration
+These serve different purposes and are not equivalent between models.
 
-The daily sync system (`npm run daily-sync`) automatically:
-1. Refreshes match data from API
-2. Runs `afl_elo_predict_combined.py` to generate new predictions
-3. Regenerates historical data if matches were updated
-4. Updates predictor ID 6 with combined model predictions
+## Data Architecture
 
-## ELO Data Architecture
-
-**Dual-Environment Code**: The scoring service (`services/scoring-service.js`) is uniquely designed to work in both Node.js and browser environments - it's served as a client-side script via `/js/scoring-service.js`.
-
-**ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
-- **Predictions**: Written directly to database by Python scripts (transactional, real-time)
-- **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
-- This separation allows for data integrity in predictions while maintaining fast chart rendering
-- Hybrid storage approach: predictions in database, historical ratings in CSV
-- Direct database writes for ELO predictions ensure transactional integrity
-- Single consolidated CSV file (`data/afl_elo_complete_history.csv`) for historical chart data
-- Automated pipeline: Daily sync writes predictions to database and regenerates historical CSV when matches update
-- Clean separation between operational data (database) and analytical data (CSV)
-
-## ELO Data Handling Rules
-
-- ELO predictions are written directly to the database by Python scripts for data integrity
-- Historical rating data is maintained separately in CSV format for chart performance
-- ELO historical data (`data/afl_elo_complete_history.csv`) is automatically regenerated by daily sync when new matches are updated
-- Manual regeneration only needed when ELO model parameters change or for data integrity issues
-- CSV data is authoritative source - chart issues are usually in processing logic (`services/elo-service.js`), not data
-- Chart rendering bugs should typically be fixed in frontend/service layer (`public/js/elo-chart.js`)
-- The ELO calculation script (`scripts/afl_elo_history_generator.py`) uses optimal trained parameters for consistent results
-- Daily sync process ensures ELO chart always reflects latest match results automatically
-- Always distinguish between data generation issues vs data presentation issues
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Model File Not Found**: Ensure you're using the correct paths:
-   - Standard model: `data/afl_elo_trained_to_2024.json`
-   - Margin-only model: `data/afl_elo_margin_only_trained_to_2024.json`
-
-2. **Permission Errors**: Ensure Python scripts have execute permissions and data directory is writable
-
-3. **Database Lock Errors**: Ensure no other processes are accessing the database during script execution
-
-4. **Memory Issues**: Large optimization runs may require substantial RAM - consider reducing `--n-calls` for initial testing
-
-### Performance Tips
-
-- Use `--n-starts 3` for thorough optimization
-- Start with smaller `--n-calls` values (50) for testing, increase to 100+ for production
-- Monitor RAM usage during Bayesian optimization
-- Consider running optimization scripts during off-peak hours
-
-### Testing Scripts
-
-Test the daily sync process:
-```bash
-npm run daily-sync
-```
-
-Test individual ELO predictions:
-```bash
-node scripts/elo-predictions.js
-```
-
-Test API refresh:
-```bash
-npm run sync-games
-```
-
-## File Dependencies
-
-**Required Data Files:**
-- `data/afl_predictions.db` - SQLite database
-- `data/optimal_elo_params_standard.json` - Standard ELO parameters
-- `data/optimal_margin_only_elo_params.json` - Margin-only ELO parameters
-- `data/afl_elo_trained_to_2024.json` - Trained standard model
-- `data/afl_elo_margin_only_trained_to_2024.json` - Trained margin-only model
-
-**Generated Files:**
-- `data/afl_elo_complete_history.csv` - Complete historical ratings
-- `data/*_predictions_YYYY_YYYY.csv` - Prediction output files
-- `data/*_rating_history_from_YYYY.csv` - Rating history files
+- **Predictions**: Database storage for real-time access
+- **Historical Ratings**: CSV format for chart performance
+- **Model Files**: JSON format for persistence and portability
+- **Parameters**: JSON format for optimization results

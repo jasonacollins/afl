@@ -172,7 +172,7 @@ CREATE TABLE team_states_history (
 ## Key Files & Locations
 - **ELO Scripts**: `scripts/afl_elo_*.py`
 - **Venue Data**: `data/venues_consolidated_*`
-- **Database**: `data/afl_predictions.db`
+- **Database**: `data/database/afl_predictions.db`
 - **Venue Mapping**: Use `data/venues_consolidated_mapping.json` in ELO scripts
 
 ## Implementation Priority

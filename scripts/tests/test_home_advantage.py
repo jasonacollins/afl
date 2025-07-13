@@ -14,15 +14,15 @@ import sys
 import os
 
 # Add scripts directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from elo_core import AFLEloModel
-    from data_io import get_team_states
+    from core.elo_core import AFLEloModel
+    from core.data_io import get_team_states
     
     # Get TEAM_STATES from data_io - use absolute path for testing
     import os
-    db_path = os.path.join(os.path.dirname(__file__), '../../data/afl_predictions.db')
+    db_path = os.path.join(os.path.dirname(__file__), '../../data/database/afl_predictions.db')
     TEAM_STATES = get_team_states(db_path)
     
 except ImportError as e:
@@ -107,11 +107,11 @@ class TestHomeAdvantageApplication:
     
     def test_contextual_advantage_calculation_direct(self, test_model):
         """Test get_contextual_home_advantage method directly"""
-        from data_io import get_database_connection
+        from core.data_io import get_database_connection
         
         # Get database connection
         import os
-        db_path = os.path.join(os.path.dirname(__file__), '../../data/afl_predictions.db')
+        db_path = os.path.join(os.path.dirname(__file__), '../../data/database/afl_predictions.db')
         db_connection = get_database_connection(db_path)
         
         # Initialize team ratings with database to load team states
@@ -231,7 +231,8 @@ class TestHomeAdvantageParameterValidation:
         """Test the logical expectation that interstate advantage > default"""
         
         # This should be enforced by the optimization parameter space
-        from afl_elo_optimize_standard import elo_space
+        from core.optimise import get_elo_parameter_space
+        elo_space = get_elo_parameter_space().dimensions
         
         param_dict = {dim.name: dim for dim in elo_space}
         default_range = param_dict['default_home_advantage']

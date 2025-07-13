@@ -26,6 +26,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Multi-Season Support**: Historical tracking of predictions across multiple years
 - **Interactive ELO Chart**: Visualize team strength over time with multi-team highlighting
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
+- **Featured Predictors System**: Homepage dropdown allowing users to view different predictor models and performance metrics
 
 ## Architecture
 

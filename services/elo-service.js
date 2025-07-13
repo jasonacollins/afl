@@ -144,7 +144,7 @@ class EloService {
    */
   getEloDataPath() {
     // Use single complete historical CSV file
-    return path.join(__dirname, '../data/afl_elo_complete_history.csv');
+    return path.join(__dirname, '../data/historical/afl_elo_complete_history.csv');
   }
 
   /**
