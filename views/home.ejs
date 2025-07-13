@@ -4,11 +4,7 @@
   <div class="welcome-section">
     <h1>Welcome to Dad's AFL Predictions</h1>
     
-    <% if (!locals.user) { %>
-      <div class="login-buttons">
-        <a href="/login" class="button primary-button">Login</a>
-      </div>
-    <% } else { %>
+    <% if (locals.user) { %>
       <div class="login-buttons">
         <a href="/predictions" class="button primary-button">Make Predictions</a>
       </div>
@@ -21,6 +17,15 @@
       <div class="performance-card">
         <div class="performance-header">
           <h2>Model Performance</h2>
+          <div class="model-selector">
+            <select id="predictor-selector" onchange="updateSelectedPredictor(this.value)">
+              <% homepageAvailablePredictors.forEach(predictor => { %>
+                <option value="<%= predictor.predictor_id %>" <%= predictor.is_default_featured ? 'selected' : '' %>>
+                  <%= predictor.display_name %>
+                </option>
+              <% }) %>
+            </select>
+          </div>
           <div class="year-selector-performance">
             <select id="performance-year-selector" onchange="updatePerformanceYear(this.value)">
               <option value="<%= currentYear %>" selected><%= currentYear %></option>
@@ -31,15 +36,6 @@
               <% } %>
             </select>
           </div>
-        </div>
-        <div class="model-selector">
-          <select id="predictor-selector" onchange="updateSelectedPredictor(this.value)">
-            <% homepageAvailablePredictors.forEach(predictor => { %>
-              <option value="<%= predictor.predictor_id %>" <%= predictor.is_default_featured ? 'selected' : '' %>>
-                <%= predictor.display_name %>
-              </option>
-            <% }) %>
-          </select>
         </div>
         <div class="performance-metrics" id="performance-metrics-container">
           <div class="metric">
@@ -67,12 +63,9 @@
     <% } %>
     
     <div class="predictions-viewer">
-      <h2>Featured Predictions</h2>
+      <h2>Model Predictions</h2>
       
       <div class="header-controls">
-        <div class="predictor-name">
-          <%= featuredPredictor.display_name %>'s Predictions
-        </div>
         
         <div class="round-selector">
           <h2>Select Round</h2>
@@ -98,9 +91,9 @@
                 <th style="text-align: left;">Match</th>
                 <th style="text-align: center;">Result</th>
                 <th style="text-align: center;">Prediction</th>
-                <th style="text-align: center;">Win Accuracy</th>
-                <th style="text-align: center;">Predicted Margin</th>
-                <th style="text-align: center;">Margin Accuracy</th>
+                <th style="text-align: center;">Win accuracy</th>
+                <th style="text-align: center;">Predicted margin</th>
+                <th style="text-align: center;">Margin error</th>
                 </tr>
             </thead>
           <tbody>
@@ -177,7 +170,7 @@
                         <% const actualMargin = match.hscore - match.ascore %>
                         <% const predictedMargin = predictions[match.match_id].predicted_margin %>
                         <% const mae = Math.abs(actualMargin - predictedMargin) %>
-                        MAE: <%= mae.toFixed(1) %>
+                        <%= mae.toFixed(1) %>
                     <% } else { %>
                         -
                     <% } %>
@@ -275,9 +268,9 @@
             <th style="text-align: left;">Match</th>
             <th style="text-align: center;">Result</th>
             <th style="text-align: center;">Prediction</th>
-            <th style="text-align: center;">Win Accuracy</th>
-            <th style="text-align: center;">Predicted Margin</th>
-            <th style="text-align: center;">Margin Accuracy</th>
+            <th style="text-align: center;">Win accuracy</th>
+            <th style="text-align: center;">Predicted margin</th>
+            <th style="text-align: center;">Margin error</th>
             </tr>
           </thead>
           <tbody>
@@ -377,7 +370,7 @@
             const actualMargin = match.hscore - match.ascore;
             const predictedMargin = predictions[match.match_id].predicted_margin;
             const mae = Math.abs(actualMargin - predictedMargin);
-            marginAccuracyHtml = `MAE: ${mae.toFixed(1)}`;
+            marginAccuracyHtml = `${mae.toFixed(1)}`;
           }
           
           tableHtml += `
@@ -527,6 +520,12 @@
     width: 100%;
   }
   
+  .predictions-viewer h2 {
+    margin: 0 0 1.5rem 0;
+    color: var(--primary-color);
+    font-size: 1.3rem;
+  }
+  
   .header-controls {
     display: flex;
     flex-wrap: wrap;
@@ -629,7 +628,7 @@
     text-align: center;
   }
     
-  /* Margin Accuracy column - align center */
+  /* Margin error column - align center */
   .predictions-table th:nth-child(6),
   .predictions-table td:nth-child(6) {
     text-align: center;
@@ -715,8 +714,6 @@
   
   .model-selector {
     display: flex;
-    justify-content: center;
-    margin-bottom: 1.5rem;
   }
   
   .model-selector select {

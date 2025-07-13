@@ -30,7 +30,7 @@ async function runEloPredictions() {
     const pythonArgs = [
       'scripts/elo_predict_combined.py',
       '--start-year', currentYear.toString(),
-      '--standard-model', modelPath,
+      '--win-model', modelPath,
       '--margin-model', marginModelPath,
       '--db-path', dbPath,
       '--output-dir', outputDir,
