@@ -130,8 +130,32 @@ dist
 .yarn/install-state.gz
 .pnp.*
 .DS_Store
+
+# Database files
 data/*.db
-data/backups/*.db
-data/temp/*.db
-/data/temp
-scripts/__pycache__/*.pyc
+data/database/*.db
+data/database/backups/*.db
+
+# Temporary data directories  
+data/temp/
+data/cache/
+
+# Python cache files
+scripts/__pycache__/
+scripts/core/__pycache__/
+scripts/**/__pycache__/
+*.pyc
+**/*.pyc
+
+# Generated prediction files (typically regenerated daily)
+data/predictions/**/*.csv
+data/predictions/**/*.json
+
+# ELO model optimization artifacts
+*.png
+data/models/**/optimization_*.json
+data/models/**/test_*.json
+
+# Training summaries and logs
+data/training_summary.txt
+data/**/*_summary.txt
