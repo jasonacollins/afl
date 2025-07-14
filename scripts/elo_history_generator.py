@@ -7,8 +7,8 @@ This script creates comprehensive rating history in CSV and JSON formats for cha
 and analysis purposes.
 
 Usage:
-    python3 afl_elo_history_generator.py --model-path afl_elo_trained_to_2024.json
-    python3 afl_elo_history_generator.py --model-path afl_elo_trained_to_2024.json --start-year 2000 --end-year 2024
+    python3 scripts/elo_history_generator.py --model-path data/models/win/afl_elo_win_trained_to_2024.json
+    python3 scripts/elo_history_generator.py --model-path data/models/win/afl_elo_win_trained_to_2024.json --start-year 2000 --end-year 2024
 """
 
 import pandas as pd

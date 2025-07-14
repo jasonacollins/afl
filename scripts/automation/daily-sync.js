@@ -13,7 +13,7 @@ async function regenerateEloHistory() {
   return new Promise((resolve, reject) => {
     // Get project root directory (two levels up from automation folder)
     const projectRoot = path.join(__dirname, '../..');
-    const modelPath = path.join(projectRoot, 'data/afl_elo_trained_to_2024.json');
+    const modelPath = path.join(projectRoot, 'data/models/win/afl_elo_win_trained_to_2024.json');
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
     const outputDir = path.join(projectRoot, 'data');
     

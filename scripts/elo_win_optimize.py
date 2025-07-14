@@ -9,10 +9,10 @@ Extended to support margin prediction optimization.
 
 Usage:
     # Standard ELO parameter optimization
-    python3 afl_elo_optimize_bayesian.py --db-path data/database/afl_predictions.db --n-calls 100
+    python3 scripts/elo_win_optimize.py --db-path data/database/afl_predictions.db --n-calls 100
     
     # Margin parameter optimization (after ELO optimization)
-    python3 afl_elo_optimize_bayesian.py --margin-mode --elo-params optimal_elo_params_bayesian.json --n-calls 50
+    python3 scripts/elo_win_optimize.py --margin-mode --elo-params data/models/win/optimal_elo_params_bayesian.json --n-calls 50
 """
 
 import pandas as pd
@@ -287,7 +287,7 @@ def main():
                         help='End year for optimization data (inclusive)')
     parser.add_argument('--n-calls', type=int, default=200,
                         help='Number of optimization iterations (more = better but slower)')
-    parser.add_argument('--output-path', type=str, default='data/optimal_elo_params_bayesian.json',
+    parser.add_argument('--output-path', type=str, default='data/models/win/optimal_elo_params_bayesian.json',
                         help='Path to save optimal parameters')
     
     parser.add_argument('--test-known-params', action='store_true',

@@ -17,8 +17,8 @@ async function runEloPredictions() {
     // Step 1: Run Python ELO prediction script (now writes directly to database)
     // Get project root directory (two levels up from automation folder)
     const projectRoot = path.join(__dirname, '../..');
-    const modelPath = path.join(projectRoot, 'data/afl_elo_trained_to_2024.json');
-    const marginModelPath = path.join(projectRoot, 'data/afl_elo_margin_only_trained_to_2024.json');
+    const modelPath = path.join(projectRoot, 'data/models/win/afl_elo_win_trained_to_2024.json');
+    const marginModelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2024.json');
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
     const outputDir = path.join(projectRoot, 'data/temp');
     
@@ -62,7 +62,7 @@ async function runEloPredictions() {
     logger.info(`Found ${predictionCount.count} ELO predictions in database for year ${currentYear}`);
     
     // Step 3: Verify that rating history file exists for the ELO chart
-    const ratingHistoryPath = path.join(outputDir, `afl_elo_rating_history_from_${currentYear}.csv`);
+    const ratingHistoryPath = path.join(outputDir, `combined_elo_rating_history_from_${currentYear}.csv`);
     if (fs.existsSync(ratingHistoryPath)) {
       logger.info(`ELO rating history preserved at: ${ratingHistoryPath}`);
     } else {
