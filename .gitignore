@@ -151,6 +151,9 @@ scripts/**/__pycache__/
 data/predictions/**/*.csv
 data/predictions/**/*.json
 
+# Historical data files (large, frequently updated)
+data/historical/
+
 # ELO model optimization artifacts
 *.png
 data/models/**/optimization_*.json

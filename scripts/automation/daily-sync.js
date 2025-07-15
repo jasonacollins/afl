@@ -75,19 +75,10 @@ async function dailySync() {
     const eloResults = await runEloPredictions();
     logger.info('ELO predictions complete', { message: eloResults.message, predictionsCount: eloResults.predictionsCount });
     
-    // Step 3: Regenerate ELO historical data if there were match updates
-    const totalUpdates = apiResults.updateCount + apiResults.scoresUpdated;
-    if (totalUpdates > 0) {
-      logger.info('Matches were updated, regenerating ELO history', { 
-        totalUpdates, 
-        fixtureUpdates: apiResults.updateCount, 
-        scoreUpdates: apiResults.scoresUpdated 
-      });
-      const historyResults = await regenerateEloHistory();
-      logger.info('ELO history regeneration complete', { message: historyResults.message });
-    } else {
-      logger.info('No matches were updated, skipping ELO history regeneration');
-    }
+    // Step 3: Always regenerate ELO historical data to ensure consistency
+    logger.info('Regenerating ELO historical data...');
+    const historyResults = await regenerateEloHistory();
+    logger.info('ELO history regeneration complete', { message: historyResults.message });
     
     logger.info('Daily sync completed successfully');
     process.exit(0);
