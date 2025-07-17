@@ -81,6 +81,8 @@ elo_margin_methods_predict.py     # Generate predictions using all margin method
 node scripts/automation/daily-sync.js           # Automated daily workflow
 node scripts/automation/elo-predictions.js      # ELO prediction management  
 node scripts/automation/api-refresh.js          # Update match data
+node scripts/automation/import-data.js          # Import historical data
+node scripts/automation/sync-games.js           # Sync game data
 ```
 
 ## Workflows
@@ -141,12 +143,13 @@ python3 scripts/elo_margin_train.py --help
    ```
 2. Modify and test your ideas
 3. Import core utilities: `from core.elo_core import AFLEloModel`
+4. The `experiments/` folder is available for testing new ideas without cluttering main scripts
 
 ### Development Tips
 - **Quick access**: All main scripts at top level
 - **Clear naming**: Know exactly what each script does
 - **Simple imports**: `from core.data_io import fetch_afl_data`
-- **Experiments folder**: Try ideas without cluttering main scripts
+- **Modular design**: Core utilities in `core/` directory for shared functionality
 
 ## Model Parameters
 
@@ -173,8 +176,7 @@ python3 scripts/elo_margin_train.py --help
 ### Trained Models (data/models/)
 - `win/afl_elo_win_trained_to_YYYY.json`: Win model with ratings
 - `win/optimal_elo_params_win.json`: Optimized win ELO parameters
-- `win/margin_methods.json`: Optimized margin prediction methods (derived from win ELO)
-- `win/optimal_margin_methods.json`: Best margin method parameters
+- `win/optimal_margin_methods.json`: Optimized margin prediction methods (derived from win ELO)
 - `margin/afl_elo_margin_only_trained_to_YYYY.json`: Margin model with ratings
 - `margin/optimal_margin_only_elo_params.json`: Optimized margin ELO parameters
 
@@ -186,8 +188,11 @@ python3 scripts/elo_margin_train.py --help
 - `combined/combined_elo_predictions_YYYY_YYYY.csv`: Best of both models combined
 
 ### Historical Data (data/historical/)
-- `afl_elo_complete_history.csv`: Match-by-match rating changes
-- `*_rating_history_from_YYYY.csv`: Rating evolution from specific year
+- `afl_elo_complete_history.csv`: Match-by-match rating changes for all years
+
+### Rating History Files (data/predictions/)
+- `combined/*_rating_history_from_YYYY.csv`: Combined model rating evolution
+- `margin/*_rating_history_from_YYYY.csv`: Margin model rating evolution
 
 ## Database Integration
 
@@ -202,7 +207,7 @@ The `daily-sync.js` script automatically:
 1. Refreshes match data from Squiggle API
 2. Generates combined predictions using both models
 3. Updates database with new predictions
-4. Regenerates historical CSV when matches change
+4. Regenerates historical CSV in `data/historical/` directory for homepage charts
 
 ## Margin Prediction Methods
 

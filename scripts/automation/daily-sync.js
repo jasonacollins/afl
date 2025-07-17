@@ -15,7 +15,7 @@ async function regenerateEloHistory() {
     const projectRoot = path.join(__dirname, '../..');
     const modelPath = path.join(projectRoot, 'data/models/win/afl_elo_win_trained_to_2024.json');
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
-    const outputDir = path.join(projectRoot, 'data');
+    const outputDir = path.join(projectRoot, 'data/historical');
     
     const pythonProcess = spawn('python3', [
       'scripts/elo_history_generator.py',
