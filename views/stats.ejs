@@ -46,7 +46,6 @@
                 </label>
               <% }) %>
             </div>
-            <button id="clear-exclusions" class="clear-btn">Clear All</button>
           </div>
         </div>
       <% } %>
@@ -312,21 +311,6 @@
     cursor: pointer;
   }
   
-  .clear-btn {
-    align-self: flex-start;
-    padding: 8px 16px;
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.2s;
-  }
-  
-  .clear-btn:hover {
-    background-color: #c82333;
-  }
   
   .excluded-predictor {
     opacity: 0.5;
@@ -541,32 +525,6 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Load saved exclusions on page load for all users
   await loadSavedExclusions();
   
-  const clearBtn = document.getElementById('clear-exclusions');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', async function() {
-      // Clear all exclusions
-      excludedPredictors.clear();
-      
-      // Uncheck all checkboxes
-      document.querySelectorAll('.exclude-checkbox').forEach(checkbox => {
-        checkbox.checked = false;
-      });
-      
-      // Save cleared state
-      await saveExclusions();
-      
-      // Reload page to show updated statistics
-      window.location.reload();
-      
-      // Show feedback
-      clearBtn.textContent = 'Cleared!';
-      clearBtn.style.backgroundColor = '#28a745';
-      setTimeout(() => {
-        clearBtn.textContent = 'Clear All';
-        clearBtn.style.backgroundColor = '#dc3545';
-      }, 2000);
-    });
-  }
   
   // Add event listeners to checkboxes for real-time updates (admin only)
   document.querySelectorAll('.exclude-checkbox').forEach(checkbox => {
