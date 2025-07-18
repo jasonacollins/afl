@@ -136,6 +136,12 @@ python3 scripts/elo_win_optimize.py --help
 python3 scripts/elo_margin_train.py --help
 ```
 
+### Testing/Experimental
+Use `--override-completed` to update predictions for completed matches (testing purposes):
+```bash
+python3 scripts/elo_win_predict.py --start-year 2024 --model-path data/models/win/afl_elo_win_trained_to_2024.json --override-completed
+```
+
 ### Experimenting with New Models
 1. Copy any existing script to `experiments/`:
    ```bash

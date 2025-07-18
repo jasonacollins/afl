@@ -23,7 +23,7 @@ from core.scoring import evaluate_predictions, format_scoring_summary
 
 
 def predict_matches(model_path, db_path='data/database/afl_predictions.db', start_year=2025, 
-                   output_dir='.', save_to_db=True, predictor_id=6):
+                   output_dir='.', save_to_db=True, predictor_id=6, override_completed=False):
     """
     Make standard ELO predictions for matches starting from specified year
     """
@@ -126,7 +126,8 @@ def predict_matches(model_path, db_path='data/database/afl_predictions.db', star
 
     # Save to database if requested
     if save_to_db:
-        save_predictions_to_database(predictor.predictions, db_path, predictor_id)
+        save_predictions_to_database(predictor.predictions, db_path, predictor_id, 
+                                    override_completed=override_completed)
     
     # Always save rating history for charts (skip for now since AFLEloModel doesn't have this method)
     # history_file = os.path.join(output_dir, f"win_elo_rating_history_from_{start_year}.csv")
@@ -187,6 +188,8 @@ def main():
                         help='Disable database saving, use CSV output instead')
     parser.add_argument('--predictor-id', type=int, default=6,
                         help='Predictor ID for database storage (default: 6 for ELO)')
+    parser.add_argument('--override-completed', action='store_true',
+                        help='Override predictions for completed/started matches in database')
 
     args = parser.parse_args()
     
@@ -196,7 +199,8 @@ def main():
         start_year=args.start_year,
         output_dir=args.output_dir,
         save_to_db=args.save_to_db,
-        predictor_id=args.predictor_id
+        predictor_id=args.predictor_id,
+        override_completed=args.override_completed
     )
 
 

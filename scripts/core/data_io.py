@@ -202,7 +202,8 @@ def save_predictions_to_csv(predictions: List[Dict], filename: str) -> None:
 
 
 def save_predictions_to_database(predictions: List[Dict], db_path: str, 
-                                predictor_id: int = 6, verbose: bool = False) -> None:
+                                predictor_id: int = 6, verbose: bool = False, 
+                                override_completed: bool = False) -> None:
     """
     Save predictions directly to the database
     
@@ -216,6 +217,8 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
         Predictor ID for database storage (default: 6 for ELO)
     verbose : bool
         Whether to print detailed skipping messages (default: False)
+    override_completed : bool
+        Whether to override predictions for completed/started matches (default: False)
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -224,9 +227,14 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
         # Get current time in UTC for comparison
         current_time = datetime.now(timezone.utc)
         
-        # Filter out completed games and games that have started
+        # Filter out completed games and games that have started (unless override is enabled)
         future_predictions = []
         for p in predictions:
+            # If override is enabled, include all predictions
+            if override_completed:
+                future_predictions.append(p)
+                continue
+            
             # Skip if game is completed (has actual_result)
             if 'actual_result' in p:
                 continue
@@ -266,15 +274,21 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
                 future_predictions.append(p)
         
         if not future_predictions:
-            print("No future match predictions to save (all games completed or started)")
+            if override_completed:
+                print("No predictions to save")
+            else:
+                print("No future match predictions to save (all games completed or started)")
             return
         
         # Show summary of skipped matches if not verbose
         skipped_count = len(predictions) - len(future_predictions)
-        if not verbose and skipped_count > 0:
+        if not verbose and skipped_count > 0 and not override_completed:
             print(f"Skipped {skipped_count} completed/started matches")
         
-        print(f"Saving {len(future_predictions)} predictions to database for predictor {predictor_id}")
+        if override_completed:
+            print(f"Saving {len(future_predictions)} predictions to database for predictor {predictor_id} (override mode - including completed matches)")
+        else:
+            print(f"Saving {len(future_predictions)} predictions to database for predictor {predictor_id}")
         
         # Begin transaction
         cursor.execute("BEGIN TRANSACTION")
