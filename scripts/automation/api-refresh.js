@@ -63,7 +63,7 @@ async function refreshAPIData(year, options = {}) {
       try {
         // First, get the current values for this match
         const currentMatch = await getOne(
-          'SELECT match_date, venue FROM matches WHERE match_number = ?',
+          'SELECT match_date, venue, home_team_id, away_team_id FROM matches WHERE match_number = ?',
           [squiggleGameId]
         );
 
@@ -74,12 +74,17 @@ async function refreshAPIData(year, options = {}) {
         // Check if there are actual differences
         const dateChanged = currentMatch.match_date !== apiDate;
         const venueChanged = currentMatch.venue !== apiVenue;
+        
+        // Also check for team assignment updates (important for finals)
+        const homeTeamId = game.hteamid || null;
+        const awayTeamId = game.ateamid || null;
+        const teamsChanged = currentMatch.home_team_id !== homeTeamId || currentMatch.away_team_id !== awayTeamId;
 
-        if (dateChanged || venueChanged) {
+        if (dateChanged || venueChanged || teamsChanged) {
           // Only update if there are actual differences
           const result = await runQuery(
-            'UPDATE matches SET match_date = ?, venue = ? WHERE match_number = ?',
-            [apiDate, apiVenue, squiggleGameId]
+            'UPDATE matches SET match_date = ?, venue = ?, home_team_id = ?, away_team_id = ? WHERE match_number = ?',
+            [apiDate, apiVenue, homeTeamId, awayTeamId, squiggleGameId]
           );
 
           if (result.changes > 0) {
@@ -90,7 +95,12 @@ async function refreshAPIData(year, options = {}) {
               dateChanged,
               oldVenue: currentMatch.venue,
               newVenue: apiVenue,
-              venueChanged
+              venueChanged,
+              oldHomeTeam: currentMatch.home_team_id,
+              newHomeTeam: homeTeamId,
+              oldAwayTeam: currentMatch.away_team_id,
+              newAwayTeam: awayTeamId,
+              teamsChanged
             });
           }
         }
