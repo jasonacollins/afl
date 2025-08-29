@@ -8,6 +8,10 @@
   <script src="/js/scoring-service.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="/js/elo-chart.js"></script>
+  <script>
+    // Make CSRF token available to all JavaScript
+    window.csrfToken = '<%= csrfToken %>';
+  </script>
 </head>
 <body>
   <header class="site-header">

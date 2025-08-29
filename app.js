@@ -3,12 +3,20 @@ const session = require('express-session');
 const SqliteStore = require('connect-sqlite3')(session);
 const path = require('path');
 const methodOverride = require('method-override');
+const helmet = require('helmet');
 require('dotenv').config();
+
+// Validate required environment variables
+if (!process.env.SESSION_SECRET) {
+  console.error('ERROR: SESSION_SECRET environment variable is required');
+  process.exit(1);
+}
 
 // Import utilities
 const { errorMiddleware, catchAsync } = require('./utils/error-handler');
 const { logger, requestLogger } = require('./utils/logger');
 const { getQuery } = require('./models/db');
+const csrfProtection = require('./middleware/csrf');
 
 // Import services
 const roundService = require('./services/round-service');
@@ -23,7 +31,21 @@ const eloRoutes = require('./routes/elo');
 
 // Initialize express app
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'", "https://api.squiggle.com.au"]
+    }
+  },
+  crossOriginResourcePolicy: { policy: "same-site" }
+}));
 
 // Configure view engine
 app.set('view engine', 'ejs');
@@ -40,18 +62,23 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(methodOverride('_method'));
 
+// Trust proxy for secure cookies behind reverse proxy
+app.set('trust proxy', 1);
+
 // Session configuration
 app.use(session({
   store: new SqliteStore({
     db: 'sessions.db',
     dir: path.join(__dirname, 'data/database')  // Use absolute path
   }),
-  secret: process.env.SESSION_SECRET || 'afl-predictions-secret-key',
-  resave: true,                       // Changed to true
-  saveUninitialized: true,            // Changed to true
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
   cookie: { 
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    secure: false                     // Set to false for HTTP
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax'
   }
 }));
 
@@ -64,6 +91,9 @@ app.use((req, res, next) => {
 
 // Add request logging middleware (before routes)
 app.use(requestLogger);
+
+// CSRF Protection
+app.use(csrfProtection);
 
 // Routes
 app.use('/', authRoutes);

@@ -18,7 +18,7 @@
         <div class="performance-header">
           <h2>Model Performance</h2>
           <div class="model-selector">
-            <select id="predictor-selector" onchange="updateSelectedPredictor(this.value)">
+            <select id="predictor-selector">
               <% homepageAvailablePredictors.forEach(predictor => { %>
                 <option value="<%= predictor.predictor_id %>" <%= predictor.is_default_featured ? 'selected' : '' %>>
                   <%= predictor.display_name %>
@@ -27,7 +27,7 @@
             </select>
           </div>
           <div class="year-selector-performance">
-            <select id="performance-year-selector" onchange="updatePerformanceYear(this.value)">
+            <select id="performance-year-selector">
               <option value="<%= currentYear %>" selected><%= currentYear %></option>
               <% if (currentYear > 2022) { %>
                 <% for (let year = currentYear - 1; year >= 2022; year--) { %>
@@ -76,7 +76,7 @@
                        <%= round.round_number === selectedRound ? 'selected' : '' %>
                        <%= round.isCompleted ? 'completed' : '' %>
                        <%= round.round_number === currentRound ? 'current' : '' %>"
-                onclick="fetchRoundPredictions('<%= round.round_number %>')">
+                data-round="<%= round.round_number %>">
                 <%= round.round_number %>
               </button>
             <% }) %>
@@ -230,258 +230,9 @@
 </div>
 
 <% if (locals.featuredPredictor) { %>
-  <script>
-    function fetchRoundPredictions(round) {
-      // Update active button
-      document.querySelectorAll('.round-button').forEach(btn => {
-        btn.classList.remove('selected');
-        if (btn.textContent.trim() === round) {
-          btn.classList.add('selected');
-        }
-      });
-      
-      // Show loading state
-      document.getElementById('predictions-table-container').innerHTML = 
-        '<div style="text-align: center; padding: 2rem;">Loading predictions...</div>';
-      
-      // Get current selected predictor
-      const selectedPredictorId = document.getElementById('predictor-selector').value;
-      
-      // Fetch predictions for this round and predictor
-      fetch(`/featured-predictions/${round}?year=<%= currentYear %>&predictorId=${selectedPredictorId}`)
-        .then(response => response.json())
-        .then(data => {
-          renderPredictionsTable(data.matches, data.predictions);
-        })
-        .catch(error => {
-          console.error('Error fetching predictions:', error);
-          document.getElementById('predictions-table-container').innerHTML = 
-            '<div style="text-align: center; padding: 2rem; color: #666;">Error loading predictions</div>';
-        });
-    }
-    
-    function renderPredictionsTable(matches, predictions) {
-      let tableHtml = `
-        <table class="predictions-table">
-          <thead>
-            <tr>
-            <th style="text-align: left;">Match</th>
-            <th style="text-align: center;">Result</th>
-            <th style="text-align: center;">Prediction</th>
-            <th style="text-align: center;">Win accuracy</th>
-            <th style="text-align: center;">Predicted margin</th>
-            <th style="text-align: center;">Margin error</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      
-      if (matches && matches.length > 0) {
-        matches.forEach(match => {
-          // Format match date if available
-          let matchDate = match.match_date;
-          if (matchDate && matchDate.includes('T')) {
-            try {
-              const date = new Date(matchDate);
-              matchDate = date.toLocaleDateString('en-AU', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              });
-            } catch (e) {
-              console.error('Error formatting date:', e);
-            }
-          }
-          
-          // Get prediction
-          let predictionHtml = 'No prediction';
-          if (predictions[match.match_id]) {
-          const prediction = predictions[match.match_id];
-          let probability;
-          let tippedTeam;
-        
-          if (typeof prediction === 'object') {
-          probability = prediction.probability;
-            tippedTeam = prediction.tipped_team;
-          } else {
-            probability = prediction;
-            tippedTeam = null;
-          }
-        
-          if (probability > 50) {
-            predictionHtml = `${probability}% ${match.home_team}`;
-          } else if (probability < 50) {
-            predictionHtml = `${100 - probability}% ${match.away_team}`;
-          } else { // exactly 50%
-            if (tippedTeam) {
-              predictionHtml = `50% draw (tipped: ${tippedTeam === 'home' ? match.home_team : match.away_team})`;
-            } else {
-             predictionHtml = `50% draw`;
-            }
-           }
-         }
-          
-          // Result
-          let resultHtml = 'Upcoming';
-          if (match.hscore !== null && match.ascore !== null) {
-            resultHtml = `${match.hscore} - ${match.ascore}`;
-          }
-          
-          // Win Accuracy
-          let winAccuracyHtml = '-';
-          if (match.hscore !== null && match.ascore !== null && 
-              predictions[match.match_id] && match.metrics) {
-            
-            if (match.metrics.correct) {
-              winAccuracyHtml = `<div class="correct">✓ Correct</div>`;
-            } else if (match.metrics.partial) {
-              winAccuracyHtml = `<div class="partial">◑ Draw</div>`;
-            } else {
-              winAccuracyHtml = `<div class="incorrect">✗ Incorrect</div>`;
-            }
-            
-            winAccuracyHtml += `
-              <div class="metrics">
-                Brier: ${match.metrics.brierScore.toFixed(4)} | 
-                Bits: ${match.metrics.bitsScore.toFixed(4)}
-              </div>
-            `;
-          }
-          
-          // Margin
-          let marginHtml = '-';
-          if (predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && 
-              predictions[match.match_id].predicted_margin !== undefined) {
-            const margin = predictions[match.match_id].predicted_margin;
-            if (margin > 0) {
-              marginHtml = `+${Math.abs(margin).toFixed(1)} pts`;
-            } else if (margin < 0) {
-              marginHtml = `-${Math.abs(margin).toFixed(1)} pts`;
-            } else {
-              marginHtml = `0.0 pts`;
-            }
-          }
-          
-          // Margin Accuracy
-          let marginAccuracyHtml = '-';
-          if (match.hscore !== null && match.ascore !== null && 
-              predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && 
-              predictions[match.match_id].predicted_margin !== undefined) {
-            const actualMargin = match.hscore - match.ascore;
-            const predictedMargin = predictions[match.match_id].predicted_margin;
-            const mae = Math.abs(actualMargin - predictedMargin);
-            marginAccuracyHtml = `${mae.toFixed(1)}`;
-          }
-          
-          tableHtml += `
-            <tr>
-              <td class="team-names">
-                <div>${match.home_team} vs ${match.away_team}</div>
-                <div style="font-size: 0.8rem; color: var(--light-text);">${match.venue}, ${matchDate}</div>
-              </td>
-              <td class="score">${resultHtml}</td>
-              <td class="prediction">${predictionHtml}</td>
-              <td class="win-accuracy">${winAccuracyHtml}</td>
-              <td class="margin">${marginHtml}</td>
-              <td class="margin-accuracy">${marginAccuracyHtml}</td>
-            </tr>
-          `;
-        });
-      } else {
-        tableHtml += `
-          <tr>
-            <td colspan="6" style="text-align: center; padding: 2rem;">No matches available for this round</td>
-          </tr>
-        `;
-      }
-      
-      tableHtml += `
-          </tbody>
-        </table>
-      `;
-      
-      document.getElementById('predictions-table-container').innerHTML = tableHtml;
-    }
-    
-    // Function to update performance card when year or predictor changes
-    function updatePerformanceData(selectedYear = null, selectedPredictorId = null) {
-      const container = document.getElementById('performance-metrics-container');
-      
-      // Get current values if not provided
-      if (!selectedYear) {
-        selectedYear = document.getElementById('performance-year-selector').value;
-      }
-      if (!selectedPredictorId) {
-        selectedPredictorId = document.getElementById('predictor-selector').value;
-      }
-      
-      // Show loading state
-      container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">Loading performance data...</div>';
-      
-      // Fetch performance data for selected year and predictor
-      fetch(`/api/predictor-stats?year=${selectedYear}&predictorId=${selectedPredictorId}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success && data.stats) {
-            updatePerformanceMetrics(data.stats);
-          } else {
-            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">No performance data available for this year.</div>';
-          }
-        })
-        .catch(error => {
-          console.error('Error loading performance data:', error);
-          container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #666;">Error loading performance data.</div>';
-        });
-    }
-    
-    // Function to update performance card when year changes
-    function updatePerformanceYear(selectedYear) {
-      updatePerformanceData(selectedYear, null);
-    }
-    
-    // Function to update performance card when predictor changes
-    function updateSelectedPredictor(selectedPredictorId) {
-      updatePerformanceData(null, selectedPredictorId);
-      
-      // Also refresh the predictions table for the currently selected round
-      const selectedRoundButton = document.querySelector('.round-button.selected');
-      if (selectedRoundButton) {
-        const currentRound = selectedRoundButton.textContent.trim();
-        fetchRoundPredictions(currentRound);
-      }
-    }
-    
-    // Function to update performance metrics display
-    function updatePerformanceMetrics(stats) {
-      const container = document.getElementById('performance-metrics-container');
-      
-      const metricsHtml = `
-        <div class="metric">
-          <div class="metric-label">Tip Accuracy</div>
-          <div class="metric-value">${stats.tipAccuracy}%</div>
-          <div class="metric-detail">${stats.tipPoints}/${stats.totalPredictions} correct</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Brier Score</div>
-          <div class="metric-value">${stats.brierScore}</div>
-          <div class="metric-detail">Lower is better</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Bits Score</div>
-          <div class="metric-value">${stats.bitsScore}</div>
-          <div class="metric-detail">Higher is better</div>
-        </div>
-        <div class="metric">
-          <div class="metric-label">Margin MAE</div>
-          <div class="metric-value">${stats.marginMAE !== null ? stats.marginMAE : '-'}</div>
-          <div class="metric-detail">${stats.marginMAE !== null ? 'Lower is better' : 'No margin predictions'}</div>
-        </div>
-      `;
-      
-      container.innerHTML = metricsHtml;
-    }
-  </script>
+  <script src="/js/home.js"></script>
 <% } %>
+
 
 <style>
   .welcome-section {

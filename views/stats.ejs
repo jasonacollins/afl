@@ -109,12 +109,11 @@
       <div class="round-buttons">
         <% rounds.forEach(roundObj => { %>
           <button 
-            data-round="<%= roundObj.round_number %>" 
             class="round-button 
                    <%= roundObj.round_number === selectedRound ? 'selected' : '' %>
                    <%= roundObj.isCompleted ? 'completed' : '' %>
                    <%= roundObj.round_number === currentRound ? 'current' : '' %>"
-            onclick="loadRoundStats('<%= roundObj.round_number %>')"
+            data-round="<%= roundObj.round_number %>"
           >
             <%= roundObj.round_number %>
           </button>
@@ -353,6 +352,7 @@ async function saveExclusions() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'X-CSRF-Token': '<%= csrfToken %>'
       },
       body: JSON.stringify({ predictorIds: [...excludedPredictors] })
     });
@@ -525,6 +525,13 @@ document.addEventListener('DOMContentLoaded', async function() {
   // Load saved exclusions on page load for all users
   await loadSavedExclusions();
   
+  // Add event listeners to round buttons
+  document.querySelectorAll('.round-button').forEach(button => {
+    button.addEventListener('click', function() {
+      const round = this.dataset.round;
+      loadRoundStats(round);
+    });
+  });
   
   // Add event listeners to checkboxes for real-time updates (admin only)
   document.querySelectorAll('.exclude-checkbox').forEach(checkbox => {

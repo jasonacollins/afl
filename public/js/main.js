@@ -561,6 +561,7 @@ function savePrediction(matchId, probability, button) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-CSRF-Token': window.csrfToken
     },
     body: JSON.stringify({
       matchId: matchId,

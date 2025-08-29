@@ -84,6 +84,7 @@
     <h2>Featured Predictors</h2>
     <p>Select which predictors can be featured on the homepage dropdown:</p>
     <form action="/admin/set-featured-predictors" method="POST" class="admin-form">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-group">
         <div class="checkbox-group">
           <% predictors.forEach(predictor => { %>
@@ -110,6 +111,7 @@
     <div class="admin-section">
       <h2>Add New Predictor</h2>
       <form action="/admin/predictors" method="POST" class="admin-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="username">Username</label>
           <input type="text" id="username" name="username" required>
@@ -247,6 +249,7 @@
     <span class="close" onclick="closeModal()">&times;</span>
     <h3>Reset Password for <span id="resetUserName"></span></h3>
     <form id="resetPasswordForm" action="/admin/reset-password/0" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-group">
         <label for="newPassword">New Password</label>
         <input type="password" id="newPassword" name="newPassword" required>
@@ -314,7 +317,10 @@
 
     fetch(`/admin/predictions/${userId}/save`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': '<%= csrfToken %>'
+      },
       body: JSON.stringify({ matchId: matchId, probability: "" }), // Empty string for deletion
     })
     .then(response => response.json())
@@ -421,7 +427,10 @@
 
       fetch(`/admin/predictions/${userId}/save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': '<%= csrfToken %>'
+        },
         body: JSON.stringify({
           matchId: matchId,
           probability: numericProb, // Send the numeric probability
@@ -574,6 +583,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-CSRF-Token': '<%= csrfToken %>'
           },
           body: JSON.stringify({ 
             year,
@@ -639,6 +649,9 @@
         submitButton.disabled = true;
         
         // Upload file
+        // Add CSRF token to form data
+        formData.append('_csrf', '<%= csrfToken %>');
+        
         fetch('/admin/upload-database', {
           method: 'POST',
           body: formData
@@ -677,6 +690,7 @@
     <p>Are you sure you want to delete this user? This action cannot be undone.</p>
     <p>All predictions made by this user will also be deleted.</p>
     <form id="deleteUserForm" action="/admin/delete-user/0" method="POST">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-actions">
         <button type="button" class="button secondary-button" onclick="closeDeleteModal()">Cancel</button>
         <button type="submit" class="button primary-button delete-button">Delete User</button>
