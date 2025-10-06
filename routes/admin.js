@@ -33,14 +33,18 @@ router.get('/api/excluded-predictors', catchAsync(async (req, res) => {
 
 router.post('/api/excluded-predictors', catchAsync(async (req, res) => {
   const { predictorIds } = req.body;
-  
+
+  logger.info(`Received exclusion update request from admin ${req.session.user.id}:`, predictorIds);
+
   if (!Array.isArray(predictorIds)) {
+    logger.error('Invalid predictorIds - not an array:', predictorIds);
     return res.status(400).json({ error: 'predictorIds must be an array' });
   }
-  
+
   // First, reset all predictors to not excluded
   await runQuery('UPDATE predictors SET stats_excluded = 0');
-  
+  logger.info('Reset all predictors to stats_excluded = 0');
+
   // Then set the specified predictors as excluded
   if (predictorIds.length > 0) {
     const placeholders = predictorIds.map(() => '?').join(',');
@@ -48,10 +52,13 @@ router.post('/api/excluded-predictors', catchAsync(async (req, res) => {
       `UPDATE predictors SET stats_excluded = 1 WHERE predictor_id IN (${placeholders})`,
       predictorIds
     );
+    logger.info(`Set stats_excluded = 1 for predictors: ${predictorIds.join(', ')}`);
+  } else {
+    logger.info('No predictors to exclude');
   }
-  
-  logger.info(`Admin ${req.session.user.id} updated excluded predictors: ${predictorIds.join(', ')}`);
-  
+
+  logger.info(`Admin ${req.session.user.id} successfully updated excluded predictors`);
+
   res.json({ success: true, excludedPredictors: predictorIds });
 }));
 

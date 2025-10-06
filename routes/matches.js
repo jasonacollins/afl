@@ -401,17 +401,16 @@ router.get('/stats', catchAsync(async (req, res) => {
     roundMatchCount: completedMatchesForRound.length
   });
 
-  // Create all predictors stats (including excluded ones) for admin controls
-  const allPredictorStats = [];
-  for (const predictor of allPredictors) {
-    if (!predictor.is_admin) {
-      allPredictorStats.push({
-        id: predictor.predictor_id,
-        name: predictor.name,
-        display_name: predictor.display_name
-      });
-    }
-  }
+  // Create all predictors list (including excluded ones) for admin controls
+  // Include ALL predictors except the Admin user itself
+  const allPredictorStats = allPredictors
+    .filter(predictor => !predictor.is_admin)
+    .map(predictor => ({
+      id: predictor.predictor_id,
+      name: predictor.name,
+      display_name: predictor.display_name,
+      stats_excluded: predictor.stats_excluded
+    }));
 
   res.render('stats', {
     years,
@@ -421,6 +420,8 @@ router.get('/stats', catchAsync(async (req, res) => {
     completedMatches,
     userPredictions,
     currentUser: req.session.user,
+    // csrfToken is automatically available via res.locals from csrf middleware
+    isAdmin: req.session.isAdmin,
     // Round-by-round data
     rounds,
     selectedRound: roundToShow,

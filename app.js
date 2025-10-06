@@ -41,7 +41,7 @@ app.use(helmet({
       scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "https://api.squiggle.com.au"]
+      connectSrc: ["'self'", "https://api.squiggle.com.au", "https://cdn.jsdelivr.net"]
     }
   },
   crossOriginResourcePolicy: { policy: "same-site" }
@@ -94,6 +94,9 @@ app.use(requestLogger);
 
 // CSRF Protection
 app.use(csrfProtection);
+
+// Favicon route to prevent 404 errors
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Routes
 app.use('/', authRoutes);
