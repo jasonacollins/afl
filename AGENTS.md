@@ -38,6 +38,15 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 **Dual-Environment Code**: The scoring service (`services/scoring-service.js`) is uniquely designed to work in both Node.js and browser environments - it's served as a client-side script via `/js/scoring-service.js`.
 
+**Security Architecture**: The application implements strict Content Security Policy (CSP) for security:
+- All JavaScript must be in external files (`public/js/`) - no inline scripts allowed
+- Event handlers use data attributes with event delegation, not inline `onclick` handlers
+- CSRF tokens passed via `window.csrfToken` (set in header partial) for all fetch requests
+- CSP configuration in `app.js` blocks `'unsafe-inline'` for scripts
+- Admin panel uses `public/js/admin.js` for all admin-specific JavaScript
+- Homepage uses `public/js/home.js` for featured predictor functionality
+- Shared functionality in `public/js/main.js`
+
 **ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
 - **Predictions**: Written directly to database by Python scripts (transactional, real-time)
 - **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
@@ -63,6 +72,13 @@ Winston-based logging with daily rotation in `logs/` directory. All database ope
 
 ### Client-Side Code Sharing
 The scoring service is served to browsers via Express route - any changes must maintain browser compatibility and avoid server-side dependencies.
+
+### Security Requirements
+All client-side JavaScript must comply with strict CSP:
+- No inline `<script>` blocks - all code must be in external files in `public/js/`
+- No inline event handlers (`onclick`, `onchange`, etc.) - use event delegation with data attributes
+- CSRF tokens for all POST/PUT/DELETE requests via `window.csrfToken`
+- When adding new JavaScript, place in appropriate file: `admin.js` (admin only), `home.js` (homepage), or `main.js` (shared)
 
 ## AI/LLM Specific Instructions
 

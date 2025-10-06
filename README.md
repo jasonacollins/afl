@@ -67,6 +67,9 @@ The AFL Predictions application follows a layered architecture pattern built on 
 - **express-session** - Session management with SQLite store
 - **bcrypt** - Password hashing
 - **express-rate-limit** - Login attempt protection
+- **helmet** - Security headers including Content Security Policy (CSP)
+- **CSRF protection** - Custom middleware for token-based CSRF validation
+- **Strict CSP** - All JavaScript in external files, no inline scripts or event handlers
 
 **External Integration:**
 - **Squiggle API** - AFL match data source
@@ -93,10 +96,12 @@ afl-predictions/
 ├── routes/           # HTTP route handlers (presentation layer)
 ├── services/         # Business logic and processing
 ├── models/           # Database abstraction and queries
+├── middleware/       # Custom middleware (CSRF protection, etc.)
 ├── utils/            # Shared utilities (logging, error handling)
 ├── scripts/          # Background tasks and data management
 ├── views/            # EJS template files
 ├── public/           # Static assets (CSS, JS, images)
+│   └── js/          # Client-side JavaScript (CSP-compliant)
 ├── data/             # SQLite database files and backups
 ├── logs/             # Application log files
 └── docker/           # Docker configuration files
@@ -105,9 +110,10 @@ afl-predictions/
 ### Key Design Decisions
 
 - **SQLite**: Embedded database for simplicity and sufficient performance
-- **Service Layer Pattern**: Business logic separated from routes for maintainability  
+- **Service Layer Pattern**: Business logic separated from routes for maintainability
 - **Custom Database Layer**: Promise-based SQLite abstraction with logging
 - **Session Authentication**: Simple session management with SQLite store
+- **Strict CSP**: All client-side JavaScript in external files with no inline scripts for enhanced security
 - **Scheduled Sync**: Daily API synchronization rather than real-time
 - **Monolithic Deployment**: Single container for operational simplicity
 

@@ -735,7 +735,8 @@ textarea {
   color: var(--light-text);
 }
 
-.save-prediction {
+.save-prediction,
+.clear-prediction {
   display: block;
   width: 100%;
   padding: 0.5rem;
@@ -746,6 +747,10 @@ textarea {
   font-size: 1rem;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.clear-prediction {
+  margin-top: 0.5rem;
 }
 
 .save-prediction:hover {
