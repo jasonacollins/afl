@@ -25,6 +25,10 @@
     </div>
   </div>
 
+  <div class="predictions-container"
+       data-predictions='<%- JSON.stringify(predictions) %>'
+       data-is-admin="<%= locals.isAdmin || false %>">
+
   <div class="round-selector">
     <h2>Select Round</h2>
     <div class="round-buttons">
@@ -135,16 +139,16 @@
                 <div id="team-selection-<%= match.match_id %>" class="team-selection">
                   <p>Who do you think will win?</p>
                   <div class="team-buttons">
-                    <button type="button" 
-                            class="team-button home-team-button <%= tippedTeam === 'home' ? 'selected' : '' %>" 
+                    <button type="button"
+                            class="team-button home-team-button <%= tippedTeam === 'home' ? 'selected' : '' %>"
                             data-team="home"
-                            onclick="selectTeam('<%= match.match_id %>', 'home')">
+                            data-match-id="<%= match.match_id %>">
                       <%= (match.home_team === 'Greater Western Sydney' && match.home_team_abbrev) ? match.home_team_abbrev : match.home_team %>
                     </button>
-                    <button type="button" 
-                            class="team-button away-team-button <%= tippedTeam === 'away' ? 'selected' : '' %>" 
+                    <button type="button"
+                            class="team-button away-team-button <%= tippedTeam === 'away' ? 'selected' : '' %>"
                             data-team="away"
-                            onclick="selectTeam('<%= match.match_id %>', 'away')">
+                            data-match-id="<%= match.match_id %>">
                       <%= (match.away_team === 'Greater Western Sydney' && match.away_team_abbrev) ? match.away_team_abbrev : match.away_team %>
                     </button>
                   </div>
@@ -221,32 +225,11 @@
       <% }) %>
     <% } %>
   </div>
+
+  </div><!-- Close predictions-container -->
 </div>
 
-<script>
-  // Pass user predictions to client-side JavaScript
-  window.userPredictions = <%- JSON.stringify(predictions) %>;
-  window.isAdmin = <%= locals.isAdmin || false %>;
-  
-  // Function to select a team for 50% predictions
-  function selectTeam(matchId, team) {
-    const homeButton = document.querySelector(`#team-selection-${matchId} .home-team-button`);
-    const awayButton = document.querySelector(`#team-selection-${matchId} .away-team-button`);
-    const saveButton = document.querySelector(`.save-prediction[data-match-id="${matchId}"]`);
-    
-    if (team === 'home') {
-      homeButton.classList.add('selected');
-      awayButton.classList.remove('selected');
-    } else {
-      awayButton.classList.add('selected');
-      homeButton.classList.remove('selected');
-    }
-    
-    if (saveButton) {
-      saveButton.dataset.tippedTeam = team;
-    }
-  }
-</script>
+<script src="/js/predictions.js"></script>
 <script src="/js/main.js"></script>
 
 <%- include('partials/footer') %>
