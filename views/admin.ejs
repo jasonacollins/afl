@@ -153,17 +153,28 @@
             <th>Display Name</th>
             <th>Role</th>
             <th>Year Joined</th>
+            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           <% predictors.forEach(predictor => { %>
-            <tr>
+            <tr class="<%= predictor.active === 0 ? 'inactive-predictor' : '' %>">
               <td><%= predictor.predictor_id %></td>
               <td><%= predictor.name %></td>
               <td><%= predictor.display_name %></td>
               <td><%= predictor.is_admin ? 'Admin' : 'User' %></td>
               <td><%= predictor.year_joined || 'N/A' %></td>
+              <td>
+                <button
+                  data-action="toggle-active-status"
+                  data-predictor-id="<%= predictor.predictor_id %>"
+                  data-active="<%= predictor.active !== 0 %>"
+                  class="button <%= predictor.active === 0 ? 'secondary-button' : 'primary-button' %>"
+                >
+                  <%= predictor.active === 0 ? 'Inactive' : 'Active' %>
+                </button>
+              </td>
               <td>
                 <button
                   data-action="show-reset-password"

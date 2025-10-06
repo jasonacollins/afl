@@ -678,12 +678,12 @@ router.post('/set-featured-predictors', async (req, res, next) => {
   try {
     const { predictorIds } = req.body;
     const selectedIds = Array.isArray(predictorIds) ? predictorIds : (predictorIds ? [predictorIds] : []);
-    
+
     logger.info(`Admin ${req.session.user.id} setting featured predictors: ${selectedIds.join(', ')}`);
-    
+
     // Reset all predictors to not homepage available
     await runQuery('UPDATE predictors SET homepage_available = 0, is_default_featured = 0');
-    
+
     // Set selected predictors as homepage available
     if (selectedIds.length > 0) {
       const placeholders = selectedIds.map(() => '?').join(',');
@@ -691,24 +691,63 @@ router.post('/set-featured-predictors', async (req, res, next) => {
         `UPDATE predictors SET homepage_available = 1 WHERE predictor_id IN (${placeholders})`,
         selectedIds
       );
-      
+
       // Set the first selected predictor as default featured
       await runQuery(
         'UPDATE predictors SET is_default_featured = 1 WHERE predictor_id = ?',
         [selectedIds[0]]
       );
     }
-    
+
     logger.info(`Featured predictors updated: ${selectedIds.join(', ')}`);
-    
+
     res.redirect('/admin?success=Featured predictors updated successfully');
   } catch (error) {
-    logger.error('Unexpected error setting featured predictors', { 
+    logger.error('Unexpected error setting featured predictors', {
       predictorIds: req.body.predictorIds,
-      error: error.message 
+      error: error.message
     });
     next(error);
   }
 });
+
+// Get all predictors with active status
+router.get('/api/predictors', catchAsync(async (req, res) => {
+  const predictors = await getQuery(
+    'SELECT predictor_id, name, display_name, active, year_joined FROM predictors ORDER BY name'
+  );
+
+  res.json({ predictors });
+}));
+
+// Toggle predictor active status
+router.post('/api/predictors/:predictorId/toggle-active', catchAsync(async (req, res) => {
+  const predictorId = req.params.predictorId;
+  const { active } = req.body;
+
+  logger.info(`Admin ${req.session.user.id} toggling active status for predictor ${predictorId} to ${active}`);
+
+  // Validate input
+  if (active === undefined) {
+    throw createValidationError('Active status is required');
+  }
+
+  // Check if predictor exists
+  const predictor = await predictorService.getPredictorById(predictorId);
+
+  if (!predictor) {
+    throw createNotFoundError('Predictor');
+  }
+
+  // Update active status
+  await runQuery(
+    'UPDATE predictors SET active = ? WHERE predictor_id = ?',
+    [active ? 1 : 0, predictorId]
+  );
+
+  logger.info(`Predictor ${predictorId} active status updated to ${active}`);
+
+  res.json({ success: true });
+}));
 
 module.exports = router;

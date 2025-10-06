@@ -494,6 +494,11 @@ textarea {
   font-weight: 600;
 }
 
+.admin-table tr.inactive-predictor {
+  opacity: 0.6;
+  background-color: var(--background-light);
+}
+
 .user-selection {
   margin-bottom: 1.5rem;
 }

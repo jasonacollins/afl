@@ -161,12 +161,22 @@ async function initializeDatabase() {
       const statsExcludedColumnExists = await getOne(
         "SELECT 1 FROM pragma_table_info('predictors') WHERE name='stats_excluded'"
       );
-      
+
       if (!statsExcludedColumnExists) {
         logger.info('Adding stats_excluded column to predictors table');
         await runQuery("ALTER TABLE predictors ADD COLUMN stats_excluded INTEGER DEFAULT 0");
       }
-      
+
+      // Check if 'active' column exists in predictors table
+      const activeColumnExists = await getOne(
+        "SELECT 1 FROM pragma_table_info('predictors') WHERE name='active'"
+      );
+
+      if (!activeColumnExists) {
+        logger.info('Adding active column to predictors table');
+        await runQuery("ALTER TABLE predictors ADD COLUMN active INTEGER DEFAULT 1");
+      }
+
       logger.info('Schema update check completed');
     }
   } catch (error) {

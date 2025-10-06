@@ -188,19 +188,25 @@ router.get('/stats', catchAsync(async (req, res) => {
   // Get all predictors, but include admin status and filter out excluded ones
   const allPredictors = await predictorService.getPredictorsWithAdminStatus();
   const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
-  
+
   // Get matches with results for the selected year
   const completedMatches = await matchService.getCompletedMatchesForYear(selectedYear);
-  
+
   // Get current user's predictions for completed matches in the selected year
   const userPredictions = await predictionService.getPredictionsForUser(req.session.user.id);
-  
+
   // Calculate accuracy for each predictor with additional metrics
   const predictorStats = [];
-  
+
   for (const predictor of predictors) {
     // Get all predictions for this predictor with results for the selected year
     const predictionResults = await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, selectedYear);
+
+    // Skip inactive predictors who have no predictions for this year
+    // (This allows historical data to show for periods when they were active)
+    if (predictor.active === 0 && predictionResults.length === 0) {
+      continue;
+    }
     
     let tipPoints = 0;
     let totalBrierScore = 0;

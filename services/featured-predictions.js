@@ -12,11 +12,11 @@ const scoringService = require('../services/scoring-service');
 async function getHomepageAvailablePredictorIds() {
   try {
     logger.debug('Fetching homepage available predictor IDs');
-    
+
     const predictors = await getQuery(
-      'SELECT predictor_id FROM predictors WHERE homepage_available = 1 ORDER BY display_name'
+      'SELECT predictor_id FROM predictors WHERE homepage_available = 1 AND active = 1 ORDER BY display_name'
     );
-    
+
     return predictors.map(p => p.predictor_id.toString());
   } catch (error) {
     logger.error('Error fetching homepage available predictors', { error: error.message });
@@ -28,22 +28,22 @@ async function getHomepageAvailablePredictorIds() {
 async function getDefaultFeaturedPredictorId() {
   try {
     logger.debug('Fetching default featured predictor ID');
-    
+
     const predictor = await getOne(
-      'SELECT predictor_id FROM predictors WHERE is_default_featured = 1'
+      'SELECT predictor_id FROM predictors WHERE is_default_featured = 1 AND active = 1'
     );
-    
+
     // If no default is set, use the first homepage available predictor
     if (!predictor) {
       const firstAvailable = await getOne(
-        'SELECT predictor_id FROM predictors WHERE homepage_available = 1 ORDER BY display_name LIMIT 1'
+        'SELECT predictor_id FROM predictors WHERE homepage_available = 1 AND active = 1 ORDER BY display_name LIMIT 1'
       );
-      
+
       const defaultId = firstAvailable ? firstAvailable.predictor_id : null;
       logger.info(`No default featured predictor set, using first available: ${defaultId}`);
       return defaultId;
     }
-    
+
     return predictor.predictor_id;
   } catch (error) {
     logger.error('Error fetching default featured predictor', { error: error.message });
@@ -55,11 +55,11 @@ async function getDefaultFeaturedPredictorId() {
 async function getHomepageAvailablePredictors() {
   try {
     logger.debug('Fetching homepage available predictors');
-    
+
     const predictors = await getQuery(
-      'SELECT predictor_id, name, display_name, is_default_featured FROM predictors WHERE homepage_available = 1 ORDER BY display_name'
+      'SELECT predictor_id, name, display_name, is_default_featured FROM predictors WHERE homepage_available = 1 AND active = 1 ORDER BY display_name'
     );
-    
+
     return predictors;
   } catch (error) {
     logger.error('Error fetching homepage available predictors', { error: error.message });

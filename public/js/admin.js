@@ -6,9 +6,10 @@ window.isAdmin = true;
 // Initialize with empty predictions
 window.userPredictions = {};
 
-// Get CSRF token from window (set by header partial)
+// Get CSRF token from meta tag
 function getCsrfToken() {
-  return window.csrfToken || '';
+  const metaTag = document.querySelector('meta[name="csrf-token"]');
+  return metaTag ? metaTag.getAttribute('content') : '';
 }
 
 // Modal functions
@@ -39,6 +40,58 @@ function confirmDeleteUser(userId, userName) {
 
 function closeDeleteModal() {
   document.getElementById('deleteUserModal').style.display = 'none';
+}
+
+// Toggle predictor active status
+function toggleActiveStatus(predictorId, newActiveStatus, button) {
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = 'Updating...';
+
+  fetch(`/admin/api/predictors/${predictorId}/toggle-active`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': getCsrfToken()
+    },
+    body: JSON.stringify({ active: newActiveStatus })
+  })
+  .then(response => {
+    if (!response.ok) {
+      return response.text().then(text => {
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      });
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Update button
+      button.textContent = newActiveStatus ? 'Active' : 'Inactive';
+      button.dataset.active = newActiveStatus.toString();
+      button.className = newActiveStatus ? 'button primary-button' : 'button secondary-button';
+      button.disabled = false;
+
+      // Update row styling
+      const row = button.closest('tr');
+      if (newActiveStatus) {
+        row.classList.remove('inactive-predictor');
+      } else {
+        row.classList.add('inactive-predictor');
+      }
+    } else {
+      console.error('Server returned error:', data);
+      alert('Error updating predictor status: ' + (data.message || 'Unknown error'));
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Error updating predictor status: ' + error.message);
+    button.textContent = originalText;
+    button.disabled = false;
+  });
 }
 
 // Function to select a user and update the UI
@@ -436,6 +489,14 @@ document.addEventListener('DOMContentLoaded', function() {
       const userId = button.dataset.userId;
       const userName = button.dataset.userName;
       confirmDeleteUser(userId, userName);
+    }
+
+    // Handle toggle active status
+    if (e.target.closest('[data-action="toggle-active-status"]')) {
+      const button = e.target.closest('[data-action="toggle-active-status"]');
+      const predictorId = button.dataset.predictorId;
+      const isActive = button.dataset.active === 'true';
+      toggleActiveStatus(predictorId, !isActive, button);
     }
 
     // Handle close buttons

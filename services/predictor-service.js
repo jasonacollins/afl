@@ -9,17 +9,35 @@ const passwordService = require('./password-service');
 async function getAllPredictors() {
   try {
     logger.debug('Fetching all predictors');
-    
+
     const predictors = await getQuery(
-      'SELECT predictor_id, name, display_name, is_admin, year_joined FROM predictors ORDER BY name'
+      'SELECT predictor_id, name, display_name, is_admin, year_joined, active FROM predictors ORDER BY name'
     );
-    
+
     logger.info(`Retrieved ${predictors.length} predictors`);
-    
+
     return predictors;
   } catch (error) {
     logger.error('Error fetching all predictors', { error: error.message });
     throw new AppError('Failed to fetch predictors', 500, 'DATABASE_ERROR');
+  }
+}
+
+// Get only active predictors
+async function getActivePredictors() {
+  try {
+    logger.debug('Fetching active predictors');
+
+    const predictors = await getQuery(
+      'SELECT predictor_id, name, display_name, is_admin, year_joined FROM predictors WHERE active = 1 ORDER BY name'
+    );
+
+    logger.info(`Retrieved ${predictors.length} active predictors`);
+
+    return predictors;
+  } catch (error) {
+    logger.error('Error fetching active predictors', { error: error.message });
+    throw new AppError('Failed to fetch active predictors', 500, 'DATABASE_ERROR');
   }
 }
 
@@ -209,13 +227,13 @@ async function deletePredictor(predictorId) {
 async function getPredictorsWithAdminStatus() {
   try {
     logger.debug('Fetching predictors with admin status');
-    
+
     const predictors = await getQuery(
-      'SELECT predictor_id, name, display_name, is_admin, stats_excluded FROM predictors ORDER BY name'
+      'SELECT predictor_id, name, display_name, is_admin, stats_excluded, active FROM predictors ORDER BY name'
     );
-    
+
     logger.info(`Retrieved ${predictors.length} predictors with admin status`);
-    
+
     return predictors;
   } catch (error) {
     logger.error('Error fetching predictors with admin status', { error: error.message });
@@ -225,6 +243,7 @@ async function getPredictorsWithAdminStatus() {
 
 module.exports = {
   getAllPredictors,
+  getActivePredictors,
   getPredictorById,
   getPredictorByName,
   createPredictor,
