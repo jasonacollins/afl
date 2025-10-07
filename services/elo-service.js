@@ -251,26 +251,64 @@ class EloService {
     });
     
     const yearPositions = new Map(); // Track position within each year
-    
-    sortedYearRounds.forEach(yearRoundKey => {
+
+    // Create a mapping to track Finals Week 1 across years
+    const yearRoundToXCoord = new Map();
+    const finalsWeek1Tracking = new Map(); // Track if we've seen Finals Week 1 for each year
+
+    // Pre-calculate x-coordinates for all year-rounds
+    sortedYearRounds.forEach((yearRoundKey) => {
       const [year, round] = yearRoundKey.split('-', 2);
       const currentYear = parseInt(year);
-      const roundMatches = matchesByYearRound.get(yearRoundKey);
-      
-      // Initialize year position tracking
-      if (!yearPositions.has(currentYear)) {
-        yearPositions.set(currentYear, 0);
-      }
-      
+      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
+
       // Check for season change
       if (previousYear !== null && currentYear !== previousYear) {
         // Add gap between years
         stepIndex += 2;
-        
+        finalsWeek1Tracking.delete(previousYear); // Clear tracking for previous year
+      }
+
+      if (isFinalsWeek1) {
+        const alreadySeenFinalsWeek1 = finalsWeek1Tracking.has(currentYear);
+        if (!alreadySeenFinalsWeek1) {
+          // First Finals Week 1 round for this year
+          yearRoundToXCoord.set(yearRoundKey, stepIndex);
+          finalsWeek1Tracking.set(currentYear, stepIndex);
+          stepIndex++; // Increment only once for Finals Week 1
+        } else {
+          // Second Finals Week 1 round - use same coordinate
+          yearRoundToXCoord.set(yearRoundKey, finalsWeek1Tracking.get(currentYear));
+        }
+      } else {
+        // Not Finals Week 1 - use sequential index
+        yearRoundToXCoord.set(yearRoundKey, stepIndex);
+        stepIndex++;
+      }
+
+      previousYear = currentYear;
+    });
+
+    // Reset for actual processing
+    previousYear = null;
+
+    sortedYearRounds.forEach(yearRoundKey => {
+      const [year, round] = yearRoundKey.split('-', 2);
+      const currentYear = parseInt(year);
+      const roundMatches = matchesByYearRound.get(yearRoundKey);
+      const roundXCoordinate = yearRoundToXCoord.get(yearRoundKey);
+
+      // Initialize year position tracking
+      if (!yearPositions.has(currentYear)) {
+        yearPositions.set(currentYear, 0);
+      }
+
+      // Check for season change and update team ratings
+      if (previousYear !== null && currentYear !== previousYear) {
         // Update team ratings to reflect season carryover for ALL teams in the new year
         teams.forEach(team => {
           // Find the first match for this team in the current year (any round)
-          const firstMatchInYear = filteredData.find(match => 
+          const firstMatchInYear = filteredData.find(match =>
             match.team === team && parseInt(match.year) === currentYear
           );
           if (firstMatchInYear) {
@@ -278,21 +316,23 @@ class EloService {
           }
         });
       }
-      
+
       // Get teams that actually play in this round
       const teamsInThisRound = new Set(roundMatches.map(match => match.team));
-      
-      // Use sequential step index for x-coordinate
-      const roundXCoordinate = stepIndex++;
+
       yearPositions.set(currentYear, yearPositions.get(currentYear) + 1);
-      
-      // Create "before" data point - only for teams that play in this round  
+
+      // Determine display label for round
+      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
+      const roundLabel = isFinalsWeek1 ? 'Finals Week 1' : round;
+
+      // Create "before" data point - only for teams that play in this round
       const beforePoint = {
         x: roundXCoordinate,
         year: currentYear,
-        round: round,
+        round: roundLabel,
         type: 'before',
-        label: `${year} ${round} (Start)`
+        label: `${year} ${roundLabel} (Start)`
       };
       
       // Only add ratings for teams that actually play in this round
@@ -353,9 +393,9 @@ class EloService {
         const afterGamePoint = {
           x: roundXCoordinate, // Same x-coordinate for all games in this round
           year: currentYear,
-          round: round,
+          round: roundLabel,
           type: 'after_game',
-          label: `${year} ${round} (Game ${gameIndex + 1})`,
+          label: `${year} ${roundLabel} (Game ${gameIndex + 1})`,
           gameIndex: gameIndex
         };
         
@@ -434,10 +474,10 @@ class EloService {
 
     const finalsOrder = {
       'Elimination Final': 100,
-      'Qualifying Final': 101, 
-      'Semi Final': 102,
-      'Preliminary Final': 103,
-      'Grand Final': 104
+      'Qualifying Final': 100, // Same as Elimination Final (Finals Week 1)
+      'Semi Final': 101,
+      'Preliminary Final': 102,
+      'Grand Final': 103
     };
 
     // Handle finals
@@ -446,15 +486,15 @@ class EloService {
     }
     if (finalsOrder[roundA] !== undefined) return 1;
     if (finalsOrder[roundB] !== undefined) return -1;
-    
+
     // Handle regular season rounds (numbers)
     const numA = parseInt(roundA);
     const numB = parseInt(roundB);
-    
+
     if (!isNaN(numA) && !isNaN(numB)) {
       return numA - numB;
     }
-    
+
     // Fallback to string comparison
     return roundA.localeCompare(roundB);
   }
@@ -514,11 +554,43 @@ class EloService {
       return this.compareRounds(a, b);
     });
 
-    let stepIndex = 0;
+    // Create a mapping of rounds to their x-coordinate index
+    // Rounds that should appear together (Finals Week 1) get the same index
+    const roundToXCoord = new Map();
+    let xCoordIndex = 0;
+    let previousFinalsWeek1 = false;
 
-    sortedRounds.forEach((round, roundIndex) => {
+    sortedRounds.forEach((round) => {
+      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
+
+      if (isFinalsWeek1) {
+        if (!previousFinalsWeek1) {
+          // First Finals Week 1 round - use current index
+          roundToXCoord.set(round, xCoordIndex);
+          previousFinalsWeek1 = true;
+        } else {
+          // Second Finals Week 1 round - use same index as first
+          roundToXCoord.set(round, xCoordIndex);
+        }
+      } else {
+        // Not Finals Week 1 - increment if we just finished Finals Week 1
+        if (previousFinalsWeek1) {
+          xCoordIndex++;
+          previousFinalsWeek1 = false;
+        }
+        roundToXCoord.set(round, xCoordIndex);
+      }
+
+      // Increment for next round (unless it's the second Finals Week 1 round)
+      if (!isFinalsWeek1 || !previousFinalsWeek1) {
+        xCoordIndex++;
+      }
+    });
+
+    sortedRounds.forEach((round) => {
       const roundMatches = matchesByRound.get(round);
-      
+      const roundXCoord = roundToXCoord.get(round);
+
       // Sort matches within round by date, then by team to ensure consistent ordering
       roundMatches.sort((a, b) => {
         const dateCompare = new Date(a.date) - new Date(b.date);
@@ -545,13 +617,17 @@ class EloService {
 
       // Get teams that actually play in this round
       const teamsInThisRound = new Set(roundMatches.map(match => match.team));
-      
+
+      // Determine display label for round
+      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
+      const roundLabel = isFinalsWeek1 ? 'Finals Week 1' : round;
+
       // Create "before" data point - only for teams that play in this round
       const beforePoint = {
-        x: roundIndex,
-        round: round,
+        x: roundXCoord,
+        round: roundLabel,
         type: 'before',
-        label: `${round} (Start)`
+        label: `${roundLabel} (Start)`
       };
       
       // Only add ratings for teams that actually play in this round
@@ -584,10 +660,10 @@ class EloService {
 
         // Create data point after this game - EXACT same x-coordinate for perfect alignment
         const afterGamePoint = {
-          x: roundIndex, // Exact same x-coordinate as round for perfect vertical alignment
-          round: round,
+          x: roundXCoord, // Exact same x-coordinate as round for perfect vertical alignment
+          round: roundLabel,
           type: 'after_game',
-          label: `${round} (Game ${gameIndex + 1})`,
+          label: `${roundLabel} (Game ${gameIndex + 1})`,
           gameIndex: gameIndex
         };
         
@@ -663,32 +739,32 @@ class EloService {
     const finalsOrder = {
       'OR': 0,
       'Elimination Final': 100,
-      'Qualifying Final': 101,
-      'Semi Final': 102,
-      'Preliminary Final': 103,
-      'Grand Final': 104
+      'Qualifying Final': 100, // Same as Elimination Final (Finals Week 1)
+      'Semi Final': 101,
+      'Preliminary Final': 102,
+      'Grand Final': 103
     };
 
     return rounds.sort((a, b) => {
       // Handle pre-season/opening round
       if (a === 'OR') return -1;
       if (b === 'OR') return 1;
-      
+
       // Handle finals
       if (finalsOrder[a] !== undefined && finalsOrder[b] !== undefined) {
         return finalsOrder[a] - finalsOrder[b];
       }
       if (finalsOrder[a] !== undefined) return 1;
       if (finalsOrder[b] !== undefined) return -1;
-      
+
       // Handle regular season rounds (numbers)
       const numA = parseInt(a);
       const numB = parseInt(b);
-      
+
       if (!isNaN(numA) && !isNaN(numB)) {
         return numA - numB;
       }
-      
+
       // Fallback to string comparison
       return a.localeCompare(b);
     });
