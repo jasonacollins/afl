@@ -467,7 +467,8 @@ class SeasonSimulator:
             'top4_count': 0,
             'prelim_count': 0,
             'grand_final_count': 0,
-            'premiership_count': 0
+            'premiership_count': 0,
+            'ladder_positions': defaultdict(int)  # Track count of each ladder position
         })
 
         # Run simulations
@@ -484,10 +485,11 @@ class SeasonSimulator:
             # Get top 8 for finals
             top8_teams = [team['team'] for team in ladder[:8]]
 
-            # Track regular season wins
-            for team_data in ladder:
+            # Track regular season wins and ladder positions
+            for position, team_data in enumerate(ladder, start=1):
                 team = team_data['team']
                 team_outcomes[team]['wins'].append(team_data['wins'])
+                team_outcomes[team]['ladder_positions'][position] += 1
 
             # Track finals appearances
             for team in top8_teams:
@@ -514,6 +516,11 @@ class SeasonSimulator:
         for team, outcomes in team_outcomes.items():
             wins_array = np.array(outcomes['wins'])
 
+            # Calculate ladder position probabilities
+            ladder_position_probs = {}
+            for position, count in outcomes['ladder_positions'].items():
+                ladder_position_probs[position] = count / self.num_simulations
+
             result = {
                 'team': team,
                 'current_elo': self.initial_ratings.get(team, self.base_rating),
@@ -527,7 +534,8 @@ class SeasonSimulator:
                 'top4_probability': outcomes['top4_count'] / self.num_simulations,
                 'prelim_probability': outcomes['prelim_count'] / self.num_simulations,
                 'grand_final_probability': outcomes['grand_final_count'] / self.num_simulations,
-                'premiership_probability': outcomes['premiership_count'] / self.num_simulations
+                'premiership_probability': outcomes['premiership_count'] / self.num_simulations,
+                'ladder_position_probabilities': ladder_position_probs
             }
             results.append(result)
 
