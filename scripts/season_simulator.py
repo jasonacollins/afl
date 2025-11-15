@@ -29,7 +29,7 @@ class SeasonSimulator:
     Simulates AFL season outcomes using Monte Carlo methods
     """
 
-    def __init__(self, model_path, db_path, year, num_simulations=50000):
+    def __init__(self, model_path, db_path, year, num_simulations=50000, from_scratch=False):
         """
         Initialize the season simulator
 
@@ -43,10 +43,13 @@ class SeasonSimulator:
             Year to simulate
         num_simulations : int
             Number of Monte Carlo simulations to run
+        from_scratch : bool
+            If True, simulate entire season ignoring actual results
         """
         self.year = year
         self.num_simulations = num_simulations
         self.db_path = db_path
+        self.from_scratch = from_scratch
 
         # Load the margin ELO model
         print(f"Loading margin ELO model from {model_path}...")
@@ -65,8 +68,37 @@ class SeasonSimulator:
         self.margin_scale = params['margin_scale']
         self.scaling_factor = params['scaling_factor']
 
+        # Store yearly ratings if available
+        self.yearly_ratings = model_data.get('yearly_ratings', {})
+
         # Current team ratings
         self.initial_ratings = model_data['team_ratings'].copy()
+
+        # If simulating from scratch, apply season carryover to get start-of-year ratings
+        if from_scratch:
+            print(f"\nFrom-scratch mode: Simulating entire {year} season from beginning")
+
+            # Try to get end-of-previous-year ratings
+            prev_year_key = str(year - 1)
+            if prev_year_key in self.yearly_ratings:
+                print(f"Using end-of-{year-1} ratings as starting point")
+                self.initial_ratings = self.yearly_ratings[prev_year_key].copy()
+
+                # Apply season carryover
+                print(f"Applying season carryover ({self.season_carryover})")
+                for team in self.initial_ratings:
+                    old_rating = self.initial_ratings[team]
+                    self.initial_ratings[team] = (
+                        self.base_rating +
+                        self.season_carryover * (old_rating - self.base_rating)
+                    )
+            else:
+                print(f"No {year-1} ratings found, using base ratings for all teams")
+                # Use base ratings for all teams
+                all_teams = set()
+                for team in self.initial_ratings.keys():
+                    all_teams.add(team)
+                self.initial_ratings = {team: self.base_rating for team in all_teams}
 
         print(f"Model loaded successfully with {len(self.initial_ratings)} teams")
 
@@ -81,27 +113,37 @@ class SeasonSimulator:
         all_matches = fetch_matches_for_prediction(self.db_path, self.year)
         all_matches = all_matches[all_matches['year'] == self.year].copy()
 
-        # Separate completed and upcoming matches
-        self.completed_matches = all_matches[
-            (~all_matches['hscore'].isna()) & (~all_matches['ascore'].isna())
-        ].copy()
+        if self.from_scratch:
+            # Treat all matches as upcoming, ignore actual results
+            print("From-scratch mode: Ignoring all actual match results")
+            self.completed_matches = all_matches.iloc[0:0].copy()  # Empty dataframe with same structure
+            self.upcoming_matches = all_matches.copy()
 
-        self.upcoming_matches = all_matches[
-            (all_matches['hscore'].isna()) | (all_matches['ascore'].isna())
-        ].copy()
+            print(f"Total matches to simulate: {len(self.upcoming_matches)}")
+        else:
+            # Separate completed and upcoming matches
+            self.completed_matches = all_matches[
+                (~all_matches['hscore'].isna()) & (~all_matches['ascore'].isna())
+            ].copy()
 
-        print(f"Found {len(self.completed_matches)} completed matches")
-        print(f"Found {len(self.upcoming_matches)} upcoming matches to simulate")
+            self.upcoming_matches = all_matches[
+                (all_matches['hscore'].isna()) | (all_matches['ascore'].isna())
+            ].copy()
 
-        # Check if there are any matches to simulate
-        if len(self.upcoming_matches) == 0:
-            print("\n" + "="*80)
-            print("WARNING: No upcoming matches found for this year!")
-            print("="*80)
-            print("This means all matches for the season are already complete.")
-            print("The simulation will only model finals outcomes based on")
-            print("the current final ladder positions (no variation).")
-            print("="*80 + "\n")
+            print(f"Found {len(self.completed_matches)} completed matches")
+            print(f"Found {len(self.upcoming_matches)} upcoming matches to simulate")
+
+            # Check if there are any matches to simulate
+            if len(self.upcoming_matches) == 0:
+                print("\n" + "="*80)
+                print("WARNING: No upcoming matches found for this year!")
+                print("="*80)
+                print("This means all matches for the season are already complete.")
+                print("The simulation will only model finals outcomes based on")
+                print("the current final ladder positions (no variation).")
+                print("\nTIP: Use --from-scratch flag to simulate the completed season")
+                print("     as if it hasn't been played yet.")
+                print("="*80 + "\n")
 
         # Get current standings from completed matches
         self.calculate_current_standings()
@@ -473,19 +515,23 @@ def main():
                         help='Number of simulations to run (default: 50000)')
     parser.add_argument('--output', type=str, default=None,
                         help='Output path for results JSON file')
+    parser.add_argument('--from-scratch', action='store_true',
+                        help='Simulate entire season from beginning, ignoring actual results')
 
     args = parser.parse_args()
 
     # Set default output path if not specified
     if args.output is None:
-        args.output = f'../data/simulations/season_simulation_{args.year}.json'
+        suffix = '_from_scratch' if args.from_scratch else ''
+        args.output = f'../data/simulations/season_simulation_{args.year}{suffix}.json'
 
     # Create simulator
     simulator = SeasonSimulator(
         model_path=args.model_path,
         db_path=args.db_path,
         year=args.year,
-        num_simulations=args.num_simulations
+        num_simulations=args.num_simulations,
+        from_scratch=args.from_scratch
     )
 
     # Run simulations

@@ -22,12 +22,23 @@ The simulation requires:
 
 ### Command
 
+**For an active season with some matches completed:**
 ```bash
 cd scripts
 python3 season_simulator.py \
   --year 2025 \
   --model-path ../data/models/margin/afl_elo_margin_only_trained_to_2024.json \
   --num-simulations 50000
+```
+
+**To simulate a completed season from scratch (testing/demonstration):**
+```bash
+cd scripts
+python3 season_simulator.py \
+  --year 2025 \
+  --model-path ../data/models/margin/afl_elo_margin_only_trained_to_2024.json \
+  --num-simulations 50000 \
+  --from-scratch
 ```
 
 **Note:** The `--db-path` parameter defaults to `../data/database/afl_predictions.db` when running from the `scripts/` directory. If your database is located elsewhere, specify it explicitly:
@@ -44,9 +55,10 @@ python3 season_simulator.py \
 
 - `--year`: The season year to simulate (required)
 - `--model-path`: Path to the trained margin ELO model JSON file (required)
-- `--db-path`: Path to the SQLite database (default: `data/database/afl_predictions.db`)
+- `--db-path`: Path to the SQLite database (default: `../data/database/afl_predictions.db`)
 - `--num-simulations`: Number of Monte Carlo simulations to run (default: 50000)
-- `--output`: Output path for results JSON file (default: `data/simulations/season_simulation_YYYY.json`)
+- `--output`: Output path for results JSON file (default: `../data/simulations/season_simulation_YYYY.json`)
+- `--from-scratch`: Simulate entire season from beginning, ignoring actual results (useful for testing with completed seasons)
 
 ## Output
 
