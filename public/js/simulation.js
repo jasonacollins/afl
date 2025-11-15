@@ -16,9 +16,11 @@
     const errorText = document.getElementById('error-text');
     const summaryStats = document.getElementById('summary-stats');
     const tableContainer = document.getElementById('table-container');
-    const legend = document.getElementById('legend');
     const tbody = document.getElementById('simulation-tbody');
     const yearSelect = document.getElementById('year-select');
+    const ladderPositionCard = document.getElementById('ladder-position-card');
+    const matrixHeader = document.getElementById('matrix-header');
+    const matrixTbody = document.getElementById('matrix-tbody');
 
     /**
      * Initialize the page
@@ -136,10 +138,12 @@
         // Show summary stats and table
         summaryStats.style.display = 'grid';
         tableContainer.style.display = 'block';
-        legend.style.display = 'flex';
 
         // Populate table
         populateTable();
+
+        // Populate ladder position matrix if data is available
+        populateLadderPositionMatrix();
     }
 
     /**
@@ -165,15 +169,16 @@
                 record += `-${team.current_draws}`;
             }
 
-            // Finals badge
+            // Finals badge - only show for teams 4-8 (not top 3, not bottom 5)
             let finalsBadge = '';
             let badgeClass = '';
             let badgeText = '';
 
-            if (team.finals_probability >= 0.75) {
+            if (team.finals_probability >= 0.75 && position > 3 && position <= 8) {
                 badgeClass = position <= 4 ? 'top4' : 'top8';
                 badgeText = position <= 4 ? 'Top 4' : 'Finals';
-            } else if (team.finals_probability < 0.25) {
+            } else if (team.finals_probability < 0.25 && position <= 13) {
+                // Only show "Outside 8" for positions 9-13 (not bottom 5)
                 badgeClass = 'out';
                 badgeText = 'Outside 8';
             }
@@ -194,7 +199,7 @@
                 <td><span class="record">${record}</span></td>
                 <td>
                     <strong>${team.projected_wins.toFixed(1)}</strong>
-                    <span class="projected">(${Math.round(team.wins_10th_percentile)}-${Math.round(team.wins_90th_percentile)})</span>
+                    <span class="projected">(${team.wins_10th_percentile.toFixed(1)}-${team.wins_90th_percentile.toFixed(1)})</span>
                 </td>
                 ${createProbabilityCell(team.finals_probability)}
                 ${createProbabilityCell(team.top4_probability)}
@@ -229,6 +234,83 @@
                 <span class="prob-value">${displayValue}</span>
             </td>
         `;
+    }
+
+    /**
+     * Populate the ladder position probability matrix
+     */
+    function populateLadderPositionMatrix() {
+        // Check if ladder position data is available
+        if (!simulationData || !simulationData.results || !simulationData.results[0] ||
+            !simulationData.results[0].ladder_position_probabilities) {
+            // Hide the ladder position card if data is not available
+            ladderPositionCard.style.display = 'none';
+            return;
+        }
+
+        // Show the ladder position card
+        ladderPositionCard.style.display = 'block';
+
+        // Get the number of teams
+        const numTeams = simulationData.results.length;
+
+        // Create header row
+        matrixHeader.innerHTML = '<th>Team</th>';
+        for (let i = 1; i <= numTeams; i++) {
+            const th = document.createElement('th');
+            th.textContent = i === 1 ? '1st' : i === 2 ? '2nd' : i === 3 ? '3rd' : `${i}th`;
+            matrixHeader.appendChild(th);
+        }
+
+        // Clear tbody
+        matrixTbody.innerHTML = '';
+
+        // Sort teams by current ladder position (based on projected wins)
+        const sortedTeams = [...simulationData.results].sort((a, b) =>
+            b.projected_wins - a.projected_wins
+        );
+
+        // Create rows for each team
+        sortedTeams.forEach(team => {
+            const row = document.createElement('tr');
+
+            // Team name cell
+            const nameCell = document.createElement('td');
+            nameCell.className = 'team-name';
+            nameCell.textContent = team.team;
+            row.appendChild(nameCell);
+
+            // Position probability cells
+            for (let pos = 1; pos <= numTeams; pos++) {
+                const cell = document.createElement('td');
+                const probability = team.ladder_position_probabilities?.[pos] || 0;
+                const percentage = (probability * 100).toFixed(0);
+
+                // Determine cell class based on probability
+                if (probability >= 0.15) {
+                    cell.className = 'prob-high';
+                } else if (probability >= 0.05) {
+                    cell.className = 'prob-medium';
+                } else if (probability > 0 && probability < 0.01) {
+                    cell.className = 'prob-zero';
+                    cell.textContent = '<1';
+                    row.appendChild(cell);
+                    continue;
+                } else if (probability === 0) {
+                    cell.className = 'prob-zero';
+                    cell.textContent = '-';
+                    row.appendChild(cell);
+                    continue;
+                } else {
+                    cell.className = 'prob-low';
+                }
+
+                cell.textContent = percentage;
+                row.appendChild(cell);
+            }
+
+            matrixTbody.appendChild(row);
+        });
     }
 
     /**
@@ -341,7 +423,7 @@
         errorMessage.style.display = 'none';
         summaryStats.style.display = 'none';
         tableContainer.style.display = 'none';
-        legend.style.display = 'none';
+        ladderPositionCard.style.display = 'none';
     }
 
     /**
@@ -360,7 +442,7 @@
         errorMessage.style.display = 'block';
         summaryStats.style.display = 'none';
         tableContainer.style.display = 'none';
-        legend.style.display = 'none';
+        ladderPositionCard.style.display = 'none';
     }
 
     /**

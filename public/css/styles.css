@@ -1573,6 +1573,50 @@ textarea {
   border-left: 4px solid var(--secondary-color);
 }
 
+/* Ladder position probability matrix */
+.matrix-table {
+  font-size: 11px;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.matrix-table th {
+  padding: 6px 4px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.matrix-table td {
+  padding: 6px 4px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+}
+
+.matrix-table .team-name {
+  text-align: left;
+  font-weight: 500;
+  padding-left: 8px;
+  white-space: nowrap;
+}
+
+.matrix-table .prob-high {
+  background-color: rgba(76, 175, 80, 0.3);
+  font-weight: 600;
+}
+
+.matrix-table .prob-medium {
+  background-color: rgba(255, 152, 0, 0.2);
+}
+
+.matrix-table .prob-low {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.matrix-table .prob-zero {
+  color: #ccc;
+}
+
 /* Responsive adjustments for simulation page */
 @media (max-width: 768px) {
   .simulation-card {
