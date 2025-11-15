@@ -265,7 +265,7 @@
             // Position probability cells
             for (let pos = 1; pos <= numTeams; pos++) {
                 const cell = document.createElement('td');
-                const probability = team.ladder_position_probabilities?.[pos] || 0;
+                const probability = team.ladder_position_probabilities?.[String(pos)] || 0;
                 const percentage = (probability * 100).toFixed(0);
 
                 // Determine cell class based on probability
