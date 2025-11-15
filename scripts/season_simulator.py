@@ -74,32 +74,36 @@ class SeasonSimulator:
         # Current team ratings
         self.initial_ratings = model_data['team_ratings'].copy()
 
-        # If simulating from scratch, apply season carryover to get start-of-year ratings
-        if from_scratch:
-            print(f"\nFrom-scratch mode: Simulating entire {year} season from beginning")
+        # Determine if we need to apply season carryover to get start-of-year ratings
+        # This happens when the model was trained through a previous year
+        prev_year_key = str(year - 1)
+        needs_carryover = False
 
-            # Try to get end-of-previous-year ratings
-            prev_year_key = str(year - 1)
+        # Check if team_ratings are from end of previous year
+        if prev_year_key in self.yearly_ratings:
+            # We have specific end-of-previous-year ratings
+            print(f"Using end-of-{year-1} ratings from yearly_ratings")
+            self.initial_ratings = self.yearly_ratings[prev_year_key].copy()
+            needs_carryover = True
+        elif year > 2020:  # Assume model trained through previous year
+            # Model's team_ratings are end-of-training ratings
+            # For a model "trained_to_2024", team_ratings are end-of-2024 ratings
+            print(f"Using model's team_ratings as end-of-{year-1} ratings")
+            print(f"(Model trained through {year-1})")
+            needs_carryover = True
 
-            # First check yearly_ratings
-            if prev_year_key in self.yearly_ratings:
-                print(f"Using end-of-{year-1} ratings from yearly_ratings")
-                self.initial_ratings = self.yearly_ratings[prev_year_key].copy()
-            else:
-                # Use team_ratings as end-of-previous-year ratings
-                # For a model "trained_to_2024", team_ratings are end-of-2024 ratings
-                print(f"Using model's team_ratings as end-of-{year-1} ratings")
-                print(f"(Model trained through {year-1})")
-                self.initial_ratings = model_data['team_ratings'].copy()
-
-            # Apply season carryover
-            print(f"Applying season carryover ({self.season_carryover})")
+        # Apply season carryover to get start-of-current-year ratings
+        if needs_carryover:
+            print(f"Applying season carryover ({self.season_carryover}) to get start-of-{year} ratings")
             for team in self.initial_ratings:
                 old_rating = self.initial_ratings[team]
                 self.initial_ratings[team] = (
                     self.base_rating +
                     self.season_carryover * (old_rating - self.base_rating)
                 )
+
+        if from_scratch:
+            print(f"\nFrom-scratch mode: Simulating entire {year} season from beginning")
 
         print(f"Model loaded successfully with {len(self.initial_ratings)} teams")
 
