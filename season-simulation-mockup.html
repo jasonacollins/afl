@@ -366,6 +366,50 @@
         .info-box strong {
             color: var(--primary-dark);
         }
+
+        /* Ladder position probability matrix */
+        .matrix-table {
+            font-size: 11px;
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .matrix-table th {
+            padding: 6px 4px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 10px;
+        }
+
+        .matrix-table td {
+            padding: 6px 4px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .matrix-table .team-name {
+            text-align: left;
+            font-weight: 500;
+            padding-left: 8px;
+            white-space: nowrap;
+        }
+
+        .matrix-table .prob-high {
+            background-color: rgba(76, 175, 80, 0.3);
+            font-weight: 600;
+        }
+
+        .matrix-table .prob-medium {
+            background-color: rgba(255, 152, 0, 0.2);
+        }
+
+        .matrix-table .prob-low {
+            background-color: rgba(244, 67, 54, 0.1);
+        }
+
+        .matrix-table .prob-zero {
+            color: #ccc;
+        }
     </style>
 </head>
 <body>
@@ -375,7 +419,7 @@
 
         <div class="info-box">
             <p><strong>How this works:</strong> This simulation runs 10,000 possible season outcomes based on current ELO ratings and remaining fixtures. Probabilities update after each round as team strengths change.</p>
-            <p><strong>Finals Format:</strong> Top 8 teams qualify • Top 4 get double chances • Grand Final between winners of Preliminary Finals</p>
+            <p><strong>Finals Format (2026+):</strong> Top 6 qualify directly • Teams 7-10 play wildcard round • Semi finals pit losing qualifiers against wildcard winners • Grand Final between winners of Preliminary Finals</p>
         </div>
 
         <div class="card">
@@ -404,14 +448,6 @@
                             <option value="8">Round 8</option>
                         </select>
                     </div>
-                    <div class="control-group">
-                        <label for="simulations">Simulations</label>
-                        <select id="simulations">
-                            <option value="1000">1,000 (Fast)</option>
-                            <option value="10000" selected>10,000 (Standard)</option>
-                            <option value="50000">50,000 (Precise)</option>
-                        </select>
-                    </div>
                 </div>
             </div>
 
@@ -425,11 +461,6 @@
                     <div class="stat-label">Games Remaining</div>
                     <div class="stat-value">150</div>
                     <div class="stat-subtext">16 rounds + 9 finals</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Avg Uncertainty</div>
-                    <div class="stat-value">±2.3</div>
-                    <div class="stat-subtext">Expected win variance</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Last Updated</div>
@@ -447,8 +478,9 @@
                             <th class="sortable">Current ELO</th>
                             <th class="sortable">Record</th>
                             <th class="sortable">Projected Wins</th>
-                            <th class="sortable">Finals</th>
-                            <th class="sortable">Top 4</th>
+                            <th class="sortable">Wildcard</th>
+                            <th class="sortable">Top 6</th>
+                            <th class="sortable">Semi Finals</th>
                             <th class="sortable">Prelim</th>
                             <th class="sortable">Grand Final</th>
                             <th class="sortable">Premiership</th>
@@ -462,14 +494,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #002B5C;"></span>
                                     <span>Carlton</span>
-                                    <span class="finals-position top4">Top 4</span>
                                 </div>
                             </td>
                             <td><strong>1687</strong></td>
                             <td><span class="record">7-1</span></td>
                             <td>
                                 <strong>16.8</strong>
-                                <span class="projected">(14-19)</span>
+                                <span class="projected">(14.0-19.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 5%;"></div>
+                                <span class="prob-value">5%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 94%;"></div>
@@ -498,14 +533,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #000000;"></span>
                                     <span>Collingwood</span>
-                                    <span class="finals-position top4">Top 4</span>
                                 </div>
                             </td>
                             <td><strong>1672</strong></td>
                             <td><span class="record">6-2</span></td>
                             <td>
                                 <strong>16.2</strong>
-                                <span class="projected">(13-18)</span>
+                                <span class="projected">(13.0-18.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 7%;"></div>
+                                <span class="prob-value">7%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 91%;"></div>
@@ -534,14 +572,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #FFCD00;"></span>
                                     <span>Richmond</span>
-                                    <span class="finals-position top4">Top 4</span>
                                 </div>
                             </td>
                             <td><strong>1658</strong></td>
                             <td><span class="record">6-2</span></td>
                             <td>
                                 <strong>15.4</strong>
-                                <span class="projected">(12-18)</span>
+                                <span class="projected">(12.0-18.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 10%;"></div>
+                                <span class="prob-value">10%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 87%;"></div>
@@ -570,14 +611,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #0082CA;"></span>
                                     <span>Sydney</span>
-                                    <span class="finals-position top4">Top 4</span>
                                 </div>
                             </td>
                             <td><strong>1645</strong></td>
                             <td><span class="record">6-2</span></td>
                             <td>
                                 <strong>14.9</strong>
-                                <span class="projected">(12-17)</span>
+                                <span class="projected">(12.0-17.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 13%;"></div>
+                                <span class="prob-value">13%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 83%;"></div>
@@ -606,14 +650,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #0E1E2D;"></span>
                                     <span>Geelong</span>
-                                    <span class="finals-position top8">Finals</span>
                                 </div>
                             </td>
                             <td><strong>1631</strong></td>
                             <td><span class="record">5-3</span></td>
                             <td>
                                 <strong>14.1</strong>
-                                <span class="projected">(11-17)</span>
+                                <span class="projected">(11.0-17.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 18%;"></div>
+                                <span class="prob-value">18%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 76%;"></div>
@@ -642,14 +689,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #D22730;"></span>
                                     <span>Melbourne</span>
-                                    <span class="finals-position top8">Finals</span>
                                 </div>
                             </td>
                             <td><strong>1618</strong></td>
                             <td><span class="record">5-3</span></td>
                             <td>
                                 <strong>13.5</strong>
-                                <span class="projected">(10-16)</span>
+                                <span class="projected">(10.0-16.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 24%;"></div>
+                                <span class="prob-value">24%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 68%;"></div>
@@ -678,14 +728,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #007FC4;"></span>
                                     <span>Brisbane</span>
-                                    <span class="finals-position top8">Finals</span>
                                 </div>
                             </td>
                             <td><strong>1607</strong></td>
                             <td><span class="record">5-3</span></td>
                             <td>
                                 <strong>12.8</strong>
-                                <span class="projected">(10-16)</span>
+                                <span class="projected">(10.0-16.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 29%;"></div>
+                                <span class="prob-value">29%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 61%;"></div>
@@ -714,14 +767,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #003087;"></span>
                                     <span>Western Bulldogs</span>
-                                    <span class="finals-position top8">Finals</span>
                                 </div>
                             </td>
                             <td><strong>1595</strong></td>
                             <td><span class="record">4-4</span></td>
                             <td>
                                 <strong>12.1</strong>
-                                <span class="projected">(9-15)</span>
+                                <span class="projected">(9.0-15.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 35%;"></div>
+                                <span class="prob-value">35%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 52%;"></div>
@@ -750,14 +806,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #FF6600;"></span>
                                     <span>GWS Giants</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1583</strong></td>
                             <td><span class="record">4-4</span></td>
                             <td>
                                 <strong>11.4</strong>
-                                <span class="projected">(8-14)</span>
+                                <span class="projected">(8.0-14.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 38%;"></div>
+                                <span class="prob-value">38%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 43%;"></div>
@@ -786,14 +845,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #003399;"></span>
                                     <span>Port Adelaide</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1571</strong></td>
                             <td><span class="record">4-4</span></td>
                             <td>
                                 <strong>10.7</strong>
-                                <span class="projected">(8-14)</span>
+                                <span class="projected">(8.0-14.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 35%;"></div>
+                                <span class="prob-value">35%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 34%;"></div>
@@ -822,14 +884,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #009FE3;"></span>
                                     <span>Fremantle</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1558</strong></td>
                             <td><span class="record">3-5</span></td>
                             <td>
                                 <strong>9.9</strong>
-                                <span class="projected">(7-13)</span>
+                                <span class="projected">(7.0-13.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 28%;"></div>
+                                <span class="prob-value">28%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 26%;"></div>
@@ -858,14 +923,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #E21C23;"></span>
                                     <span>Essendon</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1547</strong></td>
                             <td><span class="record">3-5</span></td>
                             <td>
                                 <strong>9.2</strong>
-                                <span class="projected">(6-12)</span>
+                                <span class="projected">(6.0-12.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar medium" style="width: 21%;"></div>
+                                <span class="prob-value">21%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 19%;"></div>
@@ -894,14 +962,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #00539F;"></span>
                                     <span>St Kilda</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1534</strong></td>
                             <td><span class="record">3-5</span></td>
                             <td>
                                 <strong>8.5</strong>
-                                <span class="projected">(6-12)</span>
+                                <span class="projected">(6.0-12.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 15%;"></div>
+                                <span class="prob-value">15%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 13%;"></div>
@@ -930,14 +1001,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #001325;"></span>
                                     <span>Hawthorn</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1521</strong></td>
                             <td><span class="record">2-6</span></td>
                             <td>
                                 <strong>7.7</strong>
-                                <span class="projected">(5-11)</span>
+                                <span class="projected">(5.0-11.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 10%;"></div>
+                                <span class="prob-value">10%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 8%;"></div>
@@ -966,14 +1040,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #012E62;"></span>
                                     <span>North Melbourne</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1508</strong></td>
                             <td><span class="record">2-6</span></td>
                             <td>
                                 <strong>6.9</strong>
-                                <span class="projected">(4-10)</span>
+                                <span class="projected">(4.0-10.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 6%;"></div>
+                                <span class="prob-value">6%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 5%;"></div>
@@ -1002,14 +1079,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #FFD200;"></span>
                                     <span>West Coast</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1495</strong></td>
                             <td><span class="record">2-6</span></td>
                             <td>
                                 <strong>6.1</strong>
-                                <span class="projected">(4-9)</span>
+                                <span class="projected">(4.0-9.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 3%;"></div>
+                                <span class="prob-value">3%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 3%;"></div>
@@ -1038,14 +1118,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #002A5C;"></span>
                                     <span>Adelaide</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1482</strong></td>
                             <td><span class="record">1-7</span></td>
                             <td>
                                 <strong>5.3</strong>
-                                <span class="projected">(3-8)</span>
+                                <span class="projected">(3.0-8.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 1%;"></div>
+                                <span class="prob-value">1%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 1%;"></div>
@@ -1074,14 +1157,17 @@
                                 <div class="team-cell">
                                     <span class="team-logo" style="background-color: #FE5000;"></span>
                                     <span>Gold Coast</span>
-                                    <span class="finals-position out">Outside 8</span>
                                 </div>
                             </td>
                             <td><strong>1469</strong></td>
                             <td><span class="record">1-7</span></td>
                             <td>
                                 <strong>4.6</strong>
-                                <span class="projected">(2-7)</span>
+                                <span class="projected">(2.0-7.0)</span>
+                            </td>
+                            <td class="prob-cell">
+                                <div class="prob-bar low" style="width: 0.5%;"></div>
+                                <span class="prob-value">&lt;1%</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 0.5%;"></div>
@@ -1124,12 +1210,426 @@
             </div>
         </div>
 
+        <div class="card" style="border-left-color: var(--warning-color);">
+            <div class="card-title">Ladder Position Probabilities</div>
+            <div style="font-size: 13px; color: var(--light-text); margin: 15px 0 20px;">
+                Probability (%) of each team finishing in each ladder position
+            </div>
+            <div class="table-container">
+                <table class="matrix-table">
+                    <thead>
+                        <tr>
+                            <th>Team</th>
+                            <th>1st</th>
+                            <th>2nd</th>
+                            <th>3rd</th>
+                            <th>4th</th>
+                            <th>5th</th>
+                            <th>6th</th>
+                            <th>7th</th>
+                            <th>8th</th>
+                            <th>9th</th>
+                            <th>10th</th>
+                            <th>11th</th>
+                            <th>12th</th>
+                            <th>13th</th>
+                            <th>14th</th>
+                            <th>15th</th>
+                            <th>16th</th>
+                            <th>17th</th>
+                            <th>18th</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="team-name">Carlton</td>
+                            <td class="prob-high">32</td>
+                            <td class="prob-high">28</td>
+                            <td class="prob-medium">18</td>
+                            <td class="prob-medium">12</td>
+                            <td class="prob-low">6</td>
+                            <td class="prob-low">3</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Collingwood</td>
+                            <td class="prob-high">24</td>
+                            <td class="prob-high">26</td>
+                            <td class="prob-medium">22</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">8</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Richmond</td>
+                            <td class="prob-medium">18</td>
+                            <td class="prob-medium">20</td>
+                            <td class="prob-medium">22</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-low">11</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Sydney</td>
+                            <td class="prob-medium">12</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">20</td>
+                            <td class="prob-medium">18</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-low">6</td>
+                            <td class="prob-low">3</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Geelong</td>
+                            <td class="prob-low">8</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-low">6</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Melbourne</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">6</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-low">6</td>
+                            <td class="prob-low">3</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Brisbane</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Western Bulldogs</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">GWS Giants</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Port Adelaide</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Fremantle</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-zero">-</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Essendon</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                            <td class="prob-zero">&lt;1</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">St Kilda</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">1</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Hawthorn</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">5</td>
+                            <td class="prob-low">3</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">North Melbourne</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">9</td>
+                            <td class="prob-low">8</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">West Coast</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">17</td>
+                            <td class="prob-medium">14</td>
+                            <td class="prob-low">10</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Adelaide</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">13</td>
+                            <td class="prob-medium">16</td>
+                            <td class="prob-medium">21</td>
+                            <td class="prob-medium">20</td>
+                        </tr>
+                        <tr>
+                            <td class="team-name">Gold Coast</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">-</td>
+                            <td class="prob-zero">&lt;1</td>
+                            <td class="prob-low">2</td>
+                            <td class="prob-low">4</td>
+                            <td class="prob-low">7</td>
+                            <td class="prob-low">10</td>
+                            <td class="prob-medium">15</td>
+                            <td class="prob-medium">24</td>
+                            <td class="prob-high">38</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="card" style="border-left-color: var(--secondary-color);">
             <div class="card-title">Understanding the Simulation</div>
             <div style="font-size: 14px; color: var(--light-text); margin-top: 15px;">
                 <p style="margin-bottom: 12px;"><strong>Methodology:</strong> Monte Carlo simulation using current ELO ratings and remaining fixture. Each simulation randomly determines game outcomes based on win probabilities derived from ELO ratings and venue advantages.</p>
                 <p style="margin-bottom: 12px;"><strong>Win Range:</strong> Shows 10th to 90th percentile outcomes from simulations, representing realistic season trajectories.</p>
-                <p style="margin-bottom: 12px;"><strong>Finals Progression:</strong> Probabilities account for both qualifying for finals and the path through the finals series based on ladder position (top 4 advantage, home finals, etc.)</p>
+                <p style="margin-bottom: 12px;"><strong>Finals Progression (2026+ Format):</strong> Top 6 teams qualify directly to finals. Teams 7-10 play in the wildcard round. Semi finals feature losers of 1v4 and 2v3 playing winners from 5v8/9 and 6v7/10. Probabilities account for ladder position advantages and home finals throughout the series.</p>
                 <p style="margin-bottom: 12px;"><strong>Updates:</strong> Simulation refreshes automatically after each completed round with updated ELO ratings.</p>
                 <p><strong>Limitations:</strong> Does not account for injuries, form changes, weather conditions, or other factors beyond ELO ratings. Historical accuracy improves as season progresses.</p>
             </div>
@@ -1161,11 +1661,6 @@
             document.getElementById('round-select').addEventListener('change', function() {
                 console.log('Round changed to:', this.value);
                 alert('In the real implementation, this would show simulation as of ' + this.value);
-            });
-
-            document.getElementById('simulations').addEventListener('change', function() {
-                console.log('Simulations changed to:', this.value);
-                alert('In the real implementation, this would re-run simulation with ' + this.value + ' iterations');
             });
         });
     </script>
