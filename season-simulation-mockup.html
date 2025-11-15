@@ -404,14 +404,6 @@
                             <option value="8">Round 8</option>
                         </select>
                     </div>
-                    <div class="control-group">
-                        <label for="simulations">Simulations</label>
-                        <select id="simulations">
-                            <option value="1000">1,000 (Fast)</option>
-                            <option value="10000" selected>10,000 (Standard)</option>
-                            <option value="50000">50,000 (Precise)</option>
-                        </select>
-                    </div>
                 </div>
             </div>
 
@@ -425,11 +417,6 @@
                     <div class="stat-label">Games Remaining</div>
                     <div class="stat-value">150</div>
                     <div class="stat-subtext">16 rounds + 9 finals</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Avg Uncertainty</div>
-                    <div class="stat-value">±2.3</div>
-                    <div class="stat-subtext">Expected win variance</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Last Updated</div>
@@ -447,6 +434,7 @@
                             <th class="sortable">Current ELO</th>
                             <th class="sortable">Record</th>
                             <th class="sortable">Projected Wins</th>
+                            <th class="sortable">Ladder Range</th>
                             <th class="sortable">Finals</th>
                             <th class="sortable">Top 4</th>
                             <th class="sortable">Prelim</th>
@@ -469,7 +457,10 @@
                             <td><span class="record">7-1</span></td>
                             <td>
                                 <strong>16.8</strong>
-                                <span class="projected">(14-19)</span>
+                                <span class="projected">(14.0-19.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">1st-4th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 94%;"></div>
@@ -505,7 +496,10 @@
                             <td><span class="record">6-2</span></td>
                             <td>
                                 <strong>16.2</strong>
-                                <span class="projected">(13-18)</span>
+                                <span class="projected">(13.0-18.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">1st-5th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 91%;"></div>
@@ -541,7 +535,10 @@
                             <td><span class="record">6-2</span></td>
                             <td>
                                 <strong>15.4</strong>
-                                <span class="projected">(12-18)</span>
+                                <span class="projected">(12.0-18.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">1st-6th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 87%;"></div>
@@ -577,7 +574,10 @@
                             <td><span class="record">6-2</span></td>
                             <td>
                                 <strong>14.9</strong>
-                                <span class="projected">(12-17)</span>
+                                <span class="projected">(12.0-17.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">2nd-7th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 83%;"></div>
@@ -613,7 +613,10 @@
                             <td><span class="record">5-3</span></td>
                             <td>
                                 <strong>14.1</strong>
-                                <span class="projected">(11-17)</span>
+                                <span class="projected">(11.0-17.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">3rd-9th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar high" style="width: 76%;"></div>
@@ -649,7 +652,10 @@
                             <td><span class="record">5-3</span></td>
                             <td>
                                 <strong>13.5</strong>
-                                <span class="projected">(10-16)</span>
+                                <span class="projected">(10.0-16.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">4th-11th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 68%;"></div>
@@ -685,7 +691,10 @@
                             <td><span class="record">5-3</span></td>
                             <td>
                                 <strong>12.8</strong>
-                                <span class="projected">(10-16)</span>
+                                <span class="projected">(10.0-16.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">5th-12th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 61%;"></div>
@@ -721,7 +730,10 @@
                             <td><span class="record">4-4</span></td>
                             <td>
                                 <strong>12.1</strong>
-                                <span class="projected">(9-15)</span>
+                                <span class="projected">(9.0-15.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">6th-14th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 52%;"></div>
@@ -757,7 +769,10 @@
                             <td><span class="record">4-4</span></td>
                             <td>
                                 <strong>11.4</strong>
-                                <span class="projected">(8-14)</span>
+                                <span class="projected">(8.0-14.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">7th-15th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 43%;"></div>
@@ -793,7 +808,10 @@
                             <td><span class="record">4-4</span></td>
                             <td>
                                 <strong>10.7</strong>
-                                <span class="projected">(8-14)</span>
+                                <span class="projected">(8.0-14.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">8th-16th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 34%;"></div>
@@ -829,7 +847,10 @@
                             <td><span class="record">3-5</span></td>
                             <td>
                                 <strong>9.9</strong>
-                                <span class="projected">(7-13)</span>
+                                <span class="projected">(7.0-13.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">9th-17th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar medium" style="width: 26%;"></div>
@@ -865,7 +886,10 @@
                             <td><span class="record">3-5</span></td>
                             <td>
                                 <strong>9.2</strong>
-                                <span class="projected">(6-12)</span>
+                                <span class="projected">(6.0-12.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">10th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 19%;"></div>
@@ -901,7 +925,10 @@
                             <td><span class="record">3-5</span></td>
                             <td>
                                 <strong>8.5</strong>
-                                <span class="projected">(6-12)</span>
+                                <span class="projected">(6.0-12.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">11th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 13%;"></div>
@@ -937,7 +964,10 @@
                             <td><span class="record">2-6</span></td>
                             <td>
                                 <strong>7.7</strong>
-                                <span class="projected">(5-11)</span>
+                                <span class="projected">(5.0-11.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">12th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 8%;"></div>
@@ -973,7 +1003,10 @@
                             <td><span class="record">2-6</span></td>
                             <td>
                                 <strong>6.9</strong>
-                                <span class="projected">(4-10)</span>
+                                <span class="projected">(4.0-10.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">13th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 5%;"></div>
@@ -1009,7 +1042,10 @@
                             <td><span class="record">2-6</span></td>
                             <td>
                                 <strong>6.1</strong>
-                                <span class="projected">(4-9)</span>
+                                <span class="projected">(4.0-9.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">14th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 3%;"></div>
@@ -1045,7 +1081,10 @@
                             <td><span class="record">1-7</span></td>
                             <td>
                                 <strong>5.3</strong>
-                                <span class="projected">(3-8)</span>
+                                <span class="projected">(3.0-8.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">15th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 1%;"></div>
@@ -1081,7 +1120,10 @@
                             <td><span class="record">1-7</span></td>
                             <td>
                                 <strong>4.6</strong>
-                                <span class="projected">(2-7)</span>
+                                <span class="projected">(2.0-7.0)</span>
+                            </td>
+                            <td>
+                                <span class="projected">16th-18th</span>
                             </td>
                             <td class="prob-cell">
                                 <div class="prob-bar low" style="width: 0.5%;"></div>
@@ -1161,11 +1203,6 @@
             document.getElementById('round-select').addEventListener('change', function() {
                 console.log('Round changed to:', this.value);
                 alert('In the real implementation, this would show simulation as of ' + this.value);
-            });
-
-            document.getElementById('simulations').addEventListener('change', function() {
-                console.log('Simulations changed to:', this.value);
-                alert('In the real implementation, this would re-run simulation with ' + this.value + ' iterations');
             });
         });
     </script>
