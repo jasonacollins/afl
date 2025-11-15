@@ -93,6 +93,16 @@ class SeasonSimulator:
         print(f"Found {len(self.completed_matches)} completed matches")
         print(f"Found {len(self.upcoming_matches)} upcoming matches to simulate")
 
+        # Check if there are any matches to simulate
+        if len(self.upcoming_matches) == 0:
+            print("\n" + "="*80)
+            print("WARNING: No upcoming matches found for this year!")
+            print("="*80)
+            print("This means all matches for the season are already complete.")
+            print("The simulation will only model finals outcomes based on")
+            print("the current final ladder positions (no variation).")
+            print("="*80 + "\n")
+
         # Get current standings from completed matches
         self.calculate_current_standings()
 
@@ -432,12 +442,22 @@ class SeasonSimulator:
             'results': results
         }
 
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Get absolute path for clarity
+        abs_output_path = os.path.abspath(output_path)
 
-        with open(output_path, 'w') as f:
+        # Ensure directory exists
+        output_dir = os.path.dirname(abs_output_path)
+        if not os.path.exists(output_dir):
+            print(f"Creating output directory: {output_dir}")
+            os.makedirs(output_dir, exist_ok=True)
+
+        # Save the file
+        print(f"Saving results to: {abs_output_path}")
+        with open(abs_output_path, 'w') as f:
             json.dump(output_data, f, indent=2)
 
-        print(f"\nResults saved to {output_path}")
+        print(f"Results saved successfully!")
+        print(f"File size: {os.path.getsize(abs_output_path):,} bytes")
 
 
 def main():
