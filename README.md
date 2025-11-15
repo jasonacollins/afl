@@ -28,6 +28,26 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 - **Featured Predictors System**: Homepage dropdown allowing users to view different predictor models and performance metrics
 
+## Season Simulation
+
+The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture to project ladder outcomes, finals progression, and premiership chances. Results are written to `data/simulations/season_simulation_YYYY.json` and surfaced on `/simulation`.
+
+- Current standings and ELO ratings seed every simulation before match outcomes are sampled.
+- Finals series are simulated using the AFL finals format with double chances for the top four.
+- Percentile win ranges (10th–90th) now interpolate within the cumulative distribution instead of snapping to the nearest integer win count:
+  - We locate the discrete win bucket whose probability mass contains the desired percentile.
+  - Using the depth of the percentile inside that bucket, we linearly blend toward the neighbouring win total (or back toward the previous value for the upper tail).
+  - This preserves realistic fractional bounds while keeping the result inside the attainable win range.
+- Run from the project root with:
+  ```bash
+  python3 scripts/season_simulator.py \
+    --year 2025 \
+    --model-path data/models/margin/afl_elo_margin_only_trained_to_2024.json \
+    --db-path data/database/afl_predictions.db \
+    --output data/simulations/season_simulation_2025.json
+  ```
+  Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
+
 ## Architecture
 
 The AFL Predictions application follows a layered architecture pattern built on Node.js and Express.js, designed for maintainability, scalability, and clear separation of concerns.

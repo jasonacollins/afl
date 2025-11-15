@@ -3,1666 +3,1044 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AFL Season Simulation - Mockup</title>
+    <title>Season Simulation Theme Lab</title>
     <style>
-        /* Using existing AFL Predictions CSS variable system */
         :root {
-            --primary-color: #1a73e8;
-            --primary-dark: #0d47a1;
-            --secondary-color: #4caf50;
-            --error-color: #f44336;
-            --success-color: #4caf50;
-            --warning-color: #ff9800;
-            --text-color: #333;
-            --light-text: #666;
-            --border-color: #ddd;
-            --background-light: #f8f9fa;
-            --locked-color: #ff9800;
+            color-scheme: light dark;
         }
 
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background-color: var(--background-light);
-            color: var(--text-color);
-            padding: 20px;
+            margin: 0;
+            padding: 36px 20px 64px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: radial-gradient(circle at top left, #1f2937 0%, #0b1120 55%, #020617 100%);
+            color: #e2e8f0;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            margin: 0;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        p {
+            margin: 0;
+        }
+
+        .page-header {
+            max-width: 1200px;
+            margin: 0 auto 40px;
+            text-align: center;
+        }
+
+        .page-header h1 {
+            font-size: clamp(2.2rem, 3vw, 3rem);
+            color: #f8fafc;
+            margin-bottom: 12px;
+        }
+
+        .page-header p {
+            font-size: 1rem;
+            color: rgba(226, 232, 240, 0.78);
+            max-width: 760px;
+            margin: 0 auto;
             line-height: 1.6;
         }
 
-        .container {
-            max-width: 1400px;
+        .themes-root {
+            max-width: 1220px;
             margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 42px;
         }
 
-        h1 {
-            color: var(--primary-dark);
-            margin-bottom: 10px;
-            font-size: 28px;
+        .theme-block {
+            position: relative;
+            padding: 30px;
+            border-radius: 18px;
+            background: var(--theme-background, #ffffff);
+            color: var(--theme-text, #0f172a);
+            box-shadow: 0 34px 60px rgba(15, 23, 42, 0.3);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .subtitle {
-            color: var(--light-text);
-            margin-bottom: 20px;
-            font-size: 14px;
+        .theme-block:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 36px 80px rgba(15, 23, 42, 0.38);
         }
 
-        /* Card styling matching existing design */
+        .theme-header {
+            background: var(--theme-header-bg, var(--theme-accent, #1a73e8));
+            color: var(--theme-accent-text, #ffffff);
+            padding: 20px 24px;
+            border-radius: 14px;
+            margin-bottom: 26px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .theme-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .theme-header h2 {
+            font-size: clamp(1.35rem, 2vw, 1.8rem);
+        }
+
+        .theme-keywords {
+            font-size: 0.85rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.8;
+        }
+
+        .theme-description {
+            font-size: 0.98rem;
+            line-height: 1.55;
+            max-width: 900px;
+        }
+
+        .theme-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--theme-badge-bg, var(--theme-accent, #1a73e8));
+            color: var(--theme-badge-text, #ffffff);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+
+        .mock-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
         .card {
-            background-color: white;
-            border-radius: 8px;
-            padding: 24px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            border-left: 4px solid var(--primary-color);
-            margin-bottom: 20px;
+            background: var(--theme-card-bg, #ffffff);
+            color: var(--theme-card-text, var(--theme-text, #0f172a));
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+            border-left: 5px solid var(--theme-accent, #1a73e8);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            gap: 16px;
+            margin-bottom: 18px;
             flex-wrap: wrap;
-            gap: 15px;
         }
 
         .card-title {
-            font-size: 20px;
+            font-size: 1.1rem;
             font-weight: 600;
-            color: var(--primary-dark);
         }
 
-        /* Controls */
-        .controls {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .control-group label {
-            font-size: 12px;
-            color: var(--light-text);
-            font-weight: 500;
-        }
-
-        select {
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 14px;
-            cursor: pointer;
-            background-color: white;
-        }
-
-        select:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        /* Summary stats */
         .summary-stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 22px;
         }
 
         .stat-box {
-            background-color: var(--background-light);
-            padding: 15px;
-            border-radius: 6px;
-            border-left: 3px solid var(--primary-color);
+            background: var(--theme-muted, rgba(15, 23, 42, 0.06));
+            padding: 16px;
+            border-radius: 10px;
+            border-left: 4px solid var(--theme-accent, #1a73e8);
         }
 
         .stat-label {
-            font-size: 12px;
-            color: var(--light-text);
-            margin-bottom: 5px;
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
-            font-weight: 600;
+            opacity: 0.7;
+            margin-bottom: 6px;
         }
 
         .stat-value {
-            font-size: 24px;
+            font-size: 1.8rem;
             font-weight: 700;
-            color: var(--primary-dark);
         }
 
         .stat-subtext {
-            font-size: 12px;
-            color: var(--light-text);
-            margin-top: 3px;
+            font-size: 0.8rem;
+            opacity: 0.65;
+            margin-top: 4px;
         }
 
-        /* Table */
         .table-container {
             overflow-x: auto;
+            border-radius: 12px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 0.92rem;
+            color: inherit;
         }
 
         thead {
-            background-color: var(--background-light);
-            position: sticky;
-            top: 0;
+            background: var(--theme-table-head-bg, rgba(148, 163, 184, 0.12));
+            color: var(--theme-table-head-text, var(--theme-text, #0f172a));
         }
 
         th {
-            padding: 12px 8px;
+            padding: 12px 10px;
             text-align: left;
             font-weight: 600;
-            color: var(--primary-dark);
-            border-bottom: 2px solid var(--border-color);
-            cursor: pointer;
-            user-select: none;
-        }
-
-        th:hover {
-            background-color: #e8e8e8;
-        }
-
-        th.sortable::after {
-            content: ' ↕';
-            opacity: 0.3;
-            font-size: 12px;
-        }
-
-        th.sorted-asc::after {
-            content: ' ↑';
-            opacity: 1;
-        }
-
-        th.sorted-desc::after {
-            content: ' ↓';
-            opacity: 1;
+            white-space: nowrap;
         }
 
         td {
-            padding: 12px 8px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--theme-table-border, rgba(15, 23, 42, 0.08));
+            white-space: nowrap;
         }
 
-        tbody tr:hover {
-            background-color: var(--background-light);
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover td {
+            background-color: rgba(148, 163, 184, 0.12);
         }
 
         .team-cell {
             display: flex;
             align-items: center;
             gap: 10px;
-            font-weight: 500;
         }
 
-        .team-logo {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: inline-block;
+        .team-badge {
+            width: 20px;
+            height: 20px;
+            border-radius: 6px;
+            background: rgba(148, 163, 184, 0.25);
         }
 
         .position {
-            font-weight: 700;
-            color: var(--light-text);
-            min-width: 25px;
-        }
-
-        .position.top8 {
-            color: var(--success-color);
-        }
-
-        .record {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: rgba(148, 163, 184, 0.18);
             font-weight: 600;
         }
 
-        .projected {
-            color: var(--light-text);
-            font-size: 13px;
+        .position.top-eight {
+            background: rgba(34, 197, 94, 0.25);
+            color: #166534;
         }
 
-        /* Probability bars */
+        .projected-range {
+            display: block;
+            font-size: 0.75rem;
+            opacity: 0.65;
+        }
+
         .prob-cell {
-            position: relative;
+            text-align: center;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: transform 0.15s ease;
+        }
+
+        .prob-cell:hover {
+            transform: translateY(-2px);
         }
 
         .prob-value {
-            position: relative;
-            z-index: 1;
-            font-weight: 600;
-        }
-
-        .prob-bar {
-            position: absolute;
-            left: 0;
-            top: 0;
-            height: 100%;
-            background: linear-gradient(to right, rgba(26, 115, 232, 0.1), rgba(26, 115, 232, 0.2));
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-
-        .prob-bar.high {
-            background: linear-gradient(to right, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.25));
-        }
-
-        .prob-bar.medium {
-            background: linear-gradient(to right, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.2));
-        }
-
-        .prob-bar.low {
-            background: linear-gradient(to right, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.15));
-        }
-
-        /* Finals indicator */
-        .finals-position {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            margin-left: 5px;
+            min-width: 4ch;
         }
 
-        .finals-position.top4 {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
-        .finals-position.top8 {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-
-        .finals-position.out {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        /* Legend */
-        .legend {
-            display: flex;
-            gap: 20px;
-            padding: 15px;
-            background-color: var(--background-light);
-            border-radius: 6px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-        }
-
-        .legend-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 3px;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .card {
-                padding: 16px;
-            }
-
-            h1 {
-                font-size: 22px;
-            }
-
-            .summary-stats {
-                grid-template-columns: 1fr;
-            }
-
-            table {
-                font-size: 12px;
-            }
-
-            th, td {
-                padding: 8px 4px;
-            }
-
-            .team-cell {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 5px;
-            }
-        }
-
-        /* Info box */
-        .info-box {
-            background-color: #e3f2fd;
-            border-left: 4px solid var(--primary-color);
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-        }
-
-        .info-box p {
-            margin-bottom: 8px;
-            font-size: 14px;
-        }
-
-        .info-box p:last-child {
-            margin-bottom: 0;
-        }
-
-        .info-box strong {
-            color: var(--primary-dark);
-        }
-
-        /* Ladder position probability matrix */
         .matrix-table {
-            font-size: 11px;
-            width: 100%;
-            border-collapse: collapse;
+            font-size: 0.85rem;
         }
 
-        .matrix-table th {
-            padding: 6px 4px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 10px;
+        .matrix-table th:first-child,
+        .matrix-table td:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background: inherit;
         }
 
         .matrix-table td {
-            padding: 6px 4px;
             text-align: center;
-            border: 1px solid var(--border-color);
-        }
-
-        .matrix-table .team-name {
-            text-align: left;
-            font-weight: 500;
-            padding-left: 8px;
-            white-space: nowrap;
-        }
-
-        .matrix-table .prob-high {
-            background-color: rgba(76, 175, 80, 0.3);
             font-weight: 600;
+            border-bottom: 1px solid var(--theme-table-border, rgba(15, 23, 42, 0.08));
         }
 
-        .matrix-table .prob-medium {
-            background-color: rgba(255, 152, 0, 0.2);
-        }
-
-        .matrix-table .prob-low {
-            background-color: rgba(244, 67, 54, 0.1);
+        .matrix-table tbody tr:nth-child(even) td:first-child {
+            background: rgba(148, 163, 184, 0.08);
         }
 
         .matrix-table .prob-zero {
-            color: #ccc;
+            opacity: 0.55;
+        }
+
+        @media (max-width: 960px) {
+            body {
+                padding: 26px 16px 50px;
+            }
+
+            .theme-block {
+                padding: 22px;
+            }
+
+            th, td {
+                padding: 10px 8px;
+                font-size: 0.86rem;
+            }
+
+            .summary-stats {
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .theme-header-top {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .card {
+                padding: 18px;
+            }
+
+            .page-header h1 {
+                font-size: 2rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>2025 AFL Season Simulation</h1>
-        <p class="subtitle">ELO-based Monte Carlo simulation projecting season outcomes • Updated after Round 8</p>
+    <header class="page-header">
+        <h1>Season Simulation Theme Lab</h1>
+        <p>Twenty palette explorations for the simulation projection table and ladder matrix. Each block renders identical mock data with a different colour system so you can zero in on the combinations that feel right before we update the live experience.</p>
+    </header>
 
-        <div class="info-box">
-            <p><strong>How this works:</strong> This simulation runs 10,000 possible season outcomes based on current ELO ratings and remaining fixtures. Probabilities update after each round as team strengths change.</p>
-            <p><strong>Finals Format (2026+):</strong> Top 6 qualify directly • Teams 7-10 play wildcard round • Semi finals pit losing qualifiers against wildcard winners • Grand Final between winners of Preliminary Finals</p>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <div class="card-title">Season Projection</div>
-                <div class="controls">
-                    <div class="control-group">
-                        <label for="year-select">Season</label>
-                        <select id="year-select">
-                            <option value="2025" selected>2025</option>
-                            <option value="2024">2024</option>
-                            <option value="2023">2023</option>
-                        </select>
-                    </div>
-                    <div class="control-group">
-                        <label for="round-select">As of Round</label>
-                        <select id="round-select">
-                            <option value="current" selected>Current (Round 8)</option>
-                            <option value="1">Round 1</option>
-                            <option value="2">Round 2</option>
-                            <option value="3">Round 3</option>
-                            <option value="4">Round 4</option>
-                            <option value="5">Round 5</option>
-                            <option value="6">Round 6</option>
-                            <option value="7">Round 7</option>
-                            <option value="8">Round 8</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            <div class="summary-stats">
-                <div class="stat-box">
-                    <div class="stat-label">Simulations Run</div>
-                    <div class="stat-value">10,000</div>
-                    <div class="stat-subtext">Based on current ELO ratings</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Games Remaining</div>
-                    <div class="stat-value">150</div>
-                    <div class="stat-subtext">16 rounds + 9 finals</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-label">Last Updated</div>
-                    <div class="stat-value">Now</div>
-                    <div class="stat-subtext">Updates after each round</div>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <table id="simulation-table">
-                    <thead>
-                        <tr>
-                            <th class="sortable">Pos</th>
-                            <th class="sortable">Team</th>
-                            <th class="sortable">Current ELO</th>
-                            <th class="sortable">Record</th>
-                            <th class="sortable">Projected Wins</th>
-                            <th class="sortable">Wildcard</th>
-                            <th class="sortable">Top 6</th>
-                            <th class="sortable">Semi Finals</th>
-                            <th class="sortable">Prelim</th>
-                            <th class="sortable">Grand Final</th>
-                            <th class="sortable">Premiership</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Sample data for mockup -->
-                        <tr>
-                            <td><span class="position top8">1</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #002B5C;"></span>
-                                    <span>Carlton</span>
-                                </div>
-                            </td>
-                            <td><strong>1687</strong></td>
-                            <td><span class="record">7-1</span></td>
-                            <td>
-                                <strong>16.8</strong>
-                                <span class="projected">(14.0-19.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 5%;"></div>
-                                <span class="prob-value">5%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 94%;"></div>
-                                <span class="prob-value">94%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 78%;"></div>
-                                <span class="prob-value">78%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 52%;"></div>
-                                <span class="prob-value">52%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 34%;"></div>
-                                <span class="prob-value">34%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 19%;"></div>
-                                <span class="prob-value">19%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">2</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #000000;"></span>
-                                    <span>Collingwood</span>
-                                </div>
-                            </td>
-                            <td><strong>1672</strong></td>
-                            <td><span class="record">6-2</span></td>
-                            <td>
-                                <strong>16.2</strong>
-                                <span class="projected">(13.0-18.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 7%;"></div>
-                                <span class="prob-value">7%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 91%;"></div>
-                                <span class="prob-value">91%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 72%;"></div>
-                                <span class="prob-value">72%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 48%;"></div>
-                                <span class="prob-value">48%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 31%;"></div>
-                                <span class="prob-value">31%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 17%;"></div>
-                                <span class="prob-value">17%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">3</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #FFCD00;"></span>
-                                    <span>Richmond</span>
-                                </div>
-                            </td>
-                            <td><strong>1658</strong></td>
-                            <td><span class="record">6-2</span></td>
-                            <td>
-                                <strong>15.4</strong>
-                                <span class="projected">(12.0-18.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 10%;"></div>
-                                <span class="prob-value">10%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 87%;"></div>
-                                <span class="prob-value">87%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 64%;"></div>
-                                <span class="prob-value">64%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 42%;"></div>
-                                <span class="prob-value">42%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 26%;"></div>
-                                <span class="prob-value">26%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 14%;"></div>
-                                <span class="prob-value">14%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">4</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #0082CA;"></span>
-                                    <span>Sydney</span>
-                                </div>
-                            </td>
-                            <td><strong>1645</strong></td>
-                            <td><span class="record">6-2</span></td>
-                            <td>
-                                <strong>14.9</strong>
-                                <span class="projected">(12.0-17.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 13%;"></div>
-                                <span class="prob-value">13%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 83%;"></div>
-                                <span class="prob-value">83%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 58%;"></div>
-                                <span class="prob-value">58%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 37%;"></div>
-                                <span class="prob-value">37%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 23%;"></div>
-                                <span class="prob-value">23%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 12%;"></div>
-                                <span class="prob-value">12%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">5</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #0E1E2D;"></span>
-                                    <span>Geelong</span>
-                                </div>
-                            </td>
-                            <td><strong>1631</strong></td>
-                            <td><span class="record">5-3</span></td>
-                            <td>
-                                <strong>14.1</strong>
-                                <span class="projected">(11.0-17.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 18%;"></div>
-                                <span class="prob-value">18%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar high" style="width: 76%;"></div>
-                                <span class="prob-value">76%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 47%;"></div>
-                                <span class="prob-value">47%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 28%;"></div>
-                                <span class="prob-value">28%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 16%;"></div>
-                                <span class="prob-value">16%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 8%;"></div>
-                                <span class="prob-value">8%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">6</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #D22730;"></span>
-                                    <span>Melbourne</span>
-                                </div>
-                            </td>
-                            <td><strong>1618</strong></td>
-                            <td><span class="record">5-3</span></td>
-                            <td>
-                                <strong>13.5</strong>
-                                <span class="projected">(10.0-16.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 24%;"></div>
-                                <span class="prob-value">24%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 68%;"></div>
-                                <span class="prob-value">68%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 38%;"></div>
-                                <span class="prob-value">38%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 21%;"></div>
-                                <span class="prob-value">21%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 11%;"></div>
-                                <span class="prob-value">11%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 5%;"></div>
-                                <span class="prob-value">5%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">7</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #007FC4;"></span>
-                                    <span>Brisbane</span>
-                                </div>
-                            </td>
-                            <td><strong>1607</strong></td>
-                            <td><span class="record">5-3</span></td>
-                            <td>
-                                <strong>12.8</strong>
-                                <span class="projected">(10.0-16.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 29%;"></div>
-                                <span class="prob-value">29%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 61%;"></div>
-                                <span class="prob-value">61%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 31%;"></div>
-                                <span class="prob-value">31%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 16%;"></div>
-                                <span class="prob-value">16%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 8%;"></div>
-                                <span class="prob-value">8%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 4%;"></div>
-                                <span class="prob-value">4%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position top8">8</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #003087;"></span>
-                                    <span>Western Bulldogs</span>
-                                </div>
-                            </td>
-                            <td><strong>1595</strong></td>
-                            <td><span class="record">4-4</span></td>
-                            <td>
-                                <strong>12.1</strong>
-                                <span class="projected">(9.0-15.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 35%;"></div>
-                                <span class="prob-value">35%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 52%;"></div>
-                                <span class="prob-value">52%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 24%;"></div>
-                                <span class="prob-value">24%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 11%;"></div>
-                                <span class="prob-value">11%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 5%;"></div>
-                                <span class="prob-value">5%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 2%;"></div>
-                                <span class="prob-value">2%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">9</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #FF6600;"></span>
-                                    <span>GWS Giants</span>
-                                </div>
-                            </td>
-                            <td><strong>1583</strong></td>
-                            <td><span class="record">4-4</span></td>
-                            <td>
-                                <strong>11.4</strong>
-                                <span class="projected">(8.0-14.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 38%;"></div>
-                                <span class="prob-value">38%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 43%;"></div>
-                                <span class="prob-value">43%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 18%;"></div>
-                                <span class="prob-value">18%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 7%;"></div>
-                                <span class="prob-value">7%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 3%;"></div>
-                                <span class="prob-value">3%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">10</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #003399;"></span>
-                                    <span>Port Adelaide</span>
-                                </div>
-                            </td>
-                            <td><strong>1571</strong></td>
-                            <td><span class="record">4-4</span></td>
-                            <td>
-                                <strong>10.7</strong>
-                                <span class="projected">(8.0-14.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 35%;"></div>
-                                <span class="prob-value">35%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 34%;"></div>
-                                <span class="prob-value">34%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 13%;"></div>
-                                <span class="prob-value">13%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 5%;"></div>
-                                <span class="prob-value">5%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 2%;"></div>
-                                <span class="prob-value">2%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">11</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #009FE3;"></span>
-                                    <span>Fremantle</span>
-                                </div>
-                            </td>
-                            <td><strong>1558</strong></td>
-                            <td><span class="record">3-5</span></td>
-                            <td>
-                                <strong>9.9</strong>
-                                <span class="projected">(7.0-13.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 28%;"></div>
-                                <span class="prob-value">28%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 26%;"></div>
-                                <span class="prob-value">26%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 9%;"></div>
-                                <span class="prob-value">9%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 3%;"></div>
-                                <span class="prob-value">3%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.3%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">12</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #E21C23;"></span>
-                                    <span>Essendon</span>
-                                </div>
-                            </td>
-                            <td><strong>1547</strong></td>
-                            <td><span class="record">3-5</span></td>
-                            <td>
-                                <strong>9.2</strong>
-                                <span class="projected">(6.0-12.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar medium" style="width: 21%;"></div>
-                                <span class="prob-value">21%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 19%;"></div>
-                                <span class="prob-value">19%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 6%;"></div>
-                                <span class="prob-value">6%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 2%;"></div>
-                                <span class="prob-value">2%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.5%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.2%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">13</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #00539F;"></span>
-                                    <span>St Kilda</span>
-                                </div>
-                            </td>
-                            <td><strong>1534</strong></td>
-                            <td><span class="record">3-5</span></td>
-                            <td>
-                                <strong>8.5</strong>
-                                <span class="projected">(6.0-12.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 15%;"></div>
-                                <span class="prob-value">15%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 13%;"></div>
-                                <span class="prob-value">13%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 4%;"></div>
-                                <span class="prob-value">4%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.3%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.1%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">14</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #001325;"></span>
-                                    <span>Hawthorn</span>
-                                </div>
-                            </td>
-                            <td><strong>1521</strong></td>
-                            <td><span class="record">2-6</span></td>
-                            <td>
-                                <strong>7.7</strong>
-                                <span class="projected">(5.0-11.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 10%;"></div>
-                                <span class="prob-value">10%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 8%;"></div>
-                                <span class="prob-value">8%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 2%;"></div>
-                                <span class="prob-value">2%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.5%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.1%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">15</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #012E62;"></span>
-                                    <span>North Melbourne</span>
-                                </div>
-                            </td>
-                            <td><strong>1508</strong></td>
-                            <td><span class="record">2-6</span></td>
-                            <td>
-                                <strong>6.9</strong>
-                                <span class="projected">(4.0-10.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 6%;"></div>
-                                <span class="prob-value">6%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 5%;"></div>
-                                <span class="prob-value">5%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.2%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">16</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #FFD200;"></span>
-                                    <span>West Coast</span>
-                                </div>
-                            </td>
-                            <td><strong>1495</strong></td>
-                            <td><span class="record">2-6</span></td>
-                            <td>
-                                <strong>6.1</strong>
-                                <span class="projected">(4.0-9.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 3%;"></div>
-                                <span class="prob-value">3%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 3%;"></div>
-                                <span class="prob-value">3%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.5%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.1%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">17</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #002A5C;"></span>
-                                    <span>Adelaide</span>
-                                </div>
-                            </td>
-                            <td><strong>1482</strong></td>
-                            <td><span class="record">1-7</span></td>
-                            <td>
-                                <strong>5.3</strong>
-                                <span class="projected">(3.0-8.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 1%;"></div>
-                                <span class="prob-value">1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.2%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><span class="position">18</span></td>
-                            <td>
-                                <div class="team-cell">
-                                    <span class="team-logo" style="background-color: #FE5000;"></span>
-                                    <span>Gold Coast</span>
-                                </div>
-                            </td>
-                            <td><strong>1469</strong></td>
-                            <td><span class="record">1-7</span></td>
-                            <td>
-                                <strong>4.6</strong>
-                                <span class="projected">(2.0-7.0)</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.5%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.5%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0.1%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                            <td class="prob-cell">
-                                <div class="prob-bar low" style="width: 0%;"></div>
-                                <span class="prob-value">&lt;1%</span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="legend">
-                <div class="legend-item">
-                    <div class="legend-color" style="background: linear-gradient(to right, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.25));"></div>
-                    <span>High probability (&gt;50%)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: linear-gradient(to right, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.2));"></div>
-                    <span>Medium probability (20-50%)</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background: linear-gradient(to right, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.15));"></div>
-                    <span>Low probability (&lt;20%)</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="card" style="border-left-color: var(--warning-color);">
-            <div class="card-title">Ladder Position Probabilities</div>
-            <div style="font-size: 13px; color: var(--light-text); margin: 15px 0 20px;">
-                Probability (%) of each team finishing in each ladder position
-            </div>
-            <div class="table-container">
-                <table class="matrix-table">
-                    <thead>
-                        <tr>
-                            <th>Team</th>
-                            <th>1st</th>
-                            <th>2nd</th>
-                            <th>3rd</th>
-                            <th>4th</th>
-                            <th>5th</th>
-                            <th>6th</th>
-                            <th>7th</th>
-                            <th>8th</th>
-                            <th>9th</th>
-                            <th>10th</th>
-                            <th>11th</th>
-                            <th>12th</th>
-                            <th>13th</th>
-                            <th>14th</th>
-                            <th>15th</th>
-                            <th>16th</th>
-                            <th>17th</th>
-                            <th>18th</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="team-name">Carlton</td>
-                            <td class="prob-high">32</td>
-                            <td class="prob-high">28</td>
-                            <td class="prob-medium">18</td>
-                            <td class="prob-medium">12</td>
-                            <td class="prob-low">6</td>
-                            <td class="prob-low">3</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Collingwood</td>
-                            <td class="prob-high">24</td>
-                            <td class="prob-high">26</td>
-                            <td class="prob-medium">22</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">8</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Richmond</td>
-                            <td class="prob-medium">18</td>
-                            <td class="prob-medium">20</td>
-                            <td class="prob-medium">22</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-low">11</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Sydney</td>
-                            <td class="prob-medium">12</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">20</td>
-                            <td class="prob-medium">18</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-low">6</td>
-                            <td class="prob-low">3</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Geelong</td>
-                            <td class="prob-low">8</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-low">6</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Melbourne</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">6</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-low">6</td>
-                            <td class="prob-low">3</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Brisbane</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Western Bulldogs</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">GWS Giants</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Port Adelaide</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Fremantle</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-zero">-</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Essendon</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                            <td class="prob-zero">&lt;1</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">St Kilda</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">1</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Hawthorn</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">5</td>
-                            <td class="prob-low">3</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">North Melbourne</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">9</td>
-                            <td class="prob-low">8</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">West Coast</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">17</td>
-                            <td class="prob-medium">14</td>
-                            <td class="prob-low">10</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Adelaide</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">13</td>
-                            <td class="prob-medium">16</td>
-                            <td class="prob-medium">21</td>
-                            <td class="prob-medium">20</td>
-                        </tr>
-                        <tr>
-                            <td class="team-name">Gold Coast</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">-</td>
-                            <td class="prob-zero">&lt;1</td>
-                            <td class="prob-low">2</td>
-                            <td class="prob-low">4</td>
-                            <td class="prob-low">7</td>
-                            <td class="prob-low">10</td>
-                            <td class="prob-medium">15</td>
-                            <td class="prob-medium">24</td>
-                            <td class="prob-high">38</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="card" style="border-left-color: var(--secondary-color);">
-            <div class="card-title">Understanding the Simulation</div>
-            <div style="font-size: 14px; color: var(--light-text); margin-top: 15px;">
-                <p style="margin-bottom: 12px;"><strong>Methodology:</strong> Monte Carlo simulation using current ELO ratings and remaining fixture. Each simulation randomly determines game outcomes based on win probabilities derived from ELO ratings and venue advantages.</p>
-                <p style="margin-bottom: 12px;"><strong>Win Range:</strong> Shows 10th to 90th percentile outcomes from simulations, representing realistic season trajectories.</p>
-                <p style="margin-bottom: 12px;"><strong>Finals Progression (2026+ Format):</strong> Top 6 teams qualify directly to finals. Teams 7-10 play in the wildcard round. Semi finals feature losers of 1v4 and 2v3 playing winners from 5v8/9 and 6v7/10. Probabilities account for ladder position advantages and home finals throughout the series.</p>
-                <p style="margin-bottom: 12px;"><strong>Updates:</strong> Simulation refreshes automatically after each completed round with updated ELO ratings.</p>
-                <p><strong>Limitations:</strong> Does not account for injuries, form changes, weather conditions, or other factors beyond ELO ratings. Historical accuracy improves as season progresses.</p>
-            </div>
-        </div>
-    </div>
+    <main id="themes-root" class="themes-root"></main>
 
     <script>
-        // Simple mockup interactivity - sorting functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const table = document.getElementById('simulation-table');
-            const headers = table.querySelectorAll('th.sortable');
+        (function() {
+            const summaryStats = [
+                { label: 'Simulations Run', value: '50,000', subtext: 'Monte Carlo iterations' },
+                { label: 'Completed Matches', value: '132', subtext: 'Updated after Round 12' },
+                { label: 'Matches Remaining', value: '60', subtext: 'Home & away plus finals' },
+                { label: 'Last Refreshed', value: '2h ago', subtext: 'Daily sync pipeline' }
+            ];
 
-            headers.forEach((header, index) => {
-                header.addEventListener('click', function() {
-                    // This is just for demonstration - in real implementation would sort the table
-                    headers.forEach(h => {
-                        h.classList.remove('sorted-asc', 'sorted-desc');
-                    });
-                    header.classList.add('sorted-desc');
+            const probabilityColumns = [
+                { key: 'finals', label: 'Finals' },
+                { key: 'top4', label: 'Top 4' },
+                { key: 'prelim', label: 'Prelim' },
+                { key: 'grandFinal', label: 'Grand Final' },
+                { key: 'premiership', label: 'Premiership' }
+            ];
+
+            const sampleTeams = [
+                {
+                    position: 1,
+                    team: 'Magpies',
+                    currentElo: 1574,
+                    record: '12-3',
+                    projectedWins: 15.6,
+                    winRange: { low: 13.4, high: 17.2 },
+                    finals: 0.99,
+                    top4: 0.87,
+                    prelim: 0.62,
+                    grandFinal: 0.38,
+                    premiership: 0.21
+                },
+                {
+                    position: 2,
+                    team: 'Power',
+                    currentElo: 1549,
+                    record: '11-4',
+                    projectedWins: 15.1,
+                    winRange: { low: 13.1, high: 16.9 },
+                    finals: 0.97,
+                    top4: 0.79,
+                    prelim: 0.54,
+                    grandFinal: 0.33,
+                    premiership: 0.19
+                },
+                {
+                    position: 3,
+                    team: 'Lions',
+                    currentElo: 1524,
+                    record: '10-5',
+                    projectedWins: 14.2,
+                    winRange: { low: 12.5, high: 16.1 },
+                    finals: 0.93,
+                    top4: 0.68,
+                    prelim: 0.44,
+                    grandFinal: 0.27,
+                    premiership: 0.15
+                },
+                {
+                    position: 4,
+                    team: 'Blues',
+                    currentElo: 1498,
+                    record: '10-5',
+                    projectedWins: 13.9,
+                    winRange: { low: 12.1, high: 15.8 },
+                    finals: 0.9,
+                    top4: 0.58,
+                    prelim: 0.37,
+                    grandFinal: 0.22,
+                    premiership: 0.11
+                },
+                {
+                    position: 5,
+                    team: 'Cats',
+                    currentElo: 1491,
+                    record: '9-6',
+                    projectedWins: 13.2,
+                    winRange: { low: 11.3, high: 15.1 },
+                    finals: 0.82,
+                    top4: 0.41,
+                    prelim: 0.24,
+                    grandFinal: 0.14,
+                    premiership: 0.07
+                },
+                {
+                    position: 6,
+                    team: 'Swans',
+                    currentElo: 1468,
+                    record: '8-7',
+                    projectedWins: 12.5,
+                    winRange: { low: 10.7, high: 14.6 },
+                    finals: 0.71,
+                    top4: 0.26,
+                    prelim: 0.15,
+                    grandFinal: 0.09,
+                    premiership: 0.04
+                },
+                {
+                    position: 7,
+                    team: 'Dockers',
+                    currentElo: 1452,
+                    record: '8-7',
+                    projectedWins: 12.1,
+                    winRange: { low: 10.2, high: 14.1 },
+                    finals: 0.64,
+                    top4: 0.18,
+                    prelim: 0.1,
+                    grandFinal: 0.06,
+                    premiership: 0.03
+                },
+                {
+                    position: 8,
+                    team: 'Giants',
+                    currentElo: 1434,
+                    record: '7-8',
+                    projectedWins: 11.5,
+                    winRange: { low: 9.8, high: 13.6 },
+                    finals: 0.52,
+                    top4: 0.12,
+                    prelim: 0.07,
+                    grandFinal: 0.04,
+                    premiership: 0.02
+                },
+                {
+                    position: 9,
+                    team: 'Tigers',
+                    currentElo: 1410,
+                    record: '6-9',
+                    projectedWins: 10.8,
+                    winRange: { low: 9.1, high: 12.9 },
+                    finals: 0.39,
+                    top4: 0.07,
+                    prelim: 0.04,
+                    grandFinal: 0.02,
+                    premiership: 0.01
+                },
+                {
+                    position: 10,
+                    team: 'Saints',
+                    currentElo: 1396,
+                    record: '6-9',
+                    projectedWins: 10.4,
+                    winRange: { low: 8.6, high: 12.6 },
+                    finals: 0.31,
+                    top4: 0.05,
+                    prelim: 0.03,
+                    grandFinal: 0.02,
+                    premiership: 0.01
+                }
+            ];
+
+            const ladderPositions = [1, 2, 3, 4, 5, 6, 7, 8];
+
+            const ladderMatrix = [
+                { team: 'Magpies', probabilities: [0.22, 0.26, 0.18, 0.13, 0.09, 0.06, 0.04, 0.02] },
+                { team: 'Power', probabilities: [0.18, 0.24, 0.2, 0.14, 0.1, 0.07, 0.05, 0.02] },
+                { team: 'Lions', probabilities: [0.14, 0.19, 0.21, 0.16, 0.11, 0.08, 0.07, 0.04] },
+                { team: 'Blues', probabilities: [0.1, 0.16, 0.2, 0.18, 0.14, 0.1, 0.08, 0.04] },
+                { team: 'Cats', probabilities: [0.07, 0.11, 0.16, 0.19, 0.16, 0.13, 0.11, 0.07] },
+                { team: 'Swans', probabilities: [0.05, 0.08, 0.12, 0.15, 0.18, 0.17, 0.14, 0.11] },
+                { team: 'Dockers', probabilities: [0.03, 0.05, 0.09, 0.13, 0.17, 0.2, 0.18, 0.15] },
+                { team: 'Giants', probabilities: [0.02, 0.04, 0.07, 0.11, 0.15, 0.19, 0.21, 0.21] }
+            ];
+
+
+            const themes = [
+                {
+                    id: 'polar-wash',
+                    name: 'Polar Wash',
+                    description: 'Crisp polar whites build into powder blue and peak at deep navy for dominant teams.',
+                    keywords: 'Ice • Powder • Navy',
+                    accent: '#1d4ed8',
+                    accentText: '#e7f2ff',
+                    background: '#f5f9ff',
+                    cardBackground: '#ffffff',
+                    cardText: '#0b1732',
+                    muted: '#e3efff',
+                    tableHeaderBg: '#d5e4ff',
+                    tableHeaderText: '#153c8a',
+                    tableBorder: 'rgba(29, 78, 216, 0.18)',
+                    neutral: '#f3f8ff',
+                    text: '#10213f',
+                    lightText: '#ffffff',
+                    darkText: '#0b1d33',
+                    textThreshold: 0.58,
+                    tableMix: { min: 0.45, max: 0.92, power: 0.62 },
+                    matrixMix: { min: 0.28, max: 0.86, power: 0.68 },
+                    colorStops: [
+                        { stop: 0.0, color: '#ffffff' },
+                        { stop: 0.35, color: '#dbeafe' },
+                        { stop: 0.65, color: '#3b82f6' },
+                        { stop: 1.0, color: '#0f172a' }
+                    ]
+                },
+                {
+                    id: 'glacial-gradient',
+                    name: 'Glacial Gradient',
+                    description: 'Snowfield whites drift into glacier blues and settle at a rich but not too dark sapphire.',
+                    keywords: 'Snow • Glacier • Sapphire',
+                    accent: '#0ea5e9',
+                    accentText: '#e6f9ff',
+                    background: '#f1f8ff',
+                    cardBackground: '#ffffff',
+                    cardText: '#082130',
+                    muted: '#d9f1ff',
+                    tableHeaderBg: '#c6e7ff',
+                    tableHeaderText: '#0b4a66',
+                    tableBorder: 'rgba(14, 165, 233, 0.18)',
+                    neutral: '#f0f7ff',
+                    text: '#0c2537',
+                    lightText: '#ffffff',
+                    darkText: '#06202d',
+                    textThreshold: 0.6,
+                    tableMix: { min: 0.4, max: 0.88, power: 0.65 },
+                    matrixMix: { min: 0.25, max: 0.82, power: 0.72 },
+                    colorStops: [
+                        { stop: 0.0, color: '#ffffff' },
+                        { stop: 0.3, color: '#e0f2ff' },
+                        { stop: 0.6, color: '#3b82f6' },
+                        { stop: 1.0, color: '#1f5ebf' }
+                    ]
+                },
+                {
+                    id: 'coastal-haze',
+                    name: 'Coastal Haze',
+                    description: 'Shoreline whites gather misty blues and crash into slate ocean depth.',
+                    keywords: 'Shore • Mist • Slate',
+                    accent: '#2563eb',
+                    accentText: '#ecf3ff',
+                    background: '#f4f7ff',
+                    cardBackground: '#ffffff',
+                    cardText: '#111c32',
+                    muted: '#e1ebff',
+                    tableHeaderBg: '#d0dcff',
+                    tableHeaderText: '#1c3a75',
+                    tableBorder: 'rgba(37, 99, 235, 0.18)',
+                    neutral: '#f2f6ff',
+                    text: '#14223c',
+                    lightText: '#ffffff',
+                    darkText: '#0f172a',
+                    textThreshold: 0.6,
+                    tableMix: { min: 0.45, max: 0.9, power: 0.6 },
+                    matrixMix: { min: 0.28, max: 0.84, power: 0.68 },
+                    colorStops: [
+                        { stop: 0.0, color: '#ffffff' },
+                        { stop: 0.32, color: '#e5edff' },
+                        { stop: 0.6, color: '#3a7bd5' },
+                        { stop: 1.0, color: '#0b192f' }
+                    ]
+                },
+                {
+                    id: 'frosted-indigo',
+                    name: 'Frosted Indigo',
+                    description: 'Frost white climbs through periwinkle skies toward indigo dominance.',
+                    keywords: 'Frost • Periwinkle • Indigo',
+                    accent: '#4338ca',
+                    accentText: '#edeaff',
+                    background: '#f7f6ff',
+                    cardBackground: '#ffffff',
+                    cardText: '#171133',
+                    muted: '#e4e1ff',
+                    tableHeaderBg: '#d6d2ff',
+                    tableHeaderText: '#2b1f7a',
+                    tableBorder: 'rgba(67, 56, 202, 0.18)',
+                    neutral: '#f4f2ff',
+                    text: '#1f163f',
+                    lightText: '#ffffff',
+                    darkText: '#161329',
+                    textThreshold: 0.6,
+                    tableMix: { min: 0.46, max: 0.9, power: 0.6 },
+                    matrixMix: { min: 0.28, max: 0.84, power: 0.68 },
+                    colorStops: [
+                        { stop: 0.0, color: '#ffffff' },
+                        { stop: 0.3, color: '#e7e7ff' },
+                        { stop: 0.6, color: '#7c83ff' },
+                        { stop: 1.0, color: '#1e1b4b' }
+                    ]
+                },
+                {
+                    id: 'cerulean-breeze',
+                    name: 'Cerulean Breeze',
+                    description: 'Bright stadium whites sweep into breezy cerulean and finish in royal blue.',
+                    keywords: 'Bright • Cerulean • Royal',
+                    accent: '#0ea5e9',
+                    accentText: '#e9f9ff',
+                    background: '#f2fbff',
+                    cardBackground: '#ffffff',
+                    cardText: '#082036',
+                    muted: '#d8f5ff',
+                    tableHeaderBg: '#c9f0ff',
+                    tableHeaderText: '#0a3f59',
+                    tableBorder: 'rgba(14, 165, 233, 0.18)',
+                    neutral: '#f2faff',
+                    text: '#0e2538',
+                    lightText: '#ffffff',
+                    darkText: '#081f2d',
+                    textThreshold: 0.62,
+                    tableMix: { min: 0.42, max: 0.88, power: 0.62 },
+                    matrixMix: { min: 0.26, max: 0.82, power: 0.7 },
+                    colorStops: [
+                        { stop: 0.0, color: '#ffffff' },
+                        { stop: 0.28, color: '#e0f5ff' },
+                        { stop: 0.55, color: '#38bdf8' },
+                        { stop: 1.0, color: '#2563eb' }
+                    ]
+                }
+            ];
+            const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+            function hexToRgb(hex) {
+                const clean = hex.replace('#', '');
+                const bigint = parseInt(clean, 16);
+                return {
+                    r: (bigint >> 16) & 255,
+                    g: (bigint >> 8) & 255,
+                    b: bigint & 255
+                };
+            }
+
+            function rgbToCss({ r, g, b }) {
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+
+            function interpolateColor(colorA, colorB, t) {
+                return {
+                    r: Math.round(colorA.r + (colorB.r - colorA.r) * t),
+                    g: Math.round(colorA.g + (colorB.g - colorA.g) * t),
+                    b: Math.round(colorA.b + (colorB.b - colorA.b) * t)
+                };
+            }
+
+            function blendColors(colorA, colorB, factor) {
+                const f = clamp(factor, 0, 1);
+                return {
+                    r: Math.round(colorA.r + (colorB.r - colorA.r) * f),
+                    g: Math.round(colorA.g + (colorB.g - colorA.g) * f),
+                    b: Math.round(colorA.b + (colorB.b - colorA.b) * f)
+                };
+            }
+
+            function computeLuminance({ r, g, b }) {
+                const channels = [r, g, b].map(value => {
+                    const channel = value / 255;
+                    return channel <= 0.03928
+                        ? channel / 12.92
+                        : Math.pow((channel + 0.055) / 1.055, 2.4);
                 });
-            });
+                return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+            }
 
-            // Dropdown change handlers (mockup only)
-            document.getElementById('year-select').addEventListener('change', function() {
-                console.log('Year changed to:', this.value);
-                alert('In the real implementation, this would reload simulation data for ' + this.value);
-            });
+            function processTheme(theme) {
+                const processed = { ...theme };
+                processed.stops = theme.colorStops.map(stop => ({
+                    stop: clamp(stop.stop, 0, 1),
+                    color: hexToRgb(stop.color)
+                }));
+                processed.neutralRgb = hexToRgb(theme.neutral || '#ffffff');
+                processed.tableMix = {
+                    min: clamp(theme.tableMix?.min ?? 0.55, 0, 1),
+                    max: clamp(theme.tableMix?.max ?? 0.95, 0, 1),
+                    power: Math.max(theme.tableMix?.power ?? 0.6, 0.1)
+                };
+                processed.matrixMix = {
+                    min: clamp(theme.matrixMix?.min ?? 0.4, 0, 1),
+                    max: clamp(theme.matrixMix?.max ?? 0.9, 0, 1),
+                    power: Math.max(theme.matrixMix?.power ?? 0.65, 0.1)
+                };
+                processed.lightText = theme.lightText || '#ffffff';
+                processed.darkText = theme.darkText || '#111827';
+                processed.textThreshold = theme.textThreshold ?? 0.55;
+                return processed;
+            }
 
-            document.getElementById('round-select').addEventListener('change', function() {
-                console.log('Round changed to:', this.value);
-                alert('In the real implementation, this would show simulation as of ' + this.value);
+            function getProbabilityColor(probability, theme) {
+                const clamped = clamp(probability, 0, 1);
+                const stops = theme.stops;
+                if (clamped <= stops[0].stop) {
+                    return stops[0].color;
+                }
+                if (clamped >= stops[stops.length - 1].stop) {
+                    return stops[stops.length - 1].color;
+                }
+                for (let i = 0; i < stops.length - 1; i++) {
+                    const current = stops[i];
+                    const next = stops[i + 1];
+                    if (clamped >= current.stop && clamped <= next.stop) {
+                        const span = next.stop - current.stop || 1;
+                        const localT = (clamped - current.stop) / span;
+                        return interpolateColor(current.color, next.color, localT);
+                    }
+                }
+                return stops[stops.length - 1].color;
+            }
+
+            function selectTextColor(color, theme) {
+                const luminance = computeLuminance(color);
+                return luminance > theme.textThreshold ? theme.darkText : theme.lightText;
+            }
+
+            function getProbabilityCellStyle(probability, theme, mode = 'table') {
+                const clamped = clamp(probability, 0, 1);
+                const mixConfig = mode === 'matrix' ? theme.matrixMix : theme.tableMix;
+                const mixFactor = clamp(
+                    mixConfig.min + (mixConfig.max - mixConfig.min) * Math.pow(clamped, mixConfig.power),
+                    0,
+                    1
+                );
+                const baseColor = getProbabilityColor(clamped, theme);
+                const backgroundColor = blendColors(theme.neutralRgb, baseColor, mixFactor);
+                return {
+                    background: rgbToCss(backgroundColor),
+                    textColor: selectTextColor(backgroundColor, theme)
+                };
+            }
+
+            function formatTableProbability(value) {
+                if (value <= 0) {
+                    return '0%';
+                }
+                if (value < 0.01) {
+                    return '<1%';
+                }
+                if (value < 0.1) {
+                    return `${(value * 100).toFixed(1)}%`;
+                }
+                return `${Math.round(value * 100)}%`;
+            }
+
+            function formatMatrixProbability(value) {
+                if (value <= 0) {
+                    return '0';
+                }
+                if (value < 0.01) {
+                    return '<1';
+                }
+                return `${Math.round(value * 100)}`;
+            }
+
+            function createProbabilityCell(probability, theme) {
+                const cell = document.createElement('td');
+                cell.className = 'prob-cell';
+                const { background, textColor } = getProbabilityCellStyle(probability, theme, 'table');
+                cell.style.backgroundColor = background;
+                cell.style.color = textColor;
+                cell.textContent = formatTableProbability(probability);
+                return cell;
+            }
+
+            function createMatrixCell(probability, theme) {
+                const cell = document.createElement('td');
+                if (probability <= 0) {
+                    cell.textContent = '0';
+                    cell.classList.add('prob-zero');
+                    return cell;
+                }
+                const { background, textColor } = getProbabilityCellStyle(probability, theme, 'matrix');
+                cell.style.backgroundColor = background;
+                cell.style.color = textColor;
+                cell.textContent = formatMatrixProbability(probability);
+                return cell;
+            }
+
+            function createSummarySection() {
+                const summary = document.createElement('div');
+                summary.className = 'summary-stats';
+                summaryStats.forEach(item => {
+                    const box = document.createElement('div');
+                    box.className = 'stat-box';
+                    const label = document.createElement('div');
+                    label.className = 'stat-label';
+                    label.textContent = item.label;
+                    const value = document.createElement('div');
+                    value.className = 'stat-value';
+                    value.textContent = item.value;
+                    const subtext = document.createElement('div');
+                    subtext.className = 'stat-subtext';
+                    subtext.textContent = item.subtext;
+                    box.appendChild(label);
+                    box.appendChild(value);
+                    box.appendChild(subtext);
+                    summary.appendChild(box);
+                });
+                return summary;
+            }
+
+            function createProjectionTable(theme) {
+                const container = document.createElement('div');
+                container.className = 'table-container';
+                const table = document.createElement('table');
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                ['Pos', 'Team', 'Current ELO', 'Record', 'Projected Wins'].forEach(label => {
+                    const th = document.createElement('th');
+                    th.textContent = label;
+                    headerRow.appendChild(th);
+                });
+                probabilityColumns.forEach(column => {
+                    const th = document.createElement('th');
+                    th.textContent = column.label;
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+                const tbody = document.createElement('tbody');
+                sampleTeams.forEach(team => {
+                    const row = document.createElement('tr');
+
+                    const posCell = document.createElement('td');
+                    const posBadge = document.createElement('span');
+                    posBadge.className = 'position';
+                    if (team.position <= 8) {
+                        posBadge.classList.add('top-eight');
+                    }
+                    posBadge.textContent = team.position;
+                    posCell.appendChild(posBadge);
+                    row.appendChild(posCell);
+
+                    const teamCell = document.createElement('td');
+                    const teamWrapper = document.createElement('div');
+                    teamWrapper.className = 'team-cell';
+                    const badge = document.createElement('span');
+                    badge.className = 'team-badge';
+                    teamWrapper.appendChild(badge);
+                    const teamName = document.createElement('span');
+                    teamName.textContent = team.team;
+                    teamWrapper.appendChild(teamName);
+                    teamCell.appendChild(teamWrapper);
+                    row.appendChild(teamCell);
+
+                    const eloCell = document.createElement('td');
+                    eloCell.innerHTML = `<strong>${Math.round(team.currentElo)}</strong>`;
+                    row.appendChild(eloCell);
+
+                    const recordCell = document.createElement('td');
+                    recordCell.textContent = team.record;
+                    row.appendChild(recordCell);
+
+                    const projectedCell = document.createElement('td');
+                    projectedCell.innerHTML = `<strong>${team.projectedWins.toFixed(1)}</strong><span class=\"projected-range\">(${team.winRange.low.toFixed(1)} – ${team.winRange.high.toFixed(1)})</span>`;
+                    row.appendChild(projectedCell);
+
+                    probabilityColumns.forEach(column => {
+                        row.appendChild(createProbabilityCell(team[column.key], theme));
+                    });
+
+                    tbody.appendChild(row);
+                });
+
+                table.appendChild(thead);
+                table.appendChild(tbody);
+                container.appendChild(table);
+                return container;
+            }
+
+            function createMatrixTable(theme) {
+                const container = document.createElement('div');
+                container.className = 'table-container';
+                const table = document.createElement('table');
+                table.className = 'matrix-table';
+                const thead = document.createElement('thead');
+                const headerRow = document.createElement('tr');
+                const teamHead = document.createElement('th');
+                teamHead.textContent = 'Team';
+                headerRow.appendChild(teamHead);
+                ladderPositions.forEach((position, index) => {
+                    const th = document.createElement('th');
+                    if (index === 0) {
+                        th.textContent = '1st';
+                    } else if (index === 1) {
+                        th.textContent = '2nd';
+                    } else if (index === 2) {
+                        th.textContent = '3rd';
+                    } else {
+                        th.textContent = `${position}th`;
+                    }
+                    headerRow.appendChild(th);
+                });
+                thead.appendChild(headerRow);
+                const tbody = document.createElement('tbody');
+                ladderMatrix.forEach(entry => {
+                    const row = document.createElement('tr');
+                    const teamCell = document.createElement('td');
+                    teamCell.textContent = entry.team;
+                    row.appendChild(teamCell);
+                    entry.probabilities.forEach(value => {
+                        row.appendChild(createMatrixCell(value, theme));
+                    });
+                    tbody.appendChild(row);
+                });
+                table.appendChild(thead);
+                table.appendChild(tbody);
+                container.appendChild(table);
+                return container;
+            }
+
+            function applyThemeVariables(section, theme) {
+                section.style.setProperty('--theme-accent', theme.accent);
+                section.style.setProperty('--theme-accent-text', theme.accentText || theme.lightText);
+                section.style.setProperty('--theme-background', theme.background || '#ffffff');
+                section.style.setProperty('--theme-text', theme.text || '#0f172a');
+                section.style.setProperty('--theme-card-bg', theme.cardBackground || '#ffffff');
+                section.style.setProperty('--theme-card-text', theme.cardText || theme.text || '#0f172a');
+                section.style.setProperty('--theme-muted', theme.muted || 'rgba(15,23,42,0.06)');
+                section.style.setProperty('--theme-table-head-bg', theme.tableHeaderBg || 'rgba(148, 163, 184, 0.12)');
+                section.style.setProperty('--theme-table-head-text', theme.tableHeaderText || theme.text || '#0f172a');
+                section.style.setProperty('--theme-table-border', theme.tableBorder || 'rgba(148, 163, 184, 0.2)');
+                section.style.setProperty('--theme-header-bg', theme.headerGradient || theme.accent);
+                section.style.setProperty('--theme-badge-bg', theme.badgeBg || theme.accent);
+                section.style.setProperty('--theme-badge-text', theme.badgeText || theme.accentText || theme.lightText);
+            }
+
+            function renderTheme(theme, index, total) {
+                const section = document.createElement('section');
+                section.className = 'theme-block';
+                applyThemeVariables(section, theme);
+
+                const header = document.createElement('div');
+                header.className = 'theme-header';
+
+                const headerTop = document.createElement('div');
+                headerTop.className = 'theme-header-top';
+
+                const title = document.createElement('h2');
+                title.textContent = `${index + 1}. ${theme.name}`;
+                headerTop.appendChild(title);
+
+                const badge = document.createElement('span');
+                badge.className = 'theme-badge';
+                badge.textContent = `Palette ${index + 1} of ${total}`;
+                headerTop.appendChild(badge);
+
+                header.appendChild(headerTop);
+
+                if (theme.keywords) {
+                    const keywords = document.createElement('div');
+                    keywords.className = 'theme-keywords';
+                    keywords.textContent = theme.keywords;
+                    header.appendChild(keywords);
+                }
+
+                if (theme.description) {
+                    const description = document.createElement('p');
+                    description.className = 'theme-description';
+                    description.textContent = theme.description;
+                    header.appendChild(description);
+                }
+
+                section.appendChild(header);
+
+                const container = document.createElement('div');
+                container.className = 'mock-container';
+
+                const simulationCard = document.createElement('div');
+                simulationCard.className = 'card simulation-card';
+
+                const simulationHeader = document.createElement('div');
+                simulationHeader.className = 'card-header';
+                const simulationTitle = document.createElement('div');
+                simulationTitle.className = 'card-title';
+                simulationTitle.textContent = 'Season Projection (Mock Data)';
+                simulationHeader.appendChild(simulationTitle);
+                simulationCard.appendChild(simulationHeader);
+
+                simulationCard.appendChild(createSummarySection());
+                simulationCard.appendChild(createProjectionTable(theme));
+
+                container.appendChild(simulationCard);
+
+                const matrixCard = document.createElement('div');
+                matrixCard.className = 'card ladder-card';
+                const matrixHeader = document.createElement('div');
+                matrixHeader.className = 'card-header';
+                const matrixTitle = document.createElement('div');
+                matrixTitle.className = 'card-title';
+                matrixTitle.textContent = 'Ladder Position Probabilities (Mock Data)';
+                matrixHeader.appendChild(matrixTitle);
+                matrixCard.appendChild(matrixHeader);
+
+                const matrixIntro = document.createElement('p');
+                matrixIntro.style.fontSize = '0.88rem';
+                matrixIntro.style.opacity = '0.7';
+                matrixIntro.style.marginBottom = '16px';
+                matrixIntro.textContent = 'Cells display the percentage chance of finishing in each ladder slot. Colour intensity follows the palette for this theme.';
+                matrixCard.appendChild(matrixIntro);
+
+                matrixCard.appendChild(createMatrixTable(theme));
+
+                container.appendChild(matrixCard);
+
+                section.appendChild(container);
+
+                return section;
+            }
+            const processedThemes = themes.map(processTheme);
+            const root = document.getElementById('themes-root');
+            processedThemes.forEach((theme, index) => {
+                root.appendChild(renderTheme(theme, index, processedThemes.length));
             });
-        });
+        })();
     </script>
 </body>
 </html>

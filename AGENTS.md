@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Reference
 
-For comprehensive project information including architecture, features, and setup instructions, **read the README.md file first**. Additionally, **read ai-instructions.md** for detailed AI/LLM workflow guidelines and communication requirements. This file contains AI-specific development guidelines and rules.
+For comprehensive project information including architecture, features, and setup instructions, **read the README.md file first**. This file contains AI-specific development guidelines and rules.
 
 ## Development Commands
 
@@ -56,6 +56,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Single consolidated CSV file (`data/afl_elo_complete_history.csv`) for historical chart data
 - Automated pipeline: Daily sync writes predictions to database and regenerates historical CSV when matches update
 - Clean separation between operational data (database) and analytical data (CSV)
+
+**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. When updating the simulator:
+- Keep the finals structure and seeding logic intact.
+- Maintain the percentile helper (`interpolate_percentile`) so 10th/90th win bounds are interpolated between adjacent win totals instead of rounding to whole numbers. The helper finds the bucket containing the percentile and linearly blends toward the neighbouring win count (or back toward the previous value at the upper edge) to keep results within the feasible win range.
 
 ## Testing Framework
 

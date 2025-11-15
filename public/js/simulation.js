@@ -22,6 +22,56 @@
     const matrixHeader = document.getElementById('matrix-header');
     const matrixTbody = document.getElementById('matrix-tbody');
 
+    // Color palette for probability visualization (low → high)
+    const PROBABILITY_COLOR_STOPS = [
+        { stop: 0.0, color: [255, 255, 255] },   // 0% -> white
+        { stop: 0.3, color: [224, 242, 255] },   // pale glacier
+        { stop: 0.6, color: [59, 130, 246] },    // saturated blue
+        { stop: 1.0, color: [31, 94, 191] }      // rich sapphire
+    ];
+
+    const WHITE_COLOR = [255, 255, 255];
+    const TABLE_COLOR_BLEND = { min: 0.15, max: 1, power: 0.65 };
+    const MATRIX_COLOR_BLEND = { min: 0.12, max: 0.95, power: 0.75 };
+
+    function interpolateColor(colorA, colorB, t) {
+        const clampedT = Math.max(0, Math.min(t, 1));
+        return [
+            Math.round(colorA[0] + (colorB[0] - colorA[0]) * clampedT),
+            Math.round(colorA[1] + (colorB[1] - colorA[1]) * clampedT),
+            Math.round(colorA[2] + (colorB[2] - colorA[2]) * clampedT)
+        ];
+    }
+
+    function getProbabilityColor(probability) {
+        const clamped = Math.max(0, Math.min(probability, 1));
+
+        for (let i = 0; i < PROBABILITY_COLOR_STOPS.length - 1; i++) {
+            const current = PROBABILITY_COLOR_STOPS[i];
+            const next = PROBABILITY_COLOR_STOPS[i + 1];
+
+            if (clamped >= current.stop && clamped <= next.stop) {
+                const segmentRange = next.stop - current.stop;
+                const localT = segmentRange === 0 ? 0 : (clamped - current.stop) / segmentRange;
+                return interpolateColor(current.color, next.color, localT);
+            }
+        }
+
+        return PROBABILITY_COLOR_STOPS[PROBABILITY_COLOR_STOPS.length - 1].color;
+    }
+
+    function getContrastTextColor(rgb) {
+        const [r, g, b] = rgb.map(value => {
+            const channel = value / 255;
+            return channel <= 0.03928
+                ? channel / 12.92
+                : Math.pow((channel + 0.055) / 1.055, 2.4);
+        });
+
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return luminance > 0.55 ? '#1b1b1b' : '#ffffff';
+    }
+
     /**
      * Initialize the page
      */
@@ -103,8 +153,12 @@
         // Update page title and subtitle
         document.getElementById('simulation-title').textContent =
             `${simulationData.year} AFL Season Simulation`;
-        document.getElementById('simulation-subtitle').textContent =
-            `ELO-based Monte Carlo simulation • ${simulationData.completed_matches} matches completed`;
+
+        const subtitleEl = document.getElementById('simulation-subtitle');
+        if (subtitleEl) {
+            subtitleEl.textContent =
+                `ELO-based Monte Carlo simulation • ${simulationData.completed_matches} matches completed`;
+        }
 
         // Update summary statistics
         document.getElementById('num-simulations').textContent =
@@ -195,27 +249,53 @@
     }
 
     /**
-     * Create a probability cell with bar visualization
+     * Determine the background and text color for probability cells
+     */
+    function buildCellStyle(probability, blendConfig) {
+        const clamped = Math.max(0, Math.min(probability, 1));
+        const mixFactor = blendConfig.min + (blendConfig.max - blendConfig.min) * Math.pow(clamped, blendConfig.power);
+        const baseColor = getProbabilityColor(clamped);
+        const blended = interpolateColor(WHITE_COLOR, baseColor, mixFactor);
+        const textColor = getContrastTextColor(blended);
+
+        return {
+            background: `rgb(${blended[0]}, ${blended[1]}, ${blended[2]})`,
+            textColor,
+            intensity: clamped
+        };
+    }
+
+    /**
+     * Create a probability cell with full-cell heatmap styling
      */
     function createProbabilityCell(probability) {
         const percentage = (probability * 100).toFixed(1);
-        const width = Math.min(probability * 100, 100);
-
-        let barClass = 'low';
-        if (probability >= 0.5) {
-            barClass = 'high';
-        } else if (probability >= 0.2) {
-            barClass = 'medium';
-        }
-
         const displayValue = probability < 0.01 && probability > 0 ? '<1%' : `${percentage}%`;
+        const { background, textColor } = buildCellStyle(probability, TABLE_COLOR_BLEND);
 
         return `
-            <td class="prob-cell">
-                <div class="prob-bar ${barClass}" style="width: ${width}%;"></div>
+            <td class="prob-cell" style="background-color: ${background}; color: ${textColor};">
                 <span class="prob-value">${displayValue}</span>
             </td>
         `;
+    }
+
+    /**
+     * Style ladder matrix cells using the probability colour scale
+     */
+    function applyMatrixCellStyling(cell, probability) {
+        const { background, textColor, intensity } = buildCellStyle(probability, MATRIX_COLOR_BLEND);
+
+        cell.style.backgroundColor = background;
+        cell.style.color = textColor;
+
+        if (intensity >= 0.75) {
+            cell.style.fontWeight = '700';
+        } else if (intensity >= 0.4) {
+            cell.style.fontWeight = '600';
+        } else {
+            cell.style.fontWeight = '500';
+        }
     }
 
     /**
@@ -266,28 +346,17 @@
             for (let pos = 1; pos <= numTeams; pos++) {
                 const cell = document.createElement('td');
                 const probability = team.ladder_position_probabilities?.[String(pos)] || 0;
-                const percentage = (probability * 100).toFixed(0);
 
-                // Determine cell class based on probability
-                if (probability >= 0.15) {
-                    cell.className = 'prob-high';
-                } else if (probability >= 0.05) {
-                    cell.className = 'prob-medium';
-                } else if (probability > 0 && probability < 0.01) {
-                    cell.className = 'prob-zero';
-                    cell.textContent = '<1';
-                    row.appendChild(cell);
-                    continue;
-                } else if (probability === 0) {
+                if (probability <= 0) {
                     cell.className = 'prob-zero';
                     cell.textContent = '-';
                     row.appendChild(cell);
                     continue;
-                } else {
-                    cell.className = 'prob-low';
                 }
 
-                cell.textContent = percentage;
+                const percentage = (probability * 100).toFixed(0);
+                cell.textContent = probability < 0.01 ? '<1' : percentage;
+                applyMatrixCellStyling(cell, probability);
                 row.appendChild(cell);
             }
 

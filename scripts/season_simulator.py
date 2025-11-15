@@ -24,6 +24,51 @@ from core.data_io import load_model, fetch_matches_for_prediction
 from core.elo_core import MarginEloModel
 
 
+def interpolate_percentile(values, percentile):
+    """
+    Estimate a percentile for discrete win totals by linearly interpolating
+    between neighbouring win counts. This avoids snapping all percentile
+    estimates to whole numbers while keeping the result within the attainable
+    win range.
+    """
+    array = np.asarray(values, dtype=float)
+    if array.size == 0:
+        return float('nan')
+    if array.size == 1:
+        return float(array[0])
+
+    unique_values, counts = np.unique(array, return_counts=True)
+    probabilities = counts / counts.sum()
+    cumulative = np.cumsum(probabilities)
+    cumulative_prev = np.concatenate(([0.0], cumulative[:-1]))
+
+    q = percentile / 100.0
+    idx = np.searchsorted(cumulative, q, side='left')
+    if idx >= len(unique_values):
+        idx = len(unique_values) - 1
+
+    prob = probabilities[idx]
+    current_value = unique_values[idx]
+    if prob == 0:
+        return float(current_value)
+
+    fraction = (q - cumulative_prev[idx]) / prob
+    fraction = max(0.0, min(1.0, fraction))
+
+    # Interpolate towards the next value when available; otherwise move back
+    # towards the previous value (upper tail).
+    if idx < len(unique_values) - 1:
+        next_value = unique_values[idx + 1]
+        interpolated = current_value + fraction * (next_value - current_value)
+    elif idx > 0:
+        prev_value = unique_values[idx - 1]
+        interpolated = prev_value + fraction * (current_value - prev_value)
+    else:
+        interpolated = current_value
+
+    return float(interpolated)
+
+
 class SeasonSimulator:
     """
     Simulates AFL season outcomes using Monte Carlo methods
@@ -126,14 +171,31 @@ class SeasonSimulator:
 
             print(f"Total matches to simulate: {len(self.upcoming_matches)}")
         else:
-            # Separate completed and upcoming matches
-            self.completed_matches = all_matches[
-                (~all_matches['hscore'].isna()) & (~all_matches['ascore'].isna())
-            ].copy()
+            # Determine completion status using explicit completion flag when available
+            if 'complete' in all_matches.columns:
+                completion = pd.to_numeric(all_matches['complete'], errors='coerce')
+            else:
+                completion = pd.Series(np.nan, index=all_matches.index, dtype=float)
 
-            self.upcoming_matches = all_matches[
-                (all_matches['hscore'].isna()) | (all_matches['ascore'].isna())
-            ].copy()
+            all_matches['complete'] = completion
+
+            # Scores are considered reliable only when both teams have recorded non-null values
+            scores_recorded = (~all_matches['hscore'].isna()) & (~all_matches['ascore'].isna())
+            # Treat 0-0 scores as placeholders for unplayed matches unless the game is explicitly complete
+            zero_score_placeholder = (
+                (all_matches['hscore'] == 0) &
+                (all_matches['ascore'] == 0) &
+                ((completion < 100) | (completion.isna()))
+            )
+            scores_recorded = scores_recorded & (~zero_score_placeholder)
+
+            completed_mask = (
+                (completion >= 100) |
+                (completion.isna() & scores_recorded)
+            )
+
+            self.completed_matches = all_matches[completed_mask].copy()
+            self.upcoming_matches = all_matches[~completed_mask].copy()
 
             print(f"Found {len(self.completed_matches)} completed matches")
             print(f"Found {len(self.upcoming_matches)} upcoming matches to simulate")
@@ -528,8 +590,8 @@ class SeasonSimulator:
                 'current_losses': self.current_records.get(team, {}).get('losses', 0),
                 'current_draws': self.current_records.get(team, {}).get('draws', 0),
                 'projected_wins': float(np.mean(wins_array)),
-                'wins_10th_percentile': float(np.percentile(wins_array, 10)),
-                'wins_90th_percentile': float(np.percentile(wins_array, 90)),
+                'wins_10th_percentile': interpolate_percentile(wins_array, 10),
+                'wins_90th_percentile': interpolate_percentile(wins_array, 90),
                 'finals_probability': outcomes['finals_count'] / self.num_simulations,
                 'top4_probability': outcomes['top4_count'] / self.num_simulations,
                 'prelim_probability': outcomes['prelim_count'] / self.num_simulations,

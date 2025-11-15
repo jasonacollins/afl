@@ -1511,35 +1511,14 @@ textarea {
 }
 
 .prob-cell {
-  position: relative;
+  text-align: center;
+  font-weight: 600;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .prob-value {
-  position: relative;
-  z-index: 1;
-  font-weight: 600;
-}
-
-.prob-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  background: linear-gradient(to right, rgba(26, 115, 232, 0.1), rgba(26, 115, 232, 0.2));
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.prob-bar.high {
-  background: linear-gradient(to right, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.25));
-}
-
-.prob-bar.medium {
-  background: linear-gradient(to right, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.2));
-}
-
-.prob-bar.low {
-  background: linear-gradient(to right, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.15));
+  display: inline-block;
+  min-width: 4ch;
 }
 
 .legend {
@@ -1571,6 +1550,16 @@ textarea {
   padding: 1.5rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   border-left: 4px solid var(--secondary-color);
+  margin-top: 2rem;
+}
+
+.ladder-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid var(--warning-color);
+  margin-bottom: 1.5rem;
 }
 
 /* Ladder position probability matrix */
@@ -1591,6 +1580,7 @@ textarea {
   padding: 6px 4px;
   text-align: center;
   border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .matrix-table .team-name {
@@ -1600,21 +1590,9 @@ textarea {
   white-space: nowrap;
 }
 
-.matrix-table .prob-high {
-  background-color: rgba(76, 175, 80, 0.3);
-  font-weight: 600;
-}
-
-.matrix-table .prob-medium {
-  background-color: rgba(255, 152, 0, 0.2);
-}
-
-.matrix-table .prob-low {
-  background-color: rgba(244, 67, 54, 0.1);
-}
-
 .matrix-table .prob-zero {
-  color: #ccc;
+  color: #a8b0bd;
+  background-color: transparent;
 }
 
 /* Responsive adjustments for simulation page */

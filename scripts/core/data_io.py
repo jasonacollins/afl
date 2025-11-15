@@ -44,7 +44,7 @@ def fetch_afl_data(db_path: str, start_year: Optional[int] = None,
     query = f"""
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, 
+        m.venue, m.year, m.hscore, m.ascore,
         ht.name as home_team, at.name as away_team
     FROM 
         matches m
@@ -86,7 +86,7 @@ def fetch_matches_for_prediction(db_path: str, start_year: int) -> pd.DataFrame:
     query = f"""
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, 
+        m.venue, m.year, m.hscore, m.ascore, m.complete,
         ht.name as home_team, at.name as away_team
     FROM 
         matches m

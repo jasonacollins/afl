@@ -3,12 +3,6 @@
 <div class="container">
     <div class="simulation-header">
         <h1 id="simulation-title">Season Simulation</h1>
-        <p class="subtitle" id="simulation-subtitle">ELO-based Monte Carlo simulation projecting season outcomes</p>
-    </div>
-
-    <div class="info-box">
-        <p><strong>How this works:</strong> This simulation runs 50,000 possible season outcomes based on current ELO ratings and remaining fixtures. Probabilities update after each round as team strengths change.</p>
-        <p><strong>Finals Format:</strong> Top 8 teams qualify • Top 4 get double chances • Grand Final between winners of Preliminary Finals</p>
     </div>
 
     <div class="card simulation-card">
@@ -84,7 +78,7 @@
 
     </div>
 
-    <div class="card" id="ladder-position-card" style="display: none; border-left-color: var(--warning-color);">
+    <div class="card ladder-card" id="ladder-position-card" style="display: none;">
         <div class="card-title">Ladder Position Probabilities</div>
         <div style="font-size: 13px; color: var(--light-text); margin: 15px 0 20px;">
             Probability (%) of each team finishing in each ladder position
@@ -110,7 +104,6 @@
             <p style="margin-bottom: 12px;"><strong>Win Range:</strong> Shows 10th to 90th percentile outcomes from simulations, representing realistic season trajectories.</p>
             <p style="margin-bottom: 12px;"><strong>Finals Progression:</strong> Probabilities account for both qualifying for finals and the path through the finals series based on ladder position (top 4 advantage, etc.)</p>
             <p style="margin-bottom: 12px;"><strong>Updates:</strong> Simulation data is regenerated after each completed round with updated ELO ratings.</p>
-            <p><strong>Limitations:</strong> Does not account for injuries, form changes, weather conditions, or other factors beyond ELO ratings. Historical accuracy improves as season progresses.</p>
         </div>
     </div>
 </div>
