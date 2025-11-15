@@ -28,6 +28,7 @@ const predictionsRoutes = require('./routes/predictions');
 const matchesRoutes = require('./routes/matches');
 const adminRoutes = require('./routes/admin');
 const eloRoutes = require('./routes/elo');
+const simulationRoutes = require('./routes/simulation');
 
 // Initialize express app
 const app = express();
@@ -104,6 +105,7 @@ app.use('/predictions', predictionsRoutes);
 app.use('/matches', matchesRoutes);
 app.use('/admin', adminRoutes);
 app.use('/api/elo', eloRoutes);
+app.use('/api/simulation', simulationRoutes);
 
 // Global API endpoint for excluded predictors (accessible to all users)
 app.get('/api/excluded-predictors', catchAsync(async (req, res) => {
@@ -442,6 +444,19 @@ app.get('/featured-predictions/:round', catchAsync(async (req, res) => {
     predictor,
     matches,
     predictions
+  });
+}));
+
+// Season simulation page route
+app.get('/simulation', catchAsync(async (req, res) => {
+  const currentYear = new Date().getFullYear();
+  const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
+
+  res.render('simulation', {
+    user: req.session.user,
+    isAdmin: req.session.isAdmin,
+    selectedYear: selectedYear,
+    currentYear: currentYear
   });
 }));
 

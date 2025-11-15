@@ -1,0 +1,115 @@
+<%- include('partials/header') %>
+
+<div class="container">
+    <div class="simulation-header">
+        <h1 id="simulation-title">Season Simulation</h1>
+        <p class="subtitle" id="simulation-subtitle">ELO-based Monte Carlo simulation projecting season outcomes</p>
+    </div>
+
+    <div class="info-box">
+        <p><strong>How this works:</strong> This simulation runs 50,000 possible season outcomes based on current ELO ratings and remaining fixtures. Probabilities update after each round as team strengths change.</p>
+        <p><strong>Finals Format:</strong> Top 8 teams qualify • Top 4 get double chances • Grand Final between winners of Preliminary Finals</p>
+    </div>
+
+    <div class="card simulation-card">
+        <div class="card-header">
+            <div class="card-title">Season Projection</div>
+            <div class="controls">
+                <div class="control-group">
+                    <label for="year-select">Season</label>
+                    <select id="year-select">
+                        <option value="<%= selectedYear %>" selected><%= selectedYear %></option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="loading-indicator" class="loading-indicator">
+            <div class="spinner"></div>
+            <p>Loading simulation data...</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="error-message" class="error-message" style="display: none;">
+            <p id="error-text"></p>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="summary-stats" id="summary-stats" style="display: none;">
+            <div class="stat-box">
+                <div class="stat-label">Simulations Run</div>
+                <div class="stat-value" id="num-simulations">-</div>
+                <div class="stat-subtext">Based on current ELO ratings</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Completed Matches</div>
+                <div class="stat-value" id="completed-matches">-</div>
+                <div class="stat-subtext" id="completed-subtext">-</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Matches to Simulate</div>
+                <div class="stat-value" id="remaining-matches">-</div>
+                <div class="stat-subtext">Regular season + finals</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Last Updated</div>
+                <div class="stat-value" id="last-updated">-</div>
+                <div class="stat-subtext">Updates after each round</div>
+            </div>
+        </div>
+
+        <!-- Results table -->
+        <div class="table-container" id="table-container" style="display: none;">
+            <table id="simulation-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="position">Pos</th>
+                        <th class="sortable" data-sort="team">Team</th>
+                        <th class="sortable" data-sort="elo">Current ELO</th>
+                        <th class="sortable" data-sort="record">Record</th>
+                        <th class="sortable" data-sort="projected-wins">Projected Wins</th>
+                        <th class="sortable" data-sort="finals">Finals</th>
+                        <th class="sortable" data-sort="top4">Top 4</th>
+                        <th class="sortable" data-sort="prelim">Prelim</th>
+                        <th class="sortable" data-sort="grand-final">Grand Final</th>
+                        <th class="sortable" data-sort="premiership">Premiership</th>
+                    </tr>
+                </thead>
+                <tbody id="simulation-tbody">
+                    <!-- Table rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="legend" id="legend" style="display: none;">
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(to right, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.25));"></div>
+                <span>High probability (&gt;50%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(to right, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.2));"></div>
+                <span>Medium probability (20-50%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: linear-gradient(to right, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.15));"></div>
+                <span>Low probability (&lt;20%)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="card info-card">
+        <div class="card-title">Understanding the Simulation</div>
+        <div style="font-size: 14px; color: var(--light-text); margin-top: 15px;">
+            <p style="margin-bottom: 12px;"><strong>Methodology:</strong> Monte Carlo simulation using current ELO ratings and remaining fixture. Each simulation randomly determines game outcomes based on win probabilities derived from ELO ratings and home ground advantages.</p>
+            <p style="margin-bottom: 12px;"><strong>Win Range:</strong> Shows 10th to 90th percentile outcomes from simulations, representing realistic season trajectories.</p>
+            <p style="margin-bottom: 12px;"><strong>Finals Progression:</strong> Probabilities account for both qualifying for finals and the path through the finals series based on ladder position (top 4 advantage, etc.)</p>
+            <p style="margin-bottom: 12px;"><strong>Updates:</strong> Simulation data is regenerated after each completed round with updated ELO ratings.</p>
+            <p><strong>Limitations:</strong> Does not account for injuries, form changes, weather conditions, or other factors beyond ELO ratings. Historical accuracy improves as season progresses.</p>
+        </div>
+    </div>
+</div>
+
+<script src="/js/simulation.js"></script>
+
+<%- include('partials/footer') %>

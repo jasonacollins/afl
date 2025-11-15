@@ -1246,3 +1246,359 @@ textarea {
     font-size: 0.8rem;
   }
 }
+
+/* Season Simulation Styles */
+.simulation-header {
+  margin-bottom: 1.5rem;
+}
+
+.simulation-header h1 {
+  color: var(--primary-dark);
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+}
+
+.subtitle {
+  color: var(--light-text);
+  font-size: 0.95rem;
+}
+
+.info-box {
+  background-color: #e3f2fd;
+  border-left: 4px solid var(--primary-color);
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.info-box p {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.info-box p:last-child {
+  margin-bottom: 0;
+}
+
+.info-box strong {
+  color: var(--primary-dark);
+}
+
+.simulation-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid var(--primary-color);
+  margin-bottom: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.card-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.control-group label {
+  font-size: 0.8rem;
+  color: var(--light-text);
+  font-weight: 500;
+}
+
+.control-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  background-color: white;
+}
+
+.control-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.loading-indicator {
+  text-align: center;
+  padding: 3rem;
+  color: var(--light-text);
+}
+
+.spinner {
+  border: 4px solid var(--background-light);
+  border-top: 4px solid var(--primary-color);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-message {
+  background-color: #ffebee;
+  border-left: 4px solid var(--error-color);
+  padding: 1rem;
+  border-radius: 6px;
+  color: var(--error-color);
+  margin: 1rem 0;
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-box {
+  background-color: var(--background-light);
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--primary-color);
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  color: var(--light-text);
+  margin-bottom: 0.3rem;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.stat-subtext {
+  font-size: 0.8rem;
+  color: var(--light-text);
+  margin-top: 0.2rem;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+#simulation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+#simulation-table thead {
+  background-color: var(--background-light);
+  position: sticky;
+  top: 0;
+}
+
+#simulation-table th {
+  padding: 0.75rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--primary-dark);
+  border-bottom: 2px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+}
+
+#simulation-table th:hover {
+  background-color: #e8e8e8;
+}
+
+#simulation-table th.sortable::after {
+  content: ' ↕';
+  opacity: 0.3;
+  font-size: 0.8rem;
+}
+
+#simulation-table th.sorted-asc::after {
+  content: ' ↑';
+  opacity: 1;
+}
+
+#simulation-table th.sorted-desc::after {
+  content: ' ↓';
+  opacity: 1;
+}
+
+#simulation-table td {
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+#simulation-table tbody tr:hover {
+  background-color: var(--background-light);
+}
+
+.team-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.finals-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-left: 0.3rem;
+}
+
+.finals-badge.top4 {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.finals-badge.top8 {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.finals-badge.out {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.position {
+  font-weight: 700;
+  color: var(--light-text);
+  min-width: 25px;
+}
+
+.position.top8 {
+  color: var(--success-color);
+}
+
+.record {
+  font-weight: 600;
+}
+
+.projected {
+  color: var(--light-text);
+  font-size: 0.85rem;
+}
+
+.prob-cell {
+  position: relative;
+}
+
+.prob-value {
+  position: relative;
+  z-index: 1;
+  font-weight: 600;
+}
+
+.prob-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(to right, rgba(26, 115, 232, 0.1), rgba(26, 115, 232, 0.2));
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.prob-bar.high {
+  background: linear-gradient(to right, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.25));
+}
+
+.prob-bar.medium {
+  background: linear-gradient(to right, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.2));
+}
+
+.prob-bar.low {
+  background: linear-gradient(to right, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.15));
+}
+
+.legend {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1rem;
+  background-color: var(--background-light);
+  border-radius: 6px;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+}
+
+.info-card {
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid var(--secondary-color);
+}
+
+/* Responsive adjustments for simulation page */
+@media (max-width: 768px) {
+  .simulation-card {
+    padding: 1rem;
+  }
+
+  .simulation-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .summary-stats {
+    grid-template-columns: 1fr;
+  }
+
+  #simulation-table {
+    font-size: 0.8rem;
+  }
+
+  #simulation-table th,
+  #simulation-table td {
+    padding: 0.5rem 0.25rem;
+  }
+
+  .team-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+}
