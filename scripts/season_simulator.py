@@ -155,6 +155,64 @@ class SeasonSimulator:
         # Get current standings from completed matches
         self.calculate_current_standings()
 
+        # Update ratings based on completed matches (only if not from-scratch)
+        if not self.from_scratch and len(self.completed_matches) > 0:
+            self.update_ratings_from_completed_matches()
+
+    def _cap_margin(self, margin):
+        """Cap margin to reduce effect of blowouts (from margin model)"""
+        return min(abs(margin), self.max_margin) * np.sign(margin)
+
+    def update_ratings_from_completed_matches(self):
+        """
+        Update ELO ratings based on completed matches in the current season.
+        Uses the margin model's rating update formula.
+        """
+        print(f"\nUpdating ratings from {len(self.completed_matches)} completed matches...")
+
+        # Sort matches by date to update in chronological order
+        sorted_matches = self.completed_matches.sort_values('match_date')
+
+        rating_changes = []
+
+        for _, match in sorted_matches.iterrows():
+            home_team = match['home_team']
+            away_team = match['away_team']
+            hscore = match['hscore']
+            ascore = match['ascore']
+
+            # Get current ratings
+            home_rating = self.initial_ratings.get(home_team, self.base_rating)
+            away_rating = self.initial_ratings.get(away_team, self.base_rating)
+
+            # Predict margin using current ratings
+            rating_diff = (home_rating + self.home_advantage) - away_rating
+            predicted_margin = rating_diff * self.margin_scale
+
+            # Calculate actual margin
+            actual_margin = hscore - ascore
+            capped_margin = self._cap_margin(actual_margin)
+
+            # Calculate margin prediction error
+            margin_error = predicted_margin - actual_margin
+
+            # Update ratings based on margin error
+            # Negative error means we under-predicted home team, so increase their rating
+            rating_change = -self.k_factor * margin_error / self.scaling_factor
+
+            # Apply the rating change
+            self.initial_ratings[home_team] = home_rating + rating_change
+            self.initial_ratings[away_team] = away_rating - rating_change
+
+            rating_changes.append(abs(rating_change))
+
+        avg_change = np.mean(rating_changes) if rating_changes else 0
+        max_change = np.max(rating_changes) if rating_changes else 0
+
+        print(f"Ratings updated through completed matches")
+        print(f"  Average rating change: {avg_change:.1f} points")
+        print(f"  Maximum rating change: {max_change:.1f} points")
+
     def calculate_current_standings(self):
         """Calculate current win-loss records from completed matches"""
         self.current_records = defaultdict(lambda: {'wins': 0, 'losses': 0, 'draws': 0})
