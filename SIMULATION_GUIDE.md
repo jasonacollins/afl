@@ -27,7 +27,16 @@ cd scripts
 python3 season_simulator.py \
   --year 2025 \
   --model-path ../data/models/margin/afl_elo_margin_only_trained_to_2024.json \
-  --db-path ../data/database/afl_predictions.db \
+  --num-simulations 50000
+```
+
+**Note:** The `--db-path` parameter defaults to `../data/database/afl_predictions.db` when running from the `scripts/` directory. If your database is located elsewhere, specify it explicitly:
+
+```bash
+python3 season_simulator.py \
+  --year 2025 \
+  --model-path ../data/models/margin/afl_elo_margin_only_trained_to_2024.json \
+  --db-path /path/to/your/afl_predictions.db \
   --num-simulations 50000
 ```
 

@@ -447,8 +447,8 @@ def main():
                         help='Year to simulate')
     parser.add_argument('--model-path', type=str, required=True,
                         help='Path to trained margin ELO model')
-    parser.add_argument('--db-path', type=str, default='data/database/afl_predictions.db',
-                        help='Path to database')
+    parser.add_argument('--db-path', type=str, default='../data/database/afl_predictions.db',
+                        help='Path to database (default: ../data/database/afl_predictions.db)')
     parser.add_argument('--num-simulations', type=int, default=50000,
                         help='Number of simulations to run (default: 50000)')
     parser.add_argument('--output', type=str, default=None,
@@ -458,7 +458,7 @@ def main():
 
     # Set default output path if not specified
     if args.output is None:
-        args.output = f'data/simulations/season_simulation_{args.year}.json'
+        args.output = f'../data/simulations/season_simulation_{args.year}.json'
 
     # Create simulator
     simulator = SeasonSimulator(
