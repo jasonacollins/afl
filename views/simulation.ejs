@@ -82,19 +82,24 @@
             </table>
         </div>
 
-        <div class="legend" id="legend" style="display: none;">
-            <div class="legend-item">
-                <div class="legend-color" style="background: linear-gradient(to right, rgba(76, 175, 80, 0.1), rgba(76, 175, 80, 0.25));"></div>
-                <span>High probability (&gt;50%)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: linear-gradient(to right, rgba(255, 152, 0, 0.1), rgba(255, 152, 0, 0.2));"></div>
-                <span>Medium probability (20-50%)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color" style="background: linear-gradient(to right, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.15));"></div>
-                <span>Low probability (&lt;20%)</span>
-            </div>
+    </div>
+
+    <div class="card" id="ladder-position-card" style="display: none; border-left-color: var(--warning-color);">
+        <div class="card-title">Ladder Position Probabilities</div>
+        <div style="font-size: 13px; color: var(--light-text); margin: 15px 0 20px;">
+            Probability (%) of each team finishing in each ladder position
+        </div>
+        <div class="table-container">
+            <table class="matrix-table" id="matrix-table">
+                <thead>
+                    <tr id="matrix-header">
+                        <!-- Will be populated by JavaScript -->
+                    </tr>
+                </thead>
+                <tbody id="matrix-tbody">
+                    <!-- Will be populated by JavaScript -->
+                </tbody>
+            </table>
         </div>
     </div>
 
