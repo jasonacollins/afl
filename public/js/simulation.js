@@ -169,30 +169,12 @@
                 record += `-${team.current_draws}`;
             }
 
-            // Finals badge - only show for teams 4-8 (not top 3, not bottom 5)
-            let finalsBadge = '';
-            let badgeClass = '';
-            let badgeText = '';
-
-            if (team.finals_probability >= 0.75 && position > 3 && position <= 8) {
-                badgeClass = position <= 4 ? 'top4' : 'top8';
-                badgeText = position <= 4 ? 'Top 4' : 'Finals';
-            } else if (team.finals_probability < 0.25 && position <= 13) {
-                // Only show "Outside 8" for positions 9-13 (not bottom 5)
-                badgeClass = 'out';
-                badgeText = 'Outside 8';
-            }
-
-            if (badgeClass) {
-                finalsBadge = `<span class="finals-badge ${badgeClass}">${badgeText}</span>`;
-            }
-
             // Build the row HTML
             row.innerHTML = `
                 <td><span class="position ${posClass}">${position}</span></td>
                 <td>
                     <div class="team-cell">
-                        <span>${team.team}${finalsBadge}</span>
+                        <span>${team.team}</span>
                     </div>
                 </td>
                 <td><strong>${Math.round(team.current_elo)}</strong></td>
