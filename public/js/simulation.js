@@ -222,22 +222,14 @@
      * Populate the ladder position probability matrix
      */
     function populateLadderPositionMatrix() {
-        console.log('populateLadderPositionMatrix called');
-        console.log('simulationData exists:', !!simulationData);
-        console.log('results exists:', !!simulationData?.results);
-        console.log('first team exists:', !!simulationData?.results?.[0]);
-        console.log('ladder_position_probabilities exists:', !!simulationData?.results?.[0]?.ladder_position_probabilities);
-
         // Check if ladder position data is available
         if (!simulationData || !simulationData.results || !simulationData.results[0] ||
             !simulationData.results[0].ladder_position_probabilities) {
-            console.log('No ladder position data - hiding card');
             // Hide the ladder position card if data is not available
             ladderPositionCard.style.display = 'none';
             return;
         }
 
-        console.log('Showing ladder position matrix');
         // Show the ladder position card
         ladderPositionCard.style.display = 'block';
 
