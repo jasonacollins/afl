@@ -28,11 +28,11 @@ router.get('/years', catchAsync(async (req, res) => {
     // Read directory
     const files = await fs.readdir(simulationDir);
 
-    // Extract years from filenames (season_simulation_YYYY.json)
+    // Extract years from filenames (season_simulation_YYYY.json or season_simulation_YYYY_from_scratch.json)
     const years = files
       .filter(file => file.startsWith('season_simulation_') && file.endsWith('.json'))
       .map(file => {
-        const match = file.match(/season_simulation_(\d{4})\.json/);
+        const match = file.match(/season_simulation_(\d{4})(?:_from_scratch)?\.json/);
         return match ? parseInt(match[1]) : null;
       })
       .filter(year => year !== null)
@@ -81,18 +81,25 @@ router.get('/:year', catchAsync(async (req, res) => {
   });
 
   try {
-    const filePath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
+    // Try standard filename first, then from_scratch variant
+    let filePath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
 
-    // Check if file exists
     try {
       await fs.access(filePath);
     } catch (error) {
-      logger.warn(`Simulation data not found for year ${year}`, { filePath });
-      return res.status(404).json({
-        success: false,
-        error: `No simulation data available for year ${year}`,
-        year: year
-      });
+      // Try from_scratch variant
+      const fromScratchPath = path.join(__dirname, '../data/simulations', `season_simulation_${year}_from_scratch.json`);
+      try {
+        await fs.access(fromScratchPath);
+        filePath = fromScratchPath;
+      } catch (err) {
+        logger.warn(`Simulation data not found for year ${year}`, { filePath, fromScratchPath });
+        return res.status(404).json({
+          success: false,
+          error: `No simulation data available for year ${year}`,
+          year: year
+        });
+      }
     }
 
     // Read and parse the file
@@ -146,17 +153,24 @@ router.get('/:year/summary', catchAsync(async (req, res) => {
   }
 
   try {
-    const filePath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
+    // Try standard filename first, then from_scratch variant
+    let filePath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
 
-    // Check if file exists
     try {
       await fs.access(filePath);
     } catch (error) {
-      return res.status(404).json({
-        success: false,
-        error: `No simulation data available for year ${year}`,
-        year: year
-      });
+      // Try from_scratch variant
+      const fromScratchPath = path.join(__dirname, '../data/simulations', `season_simulation_${year}_from_scratch.json`);
+      try {
+        await fs.access(fromScratchPath);
+        filePath = fromScratchPath;
+      } catch (err) {
+        return res.status(404).json({
+          success: false,
+          error: `No simulation data available for year ${year}`,
+          year: year
+        });
+      }
     }
 
     // Read and parse the file
