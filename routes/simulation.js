@@ -106,11 +106,18 @@ router.get('/:year', catchAsync(async (req, res) => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     const simulationData = JSON.parse(fileContent);
 
+    // Check if ladder position data exists
+    const hasLadderPositionData = simulationData.results &&
+                                   simulationData.results[0] &&
+                                   simulationData.results[0].ladder_position_probabilities;
+
     logger.info(`Simulation data loaded for year ${year}`, {
       numSimulations: simulationData.num_simulations,
       teamsCount: simulationData.results.length,
       completedMatches: simulationData.completed_matches,
-      remainingMatches: simulationData.remaining_matches
+      remainingMatches: simulationData.remaining_matches,
+      filePath: filePath,
+      hasLadderPositionData: hasLadderPositionData
     });
 
     // Set cache headers (cache for 1 hour, or less if simulation is very recent)
