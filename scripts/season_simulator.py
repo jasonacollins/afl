@@ -85,17 +85,11 @@ class SeasonSimulator:
             if prev_year_key in self.yearly_ratings:
                 print(f"Using end-of-{year-1} ratings from yearly_ratings")
                 self.initial_ratings = self.yearly_ratings[prev_year_key].copy()
-            # If not found, check if team_ratings are from the previous year
-            # (model trained through year-1 would have team_ratings at end of year-1)
-            elif 'last_updated' in model_data or 'trained_through_year' in model_data:
-                # Assume team_ratings are end-of-training ratings
-                # If model is "trained_to_2024", team_ratings are end-of-2024 ratings
-                print(f"Using model's current team_ratings as end-of-{year-1} ratings")
-                print(f"(Model appears to be trained through {year-1})")
-                self.initial_ratings = model_data['team_ratings'].copy()
             else:
-                print(f"WARNING: No {year-1} ratings found in model")
-                print(f"Using current team_ratings as fallback")
+                # Use team_ratings as end-of-previous-year ratings
+                # For a model "trained_to_2024", team_ratings are end-of-2024 ratings
+                print(f"Using model's team_ratings as end-of-{year-1} ratings")
+                print(f"(Model trained through {year-1})")
                 self.initial_ratings = model_data['team_ratings'].copy()
 
             # Apply season carryover
