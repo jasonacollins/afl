@@ -91,7 +91,7 @@ const ensureDefaultPredictions = catchAsync(async (selectedYear) => {
 // Get all matches
 router.get('/round/:round', catchAsync(async (req, res) => {
   const round = req.params.round;
-  const year = req.query.year || new Date().getFullYear();
+  const { selectedYear: year } = await roundService.resolveYear(req.query.year);
   
   logger.debug(`Fetching matches for round ${round}, year ${year}`);
   
@@ -103,16 +103,8 @@ router.get('/round/:round', catchAsync(async (req, res) => {
 
 // Get all rounds
 router.get('/', catchAsync(async (req, res) => {
-  // Get the selected year or default to current year
-  const currentYear = new Date().getFullYear();
-  const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
-  
-  // Get all available years
-  let yearQuery = 'SELECT DISTINCT year FROM matches ORDER BY year DESC';
-  if (!req.session.isAdmin) {
-    yearQuery = 'SELECT DISTINCT year FROM matches WHERE year >= 2022 ORDER BY year DESC';
-  }
-  const years = await getQuery(yearQuery);
+  const minYear = req.session.isAdmin ? null : 2022;
+  const { selectedYear } = await roundService.resolveYear(req.query.year, { minYear });
   
   // Get all rounds for the selected year
   const rounds = await roundService.getRoundsForYear(selectedYear);
@@ -124,18 +116,14 @@ router.get('/', catchAsync(async (req, res) => {
 router.get('/stats', catchAsync(async (req, res) => {
   const startTime = Date.now();
   
-  // Get the selected year or default to current year
-  const currentYear = new Date().getFullYear();
-  const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
+  const { selectedYear, years } = await roundService.resolveYear(req.query.year, {
+    minYear: 2022
+  });
   
   // Get round parameter for round-by-round stats
   const selectedRound = req.query.round || null;
   
   logger.info(`Stats page accessed by user ${req.session.user.id} for year ${selectedYear}${selectedRound ? `, round ${selectedRound}` : ''}`);
-  
-  // Get all available years
-  const yearQuery = 'SELECT DISTINCT year FROM matches WHERE year >= 2022 ORDER BY year DESC';
-  const years = await getQuery(yearQuery);
   
   // Get all rounds for the selected year
   const allRounds = await roundService.getRoundsForYear(selectedYear);
@@ -443,9 +431,9 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   const startTime = Date.now();
   const roundNumber = req.params.round;
   
-  // Get the selected year or default to current year
-  const currentYear = new Date().getFullYear();
-  const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
+  const { selectedYear } = await roundService.resolveYear(req.query.year, {
+    minYear: 2022
+  });
   
   logger.info(`AJAX round stats requested by user ${req.session.user.id} for year ${selectedYear}, round ${roundNumber}`);
   

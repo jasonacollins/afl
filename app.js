@@ -15,7 +15,7 @@ if (!process.env.SESSION_SECRET) {
 // Import utilities
 const { errorMiddleware, catchAsync } = require('./utils/error-handler');
 const { logger, requestLogger } = require('./utils/logger');
-const { getQuery } = require('./models/db');
+const { getQuery, initializeDatabase } = require('./models/db');
 const csrfProtection = require('./middleware/csrf');
 
 // Import services
@@ -77,7 +77,8 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    secure: process.env.NODE_ENV === 'production',
+    // 'auto' keeps secure cookies on HTTPS, but still allows local HTTP sessions.
+    secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
     httpOnly: true,
     sameSite: 'lax'
   }
@@ -87,6 +88,7 @@ app.use(session({
 app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   res.locals.isAdmin = req.session.isAdmin || false;
+  res.locals.currentPath = req.path;
   next();
 });
 
@@ -117,8 +119,8 @@ app.get('/api/excluded-predictors', catchAsync(async (req, res) => {
 
 // Home route - updated to show featured predictions
 app.get('/', catchAsync(async (req, res) => {
-  // Get current year
-  const currentYear = new Date().getFullYear();
+  // Resolve year from available match data (fallback to latest available)
+  const { selectedYear: currentYear } = await roundService.resolveYear(req.query.year);
   
   // Get homepage available predictors and default featured predictor
   const featuredPredictionsService = require('./services/featured-predictions');
@@ -338,7 +340,7 @@ app.get('/', catchAsync(async (req, res) => {
 
 // API endpoint for predictor performance stats
 app.get('/api/predictor-stats', catchAsync(async (req, res) => {
-  const selectedYear = req.query.year ? parseInt(req.query.year) : new Date().getFullYear();
+  const { selectedYear } = await roundService.resolveYear(req.query.year);
   const predictorId = req.query.predictorId;
   
   if (!predictorId) {
@@ -425,7 +427,7 @@ app.get('/api/predictor-stats', catchAsync(async (req, res) => {
 // Featured predictions route for AJAX updates
 app.get('/featured-predictions/:round', catchAsync(async (req, res) => {
   const round = req.params.round;
-  const year = req.query.year || new Date().getFullYear();
+  const { selectedYear: year } = await roundService.resolveYear(req.query.year);
   const predictorId = req.query.predictorId;
   
   const featuredPredictionsService = require('./services/featured-predictions');
@@ -460,10 +462,28 @@ app.get('/simulation', catchAsync(async (req, res) => {
   });
 }));
 
+// ELO model page route
+app.get('/elo', catchAsync(async (req, res) => {
+  res.render('elo', {
+    user: req.session.user,
+    isAdmin: req.session.isAdmin
+  });
+}));
+
 // Add global error handler (after routes)
 app.use(errorMiddleware);
 
-// Start server
-app.listen(port, '0.0.0.0', () => {
-  logger.info(`Server running on http://0.0.0.0:${port}`);
-});
+async function startServer() {
+  try {
+    await initializeDatabase();
+
+    app.listen(port, '0.0.0.0', () => {
+      logger.info(`Server running on http://0.0.0.0:${port}`);
+    });
+  } catch (error) {
+    logger.error('Failed to initialize database during startup', { error: error.message });
+    process.exit(1);
+  }
+}
+
+startServer();

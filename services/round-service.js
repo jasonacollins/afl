@@ -55,6 +55,57 @@ async function getRoundsForYear(year) {
   }
 }
 
+// Get available years that have match data
+async function getAvailableYears(options = {}) {
+  try {
+    const { minYear = null } = options;
+    const query = minYear !== null
+      ? 'SELECT DISTINCT year FROM matches WHERE year >= ? ORDER BY year DESC'
+      : 'SELECT DISTINCT year FROM matches ORDER BY year DESC';
+    const params = minYear !== null ? [minYear] : [];
+
+    return await getQuery(query, params);
+  } catch (error) {
+    logger.error('Error fetching available years', {
+      minYear: options.minYear,
+      error: error.message
+    });
+    throw new AppError('Failed to fetch available years', 500, 'DATABASE_ERROR');
+  }
+}
+
+function parseYear(rawValue) {
+  const parsed = parseInt(rawValue, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+// Resolve a requested year against available match data.
+// Falls back to latest available year, then current calendar year when DB is empty.
+async function resolveYear(requestedYear, options = {}) {
+  const { minYear = null } = options;
+  const years = await getAvailableYears({ minYear });
+  const availableYears = years
+    .map(row => parseInt(row.year, 10))
+    .filter(year => !Number.isNaN(year));
+
+  const parsedRequestedYear = parseYear(requestedYear);
+  const currentCalendarYear = new Date().getFullYear();
+
+  let selectedYear = parsedRequestedYear;
+  let usedFallback = false;
+
+  if (parsedRequestedYear === null || !availableYears.includes(parsedRequestedYear)) {
+    selectedYear = availableYears.length > 0 ? availableYears[0] : currentCalendarYear;
+    usedFallback = parsedRequestedYear !== null;
+  }
+
+  return {
+    selectedYear,
+    years,
+    usedFallback
+  };
+}
+
 // Get round display name
 function getRoundDisplayName(roundNumber) {
   if (roundNumber === 'OR') {
@@ -70,5 +121,7 @@ module.exports = {
   ROUND_ORDER,
   ROUND_ORDER_SQL,
   getRoundsForYear,
-  getRoundDisplayName
+  getRoundDisplayName,
+  getAvailableYears,
+  resolveYear
 };

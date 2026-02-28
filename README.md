@@ -25,8 +25,16 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **User Leaderboards**: Competitive element to compare prediction performance
 - **Multi-Season Support**: Historical tracking of predictions across multiple years
 - **Interactive ELO Chart**: Visualize team strength over time with multi-team highlighting
+- **Dedicated ELO Model Page**: ELO chart and filters are available on `/elo`
+- **Dedicated Simulation Page**: Monte Carlo season outcomes are available on `/simulation`
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 - **Featured Predictors System**: Homepage dropdown allowing users to view different predictor models and performance metrics
+
+## Page Structure
+
+- `/` - Predictions homepage (featured model performance + round prediction table)
+- `/elo` - ELO team ratings chart and historical filters
+- `/simulation` - Season simulation outputs and ladder probability matrices
 
 ## Season Simulation
 
@@ -47,6 +55,8 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
     --output data/simulations/season_simulation_2025.json
   ```
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
+
+Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, ELO prediction updates, and ELO history regeneration. Season simulation generation is a separate step run via `scripts/season_simulator.py`.
 
 ## Architecture
 
@@ -133,6 +143,7 @@ afl-predictions/
 - **Service Layer Pattern**: Business logic separated from routes for maintainability
 - **Custom Database Layer**: Promise-based SQLite abstraction with logging
 - **Session Authentication**: Simple session management with SQLite store
+- **Startup Schema Guard**: Server startup runs database initialization/migrations before binding the HTTP listener
 - **Strict CSP**: All client-side JavaScript in external files with no inline scripts for enhanced security
 - **Scheduled Sync**: Daily API synchronization rather than real-time
 - **Monolithic Deployment**: Single container for operational simplicity
@@ -255,9 +266,9 @@ The application includes an advanced ELO-based prediction system using a dual-mo
 - **Consolidated Core Logic**: Centralized implementation ensuring consistency across training, optimization, and prediction
 
 ### Quick ELO Commands
-- `npm run daily-sync` - Complete daily synchronization (API refresh + ELO predictions + historical data)
+- `npm run daily-sync` - Complete daily synchronization (fixture sync + API refresh + ELO predictions + historical data)
 - `npm run import` - Initialize database with team data
-- `npm run sync-games` - Sync match data from Squiggle API
+- `npm run sync-games` - Sync match data from Squiggle API (defaults to current year when no options are provided)
 
 ### ELO Scripts Documentation
 For comprehensive ELO model training, optimization, and prediction workflows, see **[scripts/README.md](scripts/README.md)**. This includes:
@@ -269,7 +280,7 @@ For comprehensive ELO model training, optimization, and prediction workflows, se
 
 ## ELO Chart Visualization
 
-The application includes an interactive ELO chart that displays team strength ratings over time. The chart is located on the home page below the featured predictor section.
+The application includes an interactive ELO chart that displays team strength ratings over time. The chart is available on the dedicated `/elo` page.
 
 ### Features
 
@@ -284,11 +295,11 @@ The application includes an interactive ELO chart that displays team strength ra
 1. **Mode Selection**: Choose Year (single season) or Year Range (multi-year)
 2. **Year Selection**: Use dropdowns to select years - chart updates automatically
 3. **Team Highlighting**: Click team names to highlight, Ctrl/Cmd+click for multiple
-4. **Navigation**: Click header to return to homepage
+4. **Navigation**: Use the top menu to switch between Predictions, ELO, and Simulation pages
 
 ### Data Sources
 
-- **File**: `data/afl_elo_complete_history.csv` (1897-present)
+- **File**: `data/historical/afl_elo_complete_history.csv` (1897-present)
 - **Updates**: Automated daily regeneration when new match results available
 - **Performance**: Optimized CSV structure for fast chart rendering
 

@@ -72,16 +72,9 @@ router.getExcludedPredictors = async function() {
 
 // Admin dashboard
 router.get('/', catchAsync(async (req, res) => {
-  // Get selected year or default to current year
-  const currentYear = new Date().getFullYear();
-  const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
+  const { selectedYear, years } = await roundService.resolveYear(req.query.year);
   
   logger.info(`Admin dashboard accessed by user ${req.session.user.id}`);
-  
-  // Get all available years
-  const years = await getQuery(
-    'SELECT DISTINCT year FROM matches ORDER BY year DESC'
-  );
   
   // Get all predictors
   const predictors = await predictorService.getAllPredictors();

@@ -15,19 +15,14 @@ router.use(isAuthenticated);
 
 // Get predictions page
 router.get('/', catchAsync(async (req, res) => {
-  // Get the selected year or default to current year
-  const currentYear = new Date().getFullYear();
-  const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
-  
-  // Get all available years
-  let yearQuery = 'SELECT DISTINCT year FROM matches ORDER BY year DESC';
-  // Get the user's year_joined
+  // Get the user's year_joined to scope available years
   const user = await predictorService.getPredictorById(req.session.user.id);
   const userYearJoined = user.year_joined || 2022;
   
-  // Filter years based on when the user joined
-  yearQuery = `SELECT DISTINCT year FROM matches WHERE year >= ${userYearJoined} ORDER BY year DESC`;
-  const years = await getQuery(yearQuery);
+  // Resolve selected year against available match data
+  const { selectedYear, years } = await roundService.resolveYear(req.query.year, {
+    minYear: userYearJoined
+  });
       
   // Get all rounds for the selected year
   const allRounds = await roundService.getRoundsForYear(selectedYear);
@@ -135,7 +130,7 @@ router.get('/', catchAsync(async (req, res) => {
 // Get matches for a specific round (AJAX)
 router.get('/round/:round', catchAsync(async (req, res) => {
   const round = req.params.round;
-  const year = req.query.year || new Date().getFullYear();
+  const { selectedYear: year } = await roundService.resolveYear(req.query.year);
   
   const matches = await matchService.getMatchesByRoundAndYear(round, year);
   const processedMatches = matchService.processMatchLockStatus(matches);

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { createForbiddenError } = require('../utils/error-handler');
 
 // CSRF Protection Middleware
 // Uses double submit cookie pattern with session-based tokens
@@ -21,9 +22,7 @@ function csrfProtection(req, res, next) {
     const submittedToken = req.body._csrf || req.headers['x-csrf-token'];
     
     if (!submittedToken || submittedToken !== req.session.csrfToken) {
-      const error = new Error('CSRF token validation failed');
-      error.status = 403;
-      return next(error);
+      return next(createForbiddenError('CSRF token validation failed'));
     }
   }
 

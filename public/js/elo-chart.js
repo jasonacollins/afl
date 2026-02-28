@@ -72,7 +72,10 @@ class EloChart {
       const data = await response.json();
       
       if (data.success) {
-        this.availableYears = data.years;
+        this.availableYears = (data.years || [])
+          .map(year => parseInt(year, 10))
+          .filter(year => Number.isFinite(year))
+          .sort((a, b) => b - a);
         // Set current year to latest available if current year not available
         if (!this.availableYears.includes(this.currentYear) && this.availableYears.length > 0) {
           this.currentYear = this.availableYears[0];
@@ -148,14 +151,22 @@ class EloChart {
     // Populate year selector
     const yearSelect = document.getElementById('year-selector');
     if (yearSelect) {
-      yearSelect.innerHTML = this.availableYears.map(year => 
-        `<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`
-      ).join('');
+      if (this.availableYears.length === 0) {
+        yearSelect.innerHTML = '<option value="">No years available</option>';
+        yearSelect.disabled = true;
+      } else {
+        yearSelect.disabled = false;
+        yearSelect.innerHTML = this.availableYears.map(year =>
+          `<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`
+        ).join('');
+      }
       
       // Add event listener for year selection
       yearSelect.addEventListener('change', async (e) => {
-        const selectedYear = parseInt(e.target.value);
-        await this.changeYear(selectedYear);
+        const selectedYear = parseInt(e.target.value, 10);
+        if (Number.isFinite(selectedYear)) {
+          await this.changeYear(selectedYear);
+        }
       });
     }
 
@@ -234,8 +245,8 @@ class EloChart {
       // Automatically switch to current year if needed
       if (this.currentMode !== 'year') {
         const yearSelector = document.getElementById('year-selector');
-        const selectedYear = yearSelector ? parseInt(yearSelector.value) : this.currentYear;
-        await this.changeYear(selectedYear);
+        const selectedYear = yearSelector ? parseInt(yearSelector.value, 10) : this.currentYear;
+        await this.changeYear(Number.isFinite(selectedYear) ? selectedYear : this.currentYear);
       }
     } else {
       // Show year range controls, hide year controls
@@ -285,19 +296,19 @@ class EloChart {
 
   async changeYear(year) {
     try {
+      if (!Number.isFinite(year)) {
+        throw new Error('Invalid year selected');
+      }
+
       // Show loading state
-      const canvas = document.getElementById('elo-chart-canvas');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.font = '16px Arial';
-      ctx.fillStyle = '#666';
-      ctx.textAlign = 'center';
-      ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
+      this.showLoadingState();
 
       await this.loadEloData(year);
       this.destroyChart();
       this.createChartWithHighlighting();
-      this.createLegend();
+      if (this.chart) {
+        this.createLegend();
+      }
     } catch (error) {
       console.error('Error changing year:', error);
       this.showError(`Failed to load data for ${year}`);
@@ -601,6 +612,10 @@ class EloChart {
 }
 
   createLegend() {
+    if (!this.chart || !this.teams || this.teams.length === 0) {
+      return;
+    }
+
     // Create legend container if it doesn't exist
     let legendContainer = document.getElementById('elo-chart-legend');
     if (!legendContainer) {

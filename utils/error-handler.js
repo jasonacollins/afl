@@ -32,9 +32,23 @@ const createForbiddenError = (message = 'Forbidden') => {
 
 // Global error handler middleware for Express
 const errorMiddleware = (err, req, res, next) => {
-  // Default values
-  err.statusCode = err.statusCode || 500;
-  err.errorCode = err.errorCode || 'INTERNAL_ERROR';
+  // Normalize status and code fields from Express and custom errors.
+  const normalizedStatusCode = err.statusCode || err.status || 500;
+  const normalizedErrorCode = err.errorCode || (
+    normalizedStatusCode === 400 ? 'VALIDATION_ERROR' :
+    normalizedStatusCode === 401 ? 'UNAUTHORIZED' :
+    normalizedStatusCode === 403 ? 'FORBIDDEN' :
+    normalizedStatusCode === 404 ? 'NOT_FOUND' :
+    'INTERNAL_ERROR'
+  );
+
+  err.statusCode = normalizedStatusCode;
+  err.errorCode = normalizedErrorCode;
+
+  // Treat explicit 4xx errors as operational, even if they are plain Error objects.
+  if (!err.isOperational && err.statusCode >= 400 && err.statusCode < 500) {
+    err.isOperational = true;
+  }
   
   // Development error response (includes stack trace)
   if (process.env.NODE_ENV === 'development') {

@@ -371,23 +371,9 @@ async function main() {
   const args = process.argv.slice(2);
   
   if (args.length === 0) {
-    logger.info('Usage:');
-    logger.info('  npm run sync-games -- [options]');
-    logger.info('');
-    logger.info('Options:');
-    logger.info('  year VALUE      - Sync games for specific year');
-    logger.info('  round VALUE     - Sync games for specific round');
-    logger.info('  game VALUE      - Sync specific game by ID');
-    logger.info('  team VALUE      - Sync games for specific team ID');
-    logger.info('  complete VALUE  - Sync games with completion percentage');
-    logger.info('  live VALUE      - Sync live games');
-    logger.info('  monitor [teamID] - Continuously monitor live games');
-    logger.info('  reset           - Reset database to use Squiggle IDs');
-    logger.info('  clear-cache     - Clear cached API responses');
-    logger.info('');
-    logger.info('Examples:');
-    logger.info('  npm run sync-games -- year 2025');
-    logger.info('  npm run sync-games -- monitor 3');
+    const currentYear = new Date().getFullYear();
+    logger.info(`No options provided. Syncing current year by default: ${currentYear}`);
+    await syncGamesFromAPI({ year: currentYear });
     process.exit(0);
   }
   

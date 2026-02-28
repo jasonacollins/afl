@@ -1,5 +1,6 @@
 const { refreshAPIData } = require('./api-refresh');
 const { runEloPredictions } = require('./elo-predictions');
+const { syncGamesFromAPI } = require('./sync-games');
 const { spawn } = require('child_process');
 const path = require('path');
 const { logger } = require('../../utils/logger');
@@ -64,18 +65,23 @@ async function dailySync() {
   try {
     // Get current year
     const currentYear = new Date().getFullYear();
+
+    // Step 1: Ensure current season fixtures exist in DB
+    logger.info(`Syncing current season fixtures for ${currentYear}...`);
+    const fixtureSyncResults = await syncGamesFromAPI({ year: currentYear });
+    logger.info('Fixture sync complete', { results: fixtureSyncResults });
     
-    // Step 1: API refresh (default options with forceScoreUpdate = false)
+    // Step 2: API refresh (default options with forceScoreUpdate = false)
     logger.info('Starting API data refresh...');
     const apiResults = await refreshAPIData(currentYear, { forceScoreUpdate: false });
     logger.info('API refresh complete', { results: apiResults });
     
-    // Step 2: ELO predictions (only if API refresh succeeded)
+    // Step 3: ELO predictions (only if API refresh succeeded)
     logger.info('Starting ELO predictions...');
     const eloResults = await runEloPredictions();
     logger.info('ELO predictions complete', { message: eloResults.message, predictionsCount: eloResults.predictionsCount });
     
-    // Step 3: Always regenerate ELO historical data to ensure consistency
+    // Step 4: Always regenerate ELO historical data to ensure consistency
     logger.info('Regenerating ELO historical data...');
     const historyResults = await regenerateEloHistory();
     logger.info('ELO history regeneration complete', { message: historyResults.message });

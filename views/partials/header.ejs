@@ -16,6 +16,12 @@
       <div class="logo">
         <h1><a href="/">AFL Predictions</a></h1>
       </div>
+
+      <nav class="main-nav" aria-label="Primary">
+        <a href="/" class="main-nav-link <%= currentPath === '/' ? 'active' : '' %>">Predictions</a>
+        <a href="/elo" class="main-nav-link <%= currentPath === '/elo' ? 'active' : '' %>">ELO</a>
+        <a href="/simulation" class="main-nav-link <%= currentPath === '/simulation' ? 'active' : '' %>">Simulation</a>
+      </nav>
       
       <% if (locals.user) { %>
         <div class="user-info">

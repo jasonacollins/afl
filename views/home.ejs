@@ -188,45 +188,6 @@
     </div>
   <% } %>
 
-  <!-- ELO Chart Section -->
-  <div class="elo-chart-section">
-    <div class="elo-chart-controls">
-      <h2>ELO Team Ratings</h2>
-      
-      <div class="chart-filter-controls">
-        <div class="filter-group">
-          <label>
-            <input type="radio" name="chart-mode" value="year" checked> Year
-          </label>
-          <label>
-            <input type="radio" name="chart-mode" value="yearRange"> Year Range
-          </label>
-        </div>
-        
-        <div id="year-controls" class="filter-group">
-          <select id="year-selector" class="year-selector">
-            <!-- Options will be populated by JavaScript -->
-          </select>
-        </div>
-        
-        <div id="year-range-controls" class="filter-group" style="display: none;">
-          <div class="date-range-inputs">
-            <select id="start-year" class="year-input">
-              <!-- Options will be populated by JavaScript -->
-            </select>
-            <span>to</span>
-            <select id="end-year" class="year-input">
-              <!-- Options will be populated by JavaScript -->
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div id="elo-chart" class="elo-chart-container">
-      <!-- Chart will be loaded here by JavaScript -->
-    </div>
-  </div>
 </div>
 
 <% if (locals.featuredPredictor) { %>

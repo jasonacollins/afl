@@ -118,7 +118,7 @@ function isAdmin(req, res, next) {
 // Route to fetch featured predictions for a specific round
 router.get('/featured-predictions/:round', catchAsync(async (req, res) => {
   const round = req.params.round;
-  const year = req.query.year || new Date().getFullYear();
+  const { selectedYear: year } = await roundService.resolveYear(req.query.year);
   const predictorId = req.query.predictorId;
   
   const featuredPredictionsService = require('../services/featured-predictions');

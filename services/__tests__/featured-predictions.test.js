@@ -36,7 +36,7 @@ describe('Featured Predictions Service', () => {
       getQuery.mockResolvedValue([{ predictor_id: 1 }, { predictor_id: 2 }]);
       const ids = await featuredPredictions.getHomepageAvailablePredictorIds();
       expect(ids).toEqual(['1', '2']);
-      expect(getQuery).toHaveBeenCalledWith('SELECT predictor_id FROM predictors WHERE homepage_available = 1 ORDER BY display_name');
+      expect(getQuery).toHaveBeenCalledWith('SELECT predictor_id FROM predictors WHERE homepage_available = 1 AND active = 1 ORDER BY display_name');
     });
 
     it('should return empty array on database error', async () => {
@@ -51,7 +51,7 @@ describe('Featured Predictions Service', () => {
       getOne.mockResolvedValue({ predictor_id: 123 });
       const id = await featuredPredictions.getDefaultFeaturedPredictorId();
       expect(id).toBe(123);
-      expect(getOne).toHaveBeenCalledWith('SELECT predictor_id FROM predictors WHERE is_default_featured = 1');
+      expect(getOne).toHaveBeenCalledWith('SELECT predictor_id FROM predictors WHERE is_default_featured = 1 AND active = 1');
     });
 
     it('should fall back to first homepage available if no default is set', async () => {
