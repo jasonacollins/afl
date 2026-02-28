@@ -17,6 +17,7 @@ const DEFAULTS = {
   combinedOutputDir: 'data/predictions/combined',
   winModelOutputDir: 'data/models/win',
   marginModelOutputDir: 'data/models/margin',
+  marginOptimizeOutputPath: 'data/models/margin/optimal_margin_only_elo_params.json',
   historicalOutputDir: 'data/historical',
   historicalOutputPrefix: 'afl_elo_complete_history'
 };
@@ -214,6 +215,7 @@ async function getScriptMetadata() {
       combinedOutputDir: DEFAULTS.combinedOutputDir,
       winModelOutputDir: DEFAULTS.winModelOutputDir,
       marginModelOutputDir: DEFAULTS.marginModelOutputDir,
+      marginOptimizeOutputPath: DEFAULTS.marginOptimizeOutputPath,
       historicalOutputDir: DEFAULTS.historicalOutputDir,
       historicalOutputPrefix: DEFAULTS.historicalOutputPrefix
     }
@@ -442,6 +444,47 @@ async function buildScriptCommand(scriptKey, params = {}) {
     if (marginParams) {
       args.push('--margin-params', marginParams);
     }
+
+    return {
+      command: 'python3',
+      args,
+      normalizedParams
+    };
+  }
+
+  if (scriptKey === 'margin-optimize') {
+    const startYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax }) || YEAR_MIN;
+    const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax }) || 2024;
+    if (startYear > endYear) {
+      throw new Error('startYear cannot be greater than endYear');
+    }
+
+    const maxCombinations = toInteger(params.maxCombinations, 'maxCombinations', {
+      required: false,
+      min: 1,
+      max: 5000
+    }) || 500;
+    const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
+    const outputPath = normalizeOptionalRepoPath(
+      params.outputPath,
+      'outputPath',
+      DEFAULTS.marginOptimizeOutputPath
+    );
+
+    normalizedParams.startYear = startYear;
+    normalizedParams.endYear = endYear;
+    normalizedParams.maxCombinations = maxCombinations;
+    normalizedParams.dbPath = dbPath;
+    normalizedParams.outputPath = outputPath;
+
+    const args = [
+      'scripts/elo_margin_optimize.py',
+      '--start-year', String(startYear),
+      '--end-year', String(endYear),
+      '--max-combinations', String(maxCombinations),
+      '--db-path', dbPath,
+      '--output-path', outputPath
+    ];
 
     return {
       command: 'python3',

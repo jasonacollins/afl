@@ -100,6 +100,8 @@
       'combinedStartYear',
       'winTrainStartYear',
       'winTrainEndYear',
+      'marginOptimizeStartYear',
+      'marginOptimizeEndYear',
       'marginTrainStartYear',
       'marginTrainEndYear',
       'historyStartYear',
@@ -142,11 +144,17 @@
     if (getEl('marginTrainDbPath') && !getEl('marginTrainDbPath').value) {
       getEl('marginTrainDbPath').value = defaults.dbPath || '';
     }
+    if (getEl('marginOptimizeDbPath') && !getEl('marginOptimizeDbPath').value) {
+      getEl('marginOptimizeDbPath').value = defaults.dbPath || '';
+    }
     if (getEl('winTrainOutputDir') && !getEl('winTrainOutputDir').value) {
       getEl('winTrainOutputDir').value = defaults.winModelOutputDir || 'data/models/win';
     }
     if (getEl('marginTrainOutputDir') && !getEl('marginTrainOutputDir').value) {
       getEl('marginTrainOutputDir').value = defaults.marginModelOutputDir || 'data/models/margin';
+    }
+    if (getEl('marginOptimizeOutputPath') && !getEl('marginOptimizeOutputPath').value) {
+      getEl('marginOptimizeOutputPath').value = defaults.marginOptimizeOutputPath || 'data/models/margin/optimal_margin_only_elo_params.json';
     }
     if (getEl('simNumSimulations') && !getEl('simNumSimulations').value) {
       getEl('simNumSimulations').value = '50000';
@@ -159,6 +167,12 @@
     }
     if (getEl('marginTrainEndYear') && !getEl('marginTrainEndYear').value) {
       getEl('marginTrainEndYear').value = String(currentYear - 1);
+    }
+    if (getEl('marginOptimizeEndYear') && !getEl('marginOptimizeEndYear').value) {
+      getEl('marginOptimizeEndYear').value = String(currentYear - 1);
+    }
+    if (getEl('marginOptimizeMaxCombinations') && !getEl('marginOptimizeMaxCombinations').value) {
+      getEl('marginOptimizeMaxCombinations').value = '500';
     }
 
     const winModelOptions = (scriptMetadata.modelFiles?.win || []).map((entry) => ({ value: entry, label: entry }));

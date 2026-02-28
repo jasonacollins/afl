@@ -65,6 +65,18 @@ const SCRIPT_DEFINITIONS = {
       { name: 'marginParams', label: 'Margin Params File', type: 'select', required: false, optionSource: 'modelFiles.win' }
     ]
   },
+  'margin-optimize': {
+    key: 'margin-optimize',
+    label: 'Optimise Margin Params',
+    description: 'Optimise margin-only ELO parameters.',
+    fields: [
+      { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'endYear', label: 'End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'maxCombinations', label: 'Max Combinations', type: 'number', required: false, min: 1, max: 5000 },
+      { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
+      { name: 'outputPath', label: 'Output Path', type: 'text', required: false }
+    ]
+  },
   'margin-train': {
     key: 'margin-train',
     label: 'Train Margin Model',
