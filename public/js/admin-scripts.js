@@ -1,0 +1,508 @@
+(function() {
+  let scriptMetadata = null;
+  let selectedRunId = null;
+  let selectedRunStatus = null;
+  let logAfterSeq = 0;
+  let refreshTimer = null;
+  let isRefreshing = false;
+
+  const RUNNING_STATES = new Set(['queued', 'running']);
+
+  function getCsrfToken() {
+    const metaTag = document.querySelector('meta[name="csrf-token"]');
+    return metaTag ? metaTag.getAttribute('content') : '';
+  }
+
+  function getEl(id) {
+    return document.getElementById(id);
+  }
+
+  function showPageError(message) {
+    const errorDiv = getEl('scriptsPageError');
+    if (!errorDiv) return;
+    errorDiv.textContent = message;
+    errorDiv.style.display = 'block';
+  }
+
+  function clearPageError() {
+    const errorDiv = getEl('scriptsPageError');
+    if (!errorDiv) return;
+    errorDiv.textContent = '';
+    errorDiv.style.display = 'none';
+  }
+
+  function scriptLabel(scriptKey) {
+    if (!scriptMetadata || !Array.isArray(scriptMetadata.scripts)) {
+      return scriptKey;
+    }
+
+    const found = scriptMetadata.scripts.find((item) => item.key === scriptKey);
+    return found ? found.label : scriptKey;
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString('en-AU');
+  }
+
+  function escapeHtml(input) {
+    return String(input)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function populateSelect(selectId, options, selectedValue, includeEmpty = false) {
+    const select = getEl(selectId);
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    if (includeEmpty) {
+      const emptyOption = document.createElement('option');
+      emptyOption.value = '';
+      emptyOption.textContent = 'None';
+      select.appendChild(emptyOption);
+    }
+
+    if (!Array.isArray(options) || options.length === 0) {
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = 'No options available';
+      select.appendChild(empty);
+      return;
+    }
+
+    options.forEach((option) => {
+      const element = document.createElement('option');
+      element.value = String(option.value);
+      element.textContent = option.label;
+      if (selectedValue !== undefined && selectedValue !== null && String(selectedValue) === String(option.value)) {
+        element.selected = true;
+      }
+      select.appendChild(element);
+    });
+  }
+
+  function applyMetadataToForm() {
+    if (!scriptMetadata) return;
+
+    const defaults = scriptMetadata.defaults || {};
+    const currentYear = defaults.currentYear || new Date().getFullYear();
+
+    const yearInputIds = [
+      'syncYear',
+      'apiRefreshYear',
+      'combinedStartYear',
+      'winTrainStartYear',
+      'winTrainEndYear',
+      'marginTrainStartYear',
+      'marginTrainEndYear',
+      'historyStartYear',
+      'historyEndYear',
+      'simYear'
+    ];
+
+    yearInputIds.forEach((id) => {
+      const input = getEl(id);
+      if (!input) return;
+      if (!input.value && (id === 'apiRefreshYear' || id === 'combinedStartYear' || id === 'simYear' || id === 'winTrainEndYear')) {
+        input.value = String(currentYear);
+      }
+      if (defaults.yearMax) {
+        input.max = String(defaults.yearMax);
+      }
+    });
+
+    if (getEl('combinedDbPath') && !getEl('combinedDbPath').value) {
+      getEl('combinedDbPath').value = defaults.dbPath || '';
+    }
+    if (getEl('combinedOutputDir') && !getEl('combinedOutputDir').value) {
+      getEl('combinedOutputDir').value = defaults.combinedOutputDir || '';
+    }
+    if (getEl('historyDbPath') && !getEl('historyDbPath').value) {
+      getEl('historyDbPath').value = defaults.dbPath || '';
+    }
+    if (getEl('historyOutputDir') && !getEl('historyOutputDir').value) {
+      getEl('historyOutputDir').value = defaults.historicalOutputDir || '';
+    }
+    if (getEl('historyOutputPrefix') && !getEl('historyOutputPrefix').value) {
+      getEl('historyOutputPrefix').value = defaults.historicalOutputPrefix || '';
+    }
+    if (getEl('simDbPath') && !getEl('simDbPath').value) {
+      getEl('simDbPath').value = defaults.dbPath || '';
+    }
+    if (getEl('winTrainDbPath') && !getEl('winTrainDbPath').value) {
+      getEl('winTrainDbPath').value = defaults.dbPath || '';
+    }
+    if (getEl('marginTrainDbPath') && !getEl('marginTrainDbPath').value) {
+      getEl('marginTrainDbPath').value = defaults.dbPath || '';
+    }
+    if (getEl('winTrainOutputDir') && !getEl('winTrainOutputDir').value) {
+      getEl('winTrainOutputDir').value = defaults.winModelOutputDir || 'data/models/win';
+    }
+    if (getEl('marginTrainOutputDir') && !getEl('marginTrainOutputDir').value) {
+      getEl('marginTrainOutputDir').value = defaults.marginModelOutputDir || 'data/models/margin';
+    }
+    if (getEl('simNumSimulations') && !getEl('simNumSimulations').value) {
+      getEl('simNumSimulations').value = '50000';
+    }
+    if (getEl('winTrainCvFolds') && !getEl('winTrainCvFolds').value) {
+      getEl('winTrainCvFolds').value = '3';
+    }
+    if (getEl('winTrainMaxCombinations') && !getEl('winTrainMaxCombinations').value) {
+      getEl('winTrainMaxCombinations').value = '500';
+    }
+    if (getEl('marginTrainEndYear') && !getEl('marginTrainEndYear').value) {
+      getEl('marginTrainEndYear').value = String(currentYear - 1);
+    }
+
+    const winModelOptions = (scriptMetadata.modelFiles?.win || []).map((entry) => ({ value: entry, label: entry }));
+    const marginModelOptions = (scriptMetadata.modelFiles?.margin || []).map((entry) => ({ value: entry, label: entry }));
+
+    populateSelect('combinedWinModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
+    populateSelect('historyModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
+    populateSelect('combinedMarginModelPath', marginModelOptions, marginModelOptions[0] ? marginModelOptions[0].value : null);
+    populateSelect('simModelPath', marginModelOptions, marginModelOptions[0] ? marginModelOptions[0].value : null);
+    populateSelect('winTrainParamsFile', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_elo_params')) || {}).value, true);
+    populateSelect('winTrainMarginParams', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_margin_methods')) || {}).value, true);
+    populateSelect('marginTrainParamsFile', marginModelOptions, (marginModelOptions.find((option) => option.value.includes('optimal_margin_only_elo_params')) || marginModelOptions[0] || {}).value);
+
+    const predictorOptions = (scriptMetadata.activePredictors || []).map((predictor) => ({
+      value: predictor.predictor_id,
+      label: `${predictor.display_name} (#${predictor.predictor_id})`
+    }));
+
+    populateSelect('combinedPredictorId', predictorOptions, defaults.predictorId);
+  }
+
+  async function loadMetadata() {
+    const response = await fetch('/admin/api/script-metadata');
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to load script metadata');
+    }
+
+    scriptMetadata = data;
+    applyMetadataToForm();
+  }
+
+  function getFormParams(form) {
+    const params = {};
+    const fields = form.querySelectorAll('input[name], select[name], textarea[name]');
+
+    fields.forEach((field) => {
+      const name = field.name;
+      if (!name) return;
+
+      if (field.type === 'checkbox') {
+        params[name] = field.checked;
+        return;
+      }
+
+      const value = field.value !== undefined ? field.value.trim() : '';
+      if (value === '') {
+        return;
+      }
+
+      params[name] = value;
+    });
+
+    return params;
+  }
+
+  function setFormsDisabled(disabled) {
+    const forms = document.querySelectorAll('.script-run-form');
+    forms.forEach((form) => {
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = disabled;
+      }
+    });
+  }
+
+  function updateActiveRunBanner(activeRun) {
+    const banner = getEl('activeRunBanner');
+    if (!banner) return;
+
+    if (!activeRun) {
+      banner.style.display = 'none';
+      banner.textContent = '';
+      setFormsDisabled(false);
+      return;
+    }
+
+    banner.style.display = 'block';
+    banner.textContent = `Run #${activeRun.run_id} (${scriptLabel(activeRun.script_key)}) is ${activeRun.status}. New runs are blocked until completion.`;
+    setFormsDisabled(true);
+  }
+
+  function renderHistory(runs) {
+    const tbody = getEl('scriptRunHistoryBody');
+    if (!tbody) return;
+
+    if (!Array.isArray(runs) || runs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7">No runs yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = runs.map((run) => {
+      const statusClass = `status-${run.status}`;
+      const isSelected = selectedRunId === run.run_id;
+
+      return `
+        <tr class="${isSelected ? 'selected-run-row' : ''}">
+          <td>${run.run_id}</td>
+          <td>${escapeHtml(scriptLabel(run.script_key))}</td>
+          <td><span class="run-status-badge ${statusClass}">${escapeHtml(run.status)}</span></td>
+          <td>${escapeHtml(formatDateTime(run.started_at || run.created_at))}</td>
+          <td>${escapeHtml(formatDateTime(run.finished_at))}</td>
+          <td>${escapeHtml(run.created_by_name || String(run.created_by_predictor_id || '-'))}</td>
+          <td>
+            <button class="button secondary-button" data-action="view-run-logs" data-run-id="${run.run_id}">
+              View Logs
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function refreshRuns() {
+    const response = await fetch('/admin/api/script-runs?limit=30');
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to load run history');
+    }
+
+    renderHistory(data.runs);
+
+    const activeRun = Array.isArray(data.runs)
+      ? data.runs.find((run) => RUNNING_STATES.has(run.status))
+      : null;
+
+    updateActiveRunBanner(activeRun || null);
+
+    if (selectedRunId !== null) {
+      const selected = data.runs.find((run) => run.run_id === selectedRunId);
+      if (selected) {
+        selectedRunStatus = selected.status;
+        const logRunLabel = getEl('logRunLabel');
+        if (logRunLabel) {
+          logRunLabel.textContent = `Logs for run #${selected.run_id} (${scriptLabel(selected.script_key)}) - ${selected.status}`;
+        }
+      }
+    }
+  }
+
+  function appendLogs(logs) {
+    const output = getEl('scriptLogsOutput');
+    if (!output || !Array.isArray(logs) || logs.length === 0) {
+      return;
+    }
+
+    const lines = logs.map((entry) => {
+      const timestamp = formatDateTime(entry.created_at);
+      return `[${timestamp}] [${entry.stream}] ${entry.message}`;
+    });
+
+    if (output.textContent === 'No logs loaded.' || output.textContent === 'No logs available for this run yet.') {
+      output.textContent = lines.join('\n');
+    } else {
+      output.textContent += `\n${lines.join('\n')}`;
+    }
+
+    output.scrollTop = output.scrollHeight;
+  }
+
+  async function refreshSelectedRunLogs() {
+    if (!selectedRunId) {
+      return;
+    }
+
+    const response = await fetch(`/admin/api/script-runs/${selectedRunId}/logs?afterSeq=${logAfterSeq}&limit=500`);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to fetch logs');
+    }
+
+    appendLogs(data.logs);
+    logAfterSeq = data.lastSeq || logAfterSeq;
+
+    if (selectedRunStatus && !RUNNING_STATES.has(selectedRunStatus) && data.logs.length === 0) {
+      return;
+    }
+  }
+
+  async function handleFormSubmit(event) {
+    event.preventDefault();
+    clearPageError();
+
+    const form = event.currentTarget;
+    const scriptKey = form.getAttribute('data-script-key');
+    if (!scriptKey) {
+      showPageError('Missing script key for form submission');
+      return;
+    }
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = 'Starting...';
+    }
+
+    try {
+      const params = getFormParams(form);
+
+      const response = await fetch('/admin/api/script-runs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': getCsrfToken()
+        },
+        body: JSON.stringify({ scriptKey, params })
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to start script run');
+      }
+
+      selectedRunId = data.run.runId;
+      selectedRunStatus = data.run.status;
+      logAfterSeq = 0;
+
+      const output = getEl('scriptLogsOutput');
+      if (output) {
+        output.textContent = 'Waiting for logs...';
+      }
+
+      const logRunLabel = getEl('logRunLabel');
+      if (logRunLabel) {
+        logRunLabel.textContent = `Logs for run #${selectedRunId} (${scriptLabel(scriptKey)})`;
+      }
+
+      await refreshRuns();
+      await refreshSelectedRunLogs();
+    } catch (error) {
+      showPageError(error.message);
+    } finally {
+      if (submitButton) {
+        const activeBanner = getEl('activeRunBanner');
+        const hasActiveRun = activeBanner && activeBanner.style.display !== 'none';
+        submitButton.disabled = !!hasActiveRun;
+        submitButton.textContent = submitButton.dataset.defaultLabel || 'Run';
+      }
+    }
+  }
+
+  function initializeSubmitButtons() {
+    document.querySelectorAll('.script-run-form button[type="submit"]').forEach((button) => {
+      button.dataset.defaultLabel = button.textContent;
+    });
+  }
+
+  function bindFormHandlers() {
+    document.querySelectorAll('.script-run-form').forEach((form) => {
+      form.addEventListener('submit', handleFormSubmit);
+    });
+  }
+
+  function bindHistoryActions() {
+    const tbody = getEl('scriptRunHistoryBody');
+    if (!tbody) return;
+
+    tbody.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-action="view-run-logs"]');
+      if (!button) return;
+
+      const runId = Number.parseInt(button.getAttribute('data-run-id'), 10);
+      if (!Number.isInteger(runId) || runId <= 0) {
+        return;
+      }
+
+      clearPageError();
+      selectedRunId = runId;
+      selectedRunStatus = null;
+      logAfterSeq = 0;
+
+      const output = getEl('scriptLogsOutput');
+      if (output) {
+        output.textContent = 'Loading logs...';
+      }
+
+      try {
+        const runResponse = await fetch(`/admin/api/script-runs/${runId}`);
+        const runData = await runResponse.json();
+
+        if (!runResponse.ok || !runData.success) {
+          throw new Error(runData.error || 'Unable to load run details');
+        }
+
+        selectedRunStatus = runData.run.status;
+
+        const logRunLabel = getEl('logRunLabel');
+        if (logRunLabel) {
+          logRunLabel.textContent = `Logs for run #${runId} (${scriptLabel(runData.run.script_key)}) - ${runData.run.status}`;
+        }
+
+        if (output) {
+          output.textContent = 'No logs available for this run yet.';
+        }
+
+        await refreshSelectedRunLogs();
+        await refreshRuns();
+      } catch (error) {
+        showPageError(error.message);
+      }
+    });
+  }
+
+  async function refreshLoop() {
+    if (isRefreshing) {
+      return;
+    }
+
+    isRefreshing = true;
+    try {
+      await refreshRuns();
+      if (selectedRunId !== null) {
+        await refreshSelectedRunLogs();
+      }
+    } catch (error) {
+      showPageError(error.message);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+
+  async function initialize() {
+    initializeSubmitButtons();
+    bindFormHandlers();
+    bindHistoryActions();
+
+    try {
+      await loadMetadata();
+      await refreshRuns();
+    } catch (error) {
+      showPageError(error.message);
+    }
+
+    refreshTimer = window.setInterval(refreshLoop, 2000);
+  }
+
+  document.addEventListener('DOMContentLoaded', initialize);
+
+  window.addEventListener('beforeunload', () => {
+    if (refreshTimer) {
+      window.clearInterval(refreshTimer);
+    }
+  });
+})();

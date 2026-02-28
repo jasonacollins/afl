@@ -28,6 +28,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Dedicated ELO Model Page**: ELO chart and filters are available on `/elo`
 - **Dedicated Simulation Page**: Monte Carlo season outcomes are available on `/simulation`
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
+- **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted logs/history
 - **Featured Predictors System**: Homepage dropdown allowing users to view different predictor models and performance metrics
 
 ## Page Structure
@@ -35,6 +36,33 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - `/` - Predictions homepage (featured model performance + round prediction table)
 - `/elo` - ELO team ratings chart and historical filters
 - `/simulation` - Season simulation outputs and ladder probability matrices
+- `/admin/scripts` - Admin-only scripts runner for operational and training workflows
+
+## Admin Scripts Runner
+
+Admins can run operational and training scripts from `/admin/scripts` without shell access.
+
+### Supported Jobs
+- `sync-games` (`scripts/automation/sync-games.js`)
+- `api-refresh` (`scripts/automation/api-refresh.js`)
+- `combined-predictions` (`scripts/elo_predict_combined.py`)
+- `win-train` (`scripts/elo_win_train.py`)
+- `margin-train` (`scripts/elo_margin_train.py`)
+- `elo-history` (`scripts/elo_history_generator.py`)
+- `season-simulation` (`scripts/season_simulator.py`)
+
+### Operational Behavior
+- Jobs run asynchronously in the background.
+- Only one job can be active at a time.
+- Run metadata and stdout/stderr logs are persisted in SQLite:
+  - `admin_script_runs`
+  - `admin_script_run_logs`
+- Restart recovery marks in-flight jobs as `interrupted`.
+
+### Safety and Validation
+- Only an allowlisted script catalog can be executed.
+- Path parameters are restricted to approved repo subdirectories under `data/`.
+- Prediction-writing jobs require an active predictor selection from the UI.
 
 ## Season Simulation
 

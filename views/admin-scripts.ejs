@@ -1,0 +1,302 @@
+<%- include('partials/header') %>
+
+<div class="container">
+  <h1>Admin Scripts</h1>
+
+  <div class="tab-navigation">
+    <a href="/predictions" class="tab">Make Predictions</a>
+    <a href="/matches/stats" class="tab">View Statistics</a>
+    <a href="/admin" class="tab">Admin Panel</a>
+    <a href="/admin/scripts" class="tab active">Scripts</a>
+  </div>
+
+  <% if (locals.success) { %>
+    <div class="alert success"><%= success %></div>
+  <% } %>
+
+  <% if (locals.error) { %>
+    <div class="alert error"><%= error %></div>
+  <% } %>
+
+  <div id="scriptsPageError" class="alert error" style="display: none;"></div>
+
+  <div id="activeRunBanner" class="alert warning" style="display: none;"></div>
+
+  <div class="admin-container scripts-layout">
+    <div class="admin-section">
+      <h2>Scripts</h2>
+      <p>Only one script can run at a time. Each run is stored in job history.</p>
+
+      <div class="script-cards">
+        <div class="script-card">
+          <h3>Sync Games</h3>
+          <p>Sync fixtures and game metadata from Squiggle.</p>
+          <form class="script-run-form" data-script-key="sync-games">
+            <div class="form-group">
+              <label for="syncYear">Year (optional)</label>
+              <input type="number" id="syncYear" name="year" min="1990">
+            </div>
+            <details class="script-advanced">
+              <summary>Advanced</summary>
+              <div class="form-group">
+                <label for="syncRound">Round</label>
+                <input type="text" id="syncRound" name="round" placeholder="e.g. 1 or OR">
+              </div>
+              <div class="form-group">
+                <label for="syncGameId">Game ID</label>
+                <input type="number" id="syncGameId" name="gameId" min="1">
+              </div>
+              <div class="form-group">
+                <label for="syncTeamId">Team ID</label>
+                <input type="number" id="syncTeamId" name="teamId" min="1">
+              </div>
+              <div class="form-group">
+                <label for="syncComplete">Complete %</label>
+                <input type="number" id="syncComplete" name="complete" min="0" max="100">
+              </div>
+            </details>
+            <button type="submit" class="button primary-button">Run Sync Games</button>
+          </form>
+        </div>
+
+        <div class="script-card">
+          <h3>API Refresh</h3>
+          <p>Refresh fixture and completed score data for a single year.</p>
+          <form class="script-run-form" data-script-key="api-refresh">
+            <div class="form-group">
+              <label for="apiRefreshYear">Year</label>
+              <input type="number" id="apiRefreshYear" name="year" min="1990" required>
+            </div>
+            <div class="form-group checkbox">
+              <input type="checkbox" id="apiRefreshForce" name="forceScoreUpdate">
+              <label for="apiRefreshForce">Force score update</label>
+            </div>
+            <button type="submit" class="button primary-button">Run API Refresh</button>
+          </form>
+        </div>
+
+        <div class="script-card">
+          <h3>Combined Predictions</h3>
+          <p>Generate combined ELO predictions and write to selected predictor.</p>
+          <form class="script-run-form" data-script-key="combined-predictions">
+            <div class="form-group">
+              <label for="combinedStartYear">Start Year</label>
+              <input type="number" id="combinedStartYear" name="startYear" min="1990" required>
+            </div>
+            <div class="form-group">
+              <label for="combinedWinModelPath">Win Model</label>
+              <select id="combinedWinModelPath" name="winModelPath" required></select>
+            </div>
+            <div class="form-group">
+              <label for="combinedMarginModelPath">Margin Model</label>
+              <select id="combinedMarginModelPath" name="marginModelPath" required></select>
+            </div>
+            <div class="form-group">
+              <label for="combinedPredictorId">Predictor</label>
+              <select id="combinedPredictorId" name="predictorId" required></select>
+            </div>
+            <details class="script-advanced">
+              <summary>Advanced</summary>
+              <div class="form-group">
+                <label for="combinedDbPath">DB Path</label>
+                <input type="text" id="combinedDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+              </div>
+              <div class="form-group">
+                <label for="combinedOutputDir">Output Directory</label>
+                <input type="text" id="combinedOutputDir" name="outputDir" placeholder="data/predictions/combined">
+              </div>
+              <div class="form-group checkbox">
+                <input type="checkbox" id="combinedSaveToDb" name="saveToDb" checked>
+                <label for="combinedSaveToDb">Save predictions to database</label>
+              </div>
+            </details>
+            <button type="submit" class="button primary-button">Run Combined Predictions</button>
+          </form>
+        </div>
+
+        <div class="script-card">
+          <h3>Train Win Model</h3>
+          <p>Train the standard ELO win model.</p>
+          <form class="script-run-form" data-script-key="win-train">
+            <div class="form-group">
+              <label for="winTrainStartYear">Start Year</label>
+              <input type="number" id="winTrainStartYear" name="startYear" min="1990" placeholder="1990">
+            </div>
+            <div class="form-group">
+              <label for="winTrainEndYear">End Year</label>
+              <input type="number" id="winTrainEndYear" name="endYear" min="1990">
+            </div>
+            <details class="script-advanced">
+              <summary>Advanced</summary>
+              <div class="form-group">
+                <label for="winTrainDbPath">DB Path</label>
+                <input type="text" id="winTrainDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+              </div>
+              <div class="form-group">
+                <label for="winTrainOutputDir">Output Directory</label>
+                <input type="text" id="winTrainOutputDir" name="outputDir" placeholder="data/models/win">
+              </div>
+              <div class="form-group checkbox">
+                <input type="checkbox" id="winTrainNoTuneParameters" name="noTuneParameters">
+                <label for="winTrainNoTuneParameters">Skip parameter tuning</label>
+              </div>
+              <div class="form-group">
+                <label for="winTrainCvFolds">CV Folds</label>
+                <input type="number" id="winTrainCvFolds" name="cvFolds" min="2" max="10" placeholder="3">
+              </div>
+              <div class="form-group">
+                <label for="winTrainMaxCombinations">Max Combinations</label>
+                <input type="number" id="winTrainMaxCombinations" name="maxCombinations" min="1" max="5000" placeholder="500">
+              </div>
+              <div class="form-group">
+                <label for="winTrainParamsFile">Params File (optional)</label>
+                <select id="winTrainParamsFile" name="paramsFile"></select>
+              </div>
+              <div class="form-group">
+                <label for="winTrainMarginParams">Margin Params File (optional)</label>
+                <select id="winTrainMarginParams" name="marginParams"></select>
+              </div>
+            </details>
+            <button type="submit" class="button primary-button">Run Win Training</button>
+          </form>
+        </div>
+
+        <div class="script-card">
+          <h3>Train Margin Model</h3>
+          <p>Train the margin-only ELO model.</p>
+          <form class="script-run-form" data-script-key="margin-train">
+            <div class="form-group">
+              <label for="marginTrainParamsFile">Params File</label>
+              <select id="marginTrainParamsFile" name="paramsFile" required></select>
+            </div>
+            <div class="form-group">
+              <label for="marginTrainStartYear">Start Year</label>
+              <input type="number" id="marginTrainStartYear" name="startYear" min="1990" placeholder="1990">
+            </div>
+            <div class="form-group">
+              <label for="marginTrainEndYear">End Year</label>
+              <input type="number" id="marginTrainEndYear" name="endYear" min="1990" placeholder="2024">
+            </div>
+            <details class="script-advanced">
+              <summary>Advanced</summary>
+              <div class="form-group">
+                <label for="marginTrainDbPath">DB Path</label>
+                <input type="text" id="marginTrainDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+              </div>
+              <div class="form-group">
+                <label for="marginTrainOutputDir">Output Directory</label>
+                <input type="text" id="marginTrainOutputDir" name="outputDir" placeholder="data/models/margin">
+              </div>
+            </details>
+            <button type="submit" class="button primary-button">Run Margin Training</button>
+          </form>
+        </div>
+
+        <div class="script-card">
+          <h3>ELO History Generator</h3>
+          <p>Regenerate historical ELO chart CSV output.</p>
+          <form class="script-run-form" data-script-key="elo-history">
+            <div class="form-group">
+              <label for="historyModelPath">Model</label>
+              <select id="historyModelPath" name="modelPath" required></select>
+            </div>
+            <details class="script-advanced">
+              <summary>Advanced</summary>
+              <div class="form-group">
+                <label for="historyStartYear">Start Year</label>
+                <input type="number" id="historyStartYear" name="startYear" min="1990">
+              </div>
+              <div class="form-group">
+                <label for="historyEndYear">End Year</label>
+                <input type="number" id="historyEndYear" name="endYear" min="1990">
+              </div>
+              <div class="form-group">
+                <label for="historyDbPath">DB Path</label>
+                <input type="text" id="historyDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+              </div>
+              <div class="form-group">
+                <label for="historyOutputDir">Output Directory</label>
+                <input type="text" id="historyOutputDir" name="outputDir" placeholder="data/historical">
+              </div>
+              <div class="form-group">
+                <label for="historyOutputPrefix">Output Prefix</label>
+                <input type="text" id="historyOutputPrefix" name="outputPrefix" placeholder="afl_elo_complete_history">
+              </div>
+            </details>
+            <button type="submit" class="button primary-button">Run ELO History</button>
+          </form>
+        </div>
+
+        <div class="script-card">
+          <h3>Season Simulation</h3>
+          <p>Run Monte Carlo simulation and output JSON results.</p>
+          <form class="script-run-form" data-script-key="season-simulation">
+            <div class="form-group">
+              <label for="simYear">Year</label>
+              <input type="number" id="simYear" name="year" min="1990" required>
+            </div>
+            <div class="form-group">
+              <label for="simModelPath">Margin Model</label>
+              <select id="simModelPath" name="modelPath" required></select>
+            </div>
+            <details class="script-advanced">
+              <summary>Advanced</summary>
+              <div class="form-group">
+                <label for="simDbPath">DB Path</label>
+                <input type="text" id="simDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+              </div>
+              <div class="form-group">
+                <label for="simNumSimulations">Simulations</label>
+                <input type="number" id="simNumSimulations" name="numSimulations" min="1000" max="200000" placeholder="50000">
+              </div>
+              <div class="form-group checkbox">
+                <input type="checkbox" id="simFromScratch" name="fromScratch">
+                <label for="simFromScratch">From scratch</label>
+              </div>
+              <div class="form-group">
+                <label for="simOutput">Output File</label>
+                <input type="text" id="simOutput" name="output" placeholder="data/simulations/season_simulation_YYYY.json">
+              </div>
+            </details>
+            <button type="submit" class="button primary-button">Run Simulation</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>Run History</h2>
+      <div class="history-table-wrapper">
+        <table class="admin-table" id="scriptRunHistoryTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Script</th>
+              <th>Status</th>
+              <th>Started</th>
+              <th>Finished</th>
+              <th>By</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="scriptRunHistoryBody">
+            <tr>
+              <td colspan="7">Loading history...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>Run Logs</h2>
+      <p id="logRunLabel">Select a run from history to view logs.</p>
+      <pre id="scriptLogsOutput" class="script-logs-output">No logs loaded.</pre>
+    </div>
+  </div>
+</div>
+
+<script src="/js/main.js"></script>
+<script src="/js/admin-scripts.js"></script>
+
+<%- include('partials/footer') %>

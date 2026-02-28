@@ -226,3 +226,39 @@ async function refreshAPIData(year, options = {}) {
 }
 
 module.exports = { refreshAPIData };
+
+if (require.main === module) {
+  (async () => {
+    try {
+      const args = process.argv.slice(2);
+      const currentYear = new Date().getFullYear();
+      let year = currentYear;
+      let forceScoreUpdate = false;
+
+      for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (arg === '--year' && args[i + 1]) {
+          year = Number.parseInt(args[i + 1], 10);
+          i += 1;
+          continue;
+        }
+        if (arg === '--force-score-update') {
+          forceScoreUpdate = true;
+        }
+      }
+
+      if (!Number.isInteger(year)) {
+        throw new Error('Invalid --year value');
+      }
+
+      const result = await refreshAPIData(year, { forceScoreUpdate });
+      logger.info('API refresh script completed', { year, forceScoreUpdate });
+      console.log(result.message);
+      process.exit(0);
+    } catch (error) {
+      logger.error('API refresh script failed', { error: error.message });
+      console.error(`API refresh failed: ${error.message}`);
+      process.exit(1);
+    }
+  })();
+}

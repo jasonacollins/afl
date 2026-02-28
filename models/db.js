@@ -184,6 +184,35 @@ async function initializeDatabase() {
       )
     `);
 
+    await runQuery(`
+      CREATE TABLE IF NOT EXISTS admin_script_runs (
+        run_id INTEGER PRIMARY KEY,
+        script_key TEXT NOT NULL,
+        status TEXT NOT NULL,
+        params_json TEXT NOT NULL,
+        command_json TEXT NOT NULL,
+        created_by_predictor_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT,
+        exit_code INTEGER,
+        error_message TEXT,
+        FOREIGN KEY (created_by_predictor_id) REFERENCES predictors (predictor_id)
+      )
+    `);
+
+    await runQuery(`
+      CREATE TABLE IF NOT EXISTS admin_script_run_logs (
+        log_id INTEGER PRIMARY KEY,
+        run_id INTEGER NOT NULL,
+        seq INTEGER NOT NULL,
+        stream TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (run_id) REFERENCES admin_script_runs (run_id)
+      )
+    `);
+
     // Venue reference data used by current ELO tooling
     await runQuery(`
       CREATE TABLE IF NOT EXISTS venues (
@@ -209,6 +238,8 @@ async function initializeDatabase() {
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_dates ON venue_aliases(start_date, end_date)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_name ON venue_aliases(alias_name)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venues_state ON venues(state)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_admin_script_runs_status_created ON admin_script_runs(status, created_at)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_admin_script_run_logs_run_seq ON admin_script_run_logs(run_id, seq)');
 
     // Legacy schema migrations for older databases
     await addColumnIfMissing('teams', 'colour_hex', 'TEXT');

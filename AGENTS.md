@@ -43,7 +43,8 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Event handlers use data attributes with event delegation, not inline `onclick` handlers
 - CSRF tokens passed via `window.csrfToken` (set in header partial) for all fetch requests
 - CSP configuration in `app.js` blocks `'unsafe-inline'` for scripts
-- Admin panel uses `public/js/admin.js` for all admin-specific JavaScript
+- Admin dashboard uses `public/js/admin.js` for user/admin management interactions
+- Admin scripts runner page (`/admin/scripts`) uses `public/js/admin-scripts.js`
 - Homepage uses `public/js/home.js` for featured predictor functionality
 - ELO page (`/elo`) uses `public/js/elo-chart.js` for chart rendering and interactions
 - Shared functionality in `public/js/main.js`
@@ -52,9 +53,26 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - `/` is the predictions homepage (featured predictor performance and round predictions)
 - `/elo` is the dedicated ELO chart page
 - `/simulation` is the dedicated season simulation page
+- `/admin/scripts` is the admin-only scripts runner for operational and training jobs
 
 **Startup Behavior**:
 - Server startup runs `initializeDatabase()` before listening to ensure required schema and migrations exist.
+- Startup also calls admin script-run recovery to mark stale queued/running jobs as `interrupted`.
+
+**Admin Scripts Runner Architecture**:
+- Service definitions are centralized in `services/admin-script-definitions.js` (allowlist + field metadata).
+- Job orchestration is handled in `services/admin-script-runner.js` (validation, spawn, status transitions, log persistence).
+- Routes are exposed under `routes/admin.js`:
+  - `GET /admin/scripts`
+  - `GET /admin/api/script-metadata`
+  - `POST /admin/api/script-runs`
+  - `GET /admin/api/script-runs`
+  - `GET /admin/api/script-runs/:runId`
+  - `GET /admin/api/script-runs/:runId/logs`
+- Persistence tables:
+  - `admin_script_runs`
+  - `admin_script_run_logs`
+- Concurrency rule: only one active script run (`queued` or `running`) at a time.
 
 **ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
 - **Predictions**: Written directly to database by Python scripts (transactional, real-time)

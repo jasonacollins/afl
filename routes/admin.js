@@ -15,6 +15,7 @@ const { logger } = require('../utils/logger');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
+const adminScriptRunner = require('../services/admin-script-runner');
 
 // Require authentication and admin for all admin routes
 router.use(isAuthenticated);
@@ -96,6 +97,146 @@ router.get('/', catchAsync(async (req, res) => {
     success: req.query.success || null,
     error: req.query.error || null,
     isAdmin: true
+  });
+}));
+
+// Admin scripts runner page
+router.get('/scripts', catchAsync(async (req, res) => {
+  logger.info(`Admin scripts page accessed by user ${req.session.user.id}`);
+
+  res.render('admin-scripts', {
+    isAdmin: true,
+    success: req.query.success || null,
+    error: req.query.error || null
+  });
+}));
+
+// Admin scripts metadata
+router.get('/api/script-metadata', catchAsync(async (req, res) => {
+  const metadata = await adminScriptRunner.getScriptMetadata();
+
+  res.json({
+    success: true,
+    ...metadata
+  });
+}));
+
+// Start admin script run
+router.post('/api/script-runs', catchAsync(async (req, res) => {
+  const { scriptKey, params } = req.body || {};
+
+  if (!scriptKey || typeof scriptKey !== 'string') {
+    return res.status(400).json({
+      success: false,
+      error: 'scriptKey is required'
+    });
+  }
+
+  try {
+    const run = await adminScriptRunner.startScriptRun(
+      scriptKey,
+      params || {},
+      req.session.user.id
+    );
+
+    return res.status(202).json({
+      success: true,
+      run
+    });
+  } catch (error) {
+    if (error.code === 'ACTIVE_RUN_EXISTS') {
+      return res.status(409).json({
+        success: false,
+        error: error.message
+      });
+    }
+
+    logger.warn('Invalid admin script run request', {
+      adminId: req.session.user.id,
+      scriptKey,
+      error: error.message
+    });
+
+    return res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+}));
+
+// List recent admin script runs
+router.get('/api/script-runs', catchAsync(async (req, res) => {
+  const rawLimit = Number.parseInt(req.query.limit, 10);
+  const limit = Number.isInteger(rawLimit) ? rawLimit : 20;
+  const runs = await adminScriptRunner.listRuns(limit);
+  const activeRun = await adminScriptRunner.getExistingActiveRun();
+
+  res.json({
+    success: true,
+    runs,
+    activeRunId: activeRun ? activeRun.run_id : null
+  });
+}));
+
+// Get specific admin script run
+router.get('/api/script-runs/:runId', catchAsync(async (req, res) => {
+  const runId = Number.parseInt(req.params.runId, 10);
+
+  if (!Number.isInteger(runId) || runId <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid runId'
+    });
+  }
+
+  const run = await adminScriptRunner.getRunById(runId);
+  if (!run) {
+    return res.status(404).json({
+      success: false,
+      error: 'Run not found'
+    });
+  }
+
+  return res.json({
+    success: true,
+    run
+  });
+}));
+
+// Get admin script run logs
+router.get('/api/script-runs/:runId/logs', catchAsync(async (req, res) => {
+  const runId = Number.parseInt(req.params.runId, 10);
+  const afterSeq = Number.parseInt(req.query.afterSeq, 10);
+  const rawLimit = Number.parseInt(req.query.limit, 10);
+
+  if (!Number.isInteger(runId) || runId <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid runId'
+    });
+  }
+
+  const run = await adminScriptRunner.getRunById(runId);
+  if (!run) {
+    return res.status(404).json({
+      success: false,
+      error: 'Run not found'
+    });
+  }
+
+  const logs = await adminScriptRunner.getRunLogs(
+    runId,
+    Number.isInteger(afterSeq) ? afterSeq : 0,
+    Number.isInteger(rawLimit) ? rawLimit : 300
+  );
+
+  const lastSeq = logs.length > 0 ? logs[logs.length - 1].seq : (Number.isInteger(afterSeq) ? afterSeq : 0);
+
+  return res.json({
+    success: true,
+    runId,
+    logs,
+    lastSeq
   });
 }));
 

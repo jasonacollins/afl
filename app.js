@@ -21,6 +21,7 @@ const csrfProtection = require('./middleware/csrf');
 // Import services
 const roundService = require('./services/round-service');
 const matchService = require('./services/match-service');
+const adminScriptRunner = require('./services/admin-script-runner');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -476,6 +477,7 @@ app.use(errorMiddleware);
 async function startServer() {
   try {
     await initializeDatabase();
+    await adminScriptRunner.recoverInterruptedRuns();
 
     app.listen(port, '0.0.0.0', () => {
       logger.info(`Server running on http://0.0.0.0:${port}`);
