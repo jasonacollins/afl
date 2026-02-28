@@ -18,7 +18,7 @@ For comprehensive project information including architecture, features, and setu
 ### Data Management
 - `npm run import` - Initialize database with team data (`scripts/automation/import-data.js`)
 - `npm run sync-games` - Sync match data from Squiggle API (`scripts/automation/sync-games.js`). With no args, syncs the current year by default.
-- `npm run daily-sync` - Run comprehensive daily synchronization: fixture sync, API refresh, ELO predictions, and historical data regeneration (`scripts/automation/daily-sync.js`)
+- `npm run daily-sync` - Run comprehensive daily synchronization: fixture sync, API refresh, ELO predictions, current-season simulation regeneration, and historical data regeneration (`scripts/automation/daily-sync.js`)
 
 ### ELO Model Scripts
 For detailed documentation on ELO model training, optimization, and prediction workflows, see **[scripts/README.md](scripts/README.md)**. This includes complete workflow instructions, script parameters, and troubleshooting guides.
@@ -88,7 +88,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Automated pipeline: Daily sync performs fixture sync, writes predictions to database, and regenerates historical CSV when matches update
 - Clean separation between operational data (database) and analytical data (CSV)
 
-**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. When updating the simulator:
+**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` now regenerates the current season simulation automatically after sync and prediction updates. When updating the simulator:
 - Keep the finals structure and seeding logic intact.
 - Maintain the percentile helper (`interpolate_percentile`) so 10th/90th win bounds are interpolated between adjacent win totals instead of rounding to whole numbers. The helper finds the bucket containing the percentile and linearly blends toward the neighbouring win count (or back toward the previous value at the upper edge) to keep results within the feasible win range.
 

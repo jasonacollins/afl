@@ -88,7 +88,7 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   ```
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
 
-Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, ELO prediction updates, and ELO history regeneration. Season simulation generation is a separate step run via `scripts/season_simulator.py`.
+Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, ELO prediction updates, season simulation regeneration for the current season, and ELO history regeneration.
 
 ## Architecture
 
