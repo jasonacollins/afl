@@ -36,13 +36,14 @@ const SCRIPT_DEFINITIONS = {
   },
   'combined-predictions': {
     key: 'combined-predictions',
-    label: 'Combined Predictions',
-    description: 'Run combined win + margin ELO predictions and write to database.',
+    label: 'Predictions',
+    description: 'Run win + margin ELO predictions and write to database.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'winModelPath', label: 'Win Model', type: 'select', required: true, optionSource: 'modelFiles.win' },
       { name: 'marginModelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
       { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
+      { name: 'futureOnly', label: 'Future Games Only', type: 'boolean', required: false },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
       { name: 'outputDir', label: 'Output Directory', type: 'text', required: false },
       { name: 'saveToDb', label: 'Save to DB', type: 'boolean', required: false }

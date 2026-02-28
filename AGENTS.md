@@ -73,6 +73,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
   - `admin_script_runs`
   - `admin_script_run_logs`
 - Concurrency rule: only one active script run (`queued` or `running`) at a time.
+- UI notes:
+  - The predictions runner is labelled `Predictions` (internal script key remains `combined-predictions`).
+  - The predictions card includes a `Predict future games only` option that maps to `--future-only` for `scripts/elo_predict_combined.py`.
+  - Training is presented as one `Train Model` card with an `Optimise For` selector (`Win Probability` or `Margin`) that routes to `win-train` or `margin-train`.
 
 **ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
 - **Predictions**: Written directly to database by Python scripts (transactional, real-time)

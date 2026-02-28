@@ -465,6 +465,27 @@
     });
   }
 
+  function setTrainingModePanel(mode) {
+    const normalizedMode = mode === 'margin' ? 'margin' : 'win';
+    document.querySelectorAll('[data-train-mode-panel]').forEach((panel) => {
+      const panelMode = panel.getAttribute('data-train-mode-panel');
+      panel.style.display = panelMode === normalizedMode ? 'block' : 'none';
+    });
+  }
+
+  function bindTrainingModeToggle() {
+    const modeSelect = getEl('trainOptimizationTarget');
+    if (!modeSelect) {
+      return;
+    }
+
+    modeSelect.addEventListener('change', (event) => {
+      setTrainingModePanel(event.target.value);
+    });
+
+    setTrainingModePanel(modeSelect.value);
+  }
+
   async function refreshLoop() {
     if (isRefreshing) {
       return;
@@ -487,6 +508,7 @@
     initializeSubmitButtons();
     bindFormHandlers();
     bindHistoryActions();
+    bindTrainingModeToggle();
 
     try {
       await loadMetadata();

@@ -45,7 +45,7 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 ### Supported Jobs
 - `sync-games` (`scripts/automation/sync-games.js`)
 - `api-refresh` (`scripts/automation/api-refresh.js`)
-- `combined-predictions` (`scripts/elo_predict_combined.py`)
+- `predictions` (`combined-predictions` key, `scripts/elo_predict_combined.py`)
 - `win-train` (`scripts/elo_win_train.py`)
 - `margin-train` (`scripts/elo_margin_train.py`)
 - `elo-history` (`scripts/elo_history_generator.py`)
@@ -58,6 +58,10 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
   - `admin_script_runs`
   - `admin_script_run_logs`
 - Restart recovery marks in-flight jobs as `interrupted`.
+- The `Predictions` card supports a `Predict future games only` option:
+  - enabled: only upcoming fixtures are output/saved
+  - disabled: full-year prediction output is generated from the chosen `startYear`
+- The training UI is a single `Train Model` card with an `Optimise For` selector (`Win Probability` or `Margin`), which routes to `win-train` or `margin-train`.
 
 ### Safety and Validation
 - Only an allowlisted script catalog can be executed.

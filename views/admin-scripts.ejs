@@ -76,8 +76,8 @@
         </div>
 
         <div class="script-card">
-          <h3>Combined Predictions</h3>
-          <p>Generate combined ELO predictions and write to selected predictor.</p>
+          <h3>Predictions</h3>
+          <p>Generate ELO predictions and write to selected predictor.</p>
           <form class="script-run-form" data-script-key="combined-predictions">
             <div class="form-group">
               <label for="combinedStartYear">Start Year</label>
@@ -95,6 +95,10 @@
               <label for="combinedPredictorId">Predictor</label>
               <select id="combinedPredictorId" name="predictorId" required></select>
             </div>
+            <div class="form-group checkbox">
+              <input type="checkbox" id="combinedFutureOnly" name="futureOnly" checked>
+              <label for="combinedFutureOnly">Predict future games only</label>
+            </div>
             <details class="script-advanced">
               <summary>Advanced</summary>
               <div class="form-group">
@@ -110,86 +114,94 @@
                 <label for="combinedSaveToDb">Save predictions to database</label>
               </div>
             </details>
-            <button type="submit" class="button primary-button">Run Combined Predictions</button>
+            <button type="submit" class="button primary-button">Run Predictions</button>
           </form>
         </div>
 
         <div class="script-card">
-          <h3>Train Win Model</h3>
-          <p>Train the standard ELO win model.</p>
-          <form class="script-run-form" data-script-key="win-train">
-            <div class="form-group">
-              <label for="winTrainStartYear">Start Year</label>
-              <input type="number" id="winTrainStartYear" name="startYear" min="1990" placeholder="1990">
-            </div>
-            <div class="form-group">
-              <label for="winTrainEndYear">End Year</label>
-              <input type="number" id="winTrainEndYear" name="endYear" min="1990">
-            </div>
-            <details class="script-advanced">
-              <summary>Advanced</summary>
-              <div class="form-group">
-                <label for="winTrainDbPath">DB Path</label>
-                <input type="text" id="winTrainDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
-              </div>
-              <div class="form-group">
-                <label for="winTrainOutputDir">Output Directory</label>
-                <input type="text" id="winTrainOutputDir" name="outputDir" placeholder="data/models/win">
-              </div>
-              <div class="form-group checkbox">
-                <input type="checkbox" id="winTrainNoTuneParameters" name="noTuneParameters">
-                <label for="winTrainNoTuneParameters">Skip parameter tuning</label>
-              </div>
-              <div class="form-group">
-                <label for="winTrainCvFolds">CV Folds</label>
-                <input type="number" id="winTrainCvFolds" name="cvFolds" min="2" max="10" placeholder="3">
-              </div>
-              <div class="form-group">
-                <label for="winTrainMaxCombinations">Max Combinations</label>
-                <input type="number" id="winTrainMaxCombinations" name="maxCombinations" min="1" max="5000" placeholder="500">
-              </div>
-              <div class="form-group">
-                <label for="winTrainParamsFile">Params File (optional)</label>
-                <select id="winTrainParamsFile" name="paramsFile"></select>
-              </div>
-              <div class="form-group">
-                <label for="winTrainMarginParams">Margin Params File (optional)</label>
-                <select id="winTrainMarginParams" name="marginParams"></select>
-              </div>
-            </details>
-            <button type="submit" class="button primary-button">Run Win Training</button>
-          </form>
-        </div>
+          <h3>Train Model</h3>
+          <p>Choose what to optimise, then run training.</p>
+          <div class="form-group">
+            <label for="trainOptimizationTarget">Optimise For</label>
+            <select id="trainOptimizationTarget">
+              <option value="win">Win Probability</option>
+              <option value="margin">Margin</option>
+            </select>
+          </div>
 
-        <div class="script-card">
-          <h3>Train Margin Model</h3>
-          <p>Train the margin-only ELO model.</p>
-          <form class="script-run-form" data-script-key="margin-train">
-            <div class="form-group">
-              <label for="marginTrainParamsFile">Params File</label>
-              <select id="marginTrainParamsFile" name="paramsFile" required></select>
-            </div>
-            <div class="form-group">
-              <label for="marginTrainStartYear">Start Year</label>
-              <input type="number" id="marginTrainStartYear" name="startYear" min="1990" placeholder="1990">
-            </div>
-            <div class="form-group">
-              <label for="marginTrainEndYear">End Year</label>
-              <input type="number" id="marginTrainEndYear" name="endYear" min="1990" placeholder="2024">
-            </div>
-            <details class="script-advanced">
-              <summary>Advanced</summary>
+          <div data-train-mode-panel="win">
+            <form class="script-run-form" data-script-key="win-train">
               <div class="form-group">
-                <label for="marginTrainDbPath">DB Path</label>
-                <input type="text" id="marginTrainDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+                <label for="winTrainStartYear">Start Year</label>
+                <input type="number" id="winTrainStartYear" name="startYear" min="1990" placeholder="1990">
               </div>
               <div class="form-group">
-                <label for="marginTrainOutputDir">Output Directory</label>
-                <input type="text" id="marginTrainOutputDir" name="outputDir" placeholder="data/models/margin">
+                <label for="winTrainEndYear">End Year</label>
+                <input type="number" id="winTrainEndYear" name="endYear" min="1990">
               </div>
-            </details>
-            <button type="submit" class="button primary-button">Run Margin Training</button>
-          </form>
+              <details class="script-advanced">
+                <summary>Advanced</summary>
+                <div class="form-group">
+                  <label for="winTrainDbPath">DB Path</label>
+                  <input type="text" id="winTrainDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+                </div>
+                <div class="form-group">
+                  <label for="winTrainOutputDir">Output Directory</label>
+                  <input type="text" id="winTrainOutputDir" name="outputDir" placeholder="data/models/win">
+                </div>
+                <div class="form-group checkbox">
+                  <input type="checkbox" id="winTrainNoTuneParameters" name="noTuneParameters">
+                  <label for="winTrainNoTuneParameters">Skip parameter tuning</label>
+                </div>
+                <div class="form-group">
+                  <label for="winTrainCvFolds">CV Folds</label>
+                  <input type="number" id="winTrainCvFolds" name="cvFolds" min="2" max="10" placeholder="3">
+                </div>
+                <div class="form-group">
+                  <label for="winTrainMaxCombinations">Max Combinations</label>
+                  <input type="number" id="winTrainMaxCombinations" name="maxCombinations" min="1" max="5000" placeholder="500">
+                </div>
+                <div class="form-group">
+                  <label for="winTrainParamsFile">Params File (optional)</label>
+                  <select id="winTrainParamsFile" name="paramsFile"></select>
+                </div>
+                <div class="form-group">
+                  <label for="winTrainMarginParams">Margin Params File (optional)</label>
+                  <select id="winTrainMarginParams" name="marginParams"></select>
+                </div>
+              </details>
+              <button type="submit" class="button primary-button">Run Win Training</button>
+            </form>
+          </div>
+
+          <div data-train-mode-panel="margin">
+            <form class="script-run-form" data-script-key="margin-train">
+              <div class="form-group">
+                <label for="marginTrainParamsFile">Params File</label>
+                <select id="marginTrainParamsFile" name="paramsFile" required></select>
+              </div>
+              <div class="form-group">
+                <label for="marginTrainStartYear">Start Year</label>
+                <input type="number" id="marginTrainStartYear" name="startYear" min="1990" placeholder="1990">
+              </div>
+              <div class="form-group">
+                <label for="marginTrainEndYear">End Year</label>
+                <input type="number" id="marginTrainEndYear" name="endYear" min="1990" placeholder="2024">
+              </div>
+              <details class="script-advanced">
+                <summary>Advanced</summary>
+                <div class="form-group">
+                  <label for="marginTrainDbPath">DB Path</label>
+                  <input type="text" id="marginTrainDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+                </div>
+                <div class="form-group">
+                  <label for="marginTrainOutputDir">Output Directory</label>
+                  <input type="text" id="marginTrainOutputDir" name="outputDir" placeholder="data/models/margin">
+                </div>
+              </details>
+              <button type="submit" class="button primary-button">Run Margin Training</button>
+            </form>
+          </div>
         </div>
 
         <div class="script-card">

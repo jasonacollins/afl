@@ -362,6 +362,7 @@ async function buildScriptCommand(scriptKey, params = {}) {
 
     const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
     const outputDir = normalizeOptionalRepoPath(params.outputDir, 'outputDir', DEFAULTS.combinedOutputDir);
+    const futureOnly = normalizeBoolean(params.futureOnly, false);
     const saveToDb = normalizeBoolean(params.saveToDb, true);
 
     normalizedParams.startYear = startYear;
@@ -370,6 +371,7 @@ async function buildScriptCommand(scriptKey, params = {}) {
     normalizedParams.predictorId = predictorId;
     normalizedParams.dbPath = dbPath;
     normalizedParams.outputDir = outputDir;
+    normalizedParams.futureOnly = futureOnly;
     normalizedParams.saveToDb = saveToDb;
 
     const args = [
@@ -384,6 +386,9 @@ async function buildScriptCommand(scriptKey, params = {}) {
 
     if (!saveToDb) {
       args.push('--no-save-to-db');
+    }
+    if (futureOnly) {
+      args.push('--future-only');
     }
 
     return {

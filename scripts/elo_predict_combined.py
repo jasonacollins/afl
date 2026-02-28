@@ -17,6 +17,57 @@ from core.elo_core import AFLEloModel, MarginEloModel
 from core.scoring import evaluate_predictions, format_scoring_summary
 
 
+def parse_match_datetime(match_date_str):
+    """Parse known match datetime formats into a timezone-aware UTC datetime."""
+    if 'T' in match_date_str and 'Z' in match_date_str:
+        return datetime.fromisoformat(match_date_str.replace('Z', '+00:00'))
+
+    if 'T' in match_date_str:
+        parsed = datetime.fromisoformat(match_date_str)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    if ' ' in match_date_str:
+        return datetime.strptime(match_date_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+
+    return datetime.strptime(match_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+
+
+def filter_future_predictions(predictions, verbose=False):
+    """Keep only predictions for games that are incomplete and have not started."""
+    current_time = datetime.now(timezone.utc)
+    future_predictions = []
+
+    for prediction in predictions:
+        if 'actual_result' in prediction:
+            continue
+
+        match_date_str = prediction.get('match_date')
+        if not match_date_str:
+            if verbose:
+                print(
+                    f"Warning: No match date for match {prediction.get('match_id', 'unknown')}, including prediction"
+                )
+            future_predictions.append(prediction)
+            continue
+
+        try:
+            match_date = parse_match_datetime(match_date_str)
+            if match_date > current_time:
+                future_predictions.append(prediction)
+            elif verbose:
+                print(f"Skipping match {prediction.get('match_id', 'unknown')} - game has started ({match_date_str})")
+        except (ValueError, TypeError):
+            if verbose:
+                print(
+                    f"Warning: Could not parse match date '{match_date_str}' for match {prediction.get('match_id', 'unknown')}, including prediction"
+                )
+            future_predictions.append(prediction)
+
+    return future_predictions
+
+
 class AFLCombinedEloPredictor:
     """
     Combined ELO predictor using both win and margin-only models for optimal predictions
@@ -405,46 +456,7 @@ class AFLCombinedEloPredictor:
         cursor = conn.cursor()
         
         try:
-            # Get current time in UTC for comparison
-            current_time = datetime.now(timezone.utc)
-            
-            # Filter out completed games and games that have started
-            future_predictions = []
-            for p in self.predictions:
-                # Skip if game is completed (has actual_result)
-                if 'actual_result' in p:
-                    continue
-                
-                # Skip if game has started (match_date is in the past)
-                if p.get('match_date'):
-                    try:
-                        # Parse match date - handle multiple formats
-                        match_date_str = p['match_date']
-                        if 'T' in match_date_str and 'Z' in match_date_str:
-                            # Full ISO format with timezone
-                            match_date = datetime.fromisoformat(match_date_str.replace('Z', '+00:00'))
-                        elif 'T' in match_date_str:
-                            # ISO format without timezone: "2025-07-10T19:30:00"
-                            match_date = datetime.fromisoformat(match_date_str).replace(tzinfo=timezone.utc)
-                        elif ' ' in match_date_str:
-                            # Format like "2025-03-07 19:40:00"
-                            match_date = datetime.strptime(match_date_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-                        else:
-                            # Just date, add default time
-                            match_date = datetime.strptime(match_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-                        
-                        # Only include games that haven't started yet
-                        if match_date > current_time:
-                            future_predictions.append(p)
-                        else:
-                            print(f"Skipping match {p.get('match_id', 'unknown')} - game has started ({match_date_str})")
-                    except (ValueError, TypeError) as e:
-                        print(f"Warning: Could not parse match date '{match_date_str}' for match {p.get('match_id', 'unknown')}, including prediction")
-                        future_predictions.append(p)
-                else:
-                    # No match date available - include the prediction with warning
-                    print(f"Warning: No match date for match {p.get('match_id', 'unknown')}, including prediction")
-                    future_predictions.append(p)
+            future_predictions = filter_future_predictions(self.predictions, verbose=True)
             
             if not future_predictions:
                 print("No future match predictions to save (all games completed or started)")
@@ -611,7 +623,7 @@ class AFLCombinedEloPredictor:
 
 
 def predict_matches(win_model_path, margin_model_path, db_path='data/database/afl_predictions.db', 
-                   start_year=2025, output_dir='.', save_to_db=True, predictor_id=6):
+                   start_year=2025, output_dir='.', save_to_db=True, predictor_id=6, future_only=False):
     """
     Make combined ELO predictions for matches starting from specified year
     """
@@ -679,6 +691,13 @@ def predict_matches(win_model_path, margin_model_path, db_path='data/database/af
                 match_date=match['match_date'].isoformat() if pd.notna(match['match_date']) else None,
                 venue=match['venue']
             )
+
+    if future_only:
+        total_predictions = len(predictor.predictions)
+        predictor.predictions = filter_future_predictions(predictor.predictions, verbose=False)
+        print(
+            f"Future-only mode enabled: kept {len(predictor.predictions)} of {total_predictions} predictions"
+        )
     
     # Save predictions
     os.makedirs(output_dir, exist_ok=True)
@@ -787,6 +806,8 @@ def main():
                         help='Disable database saving, use CSV output instead')
     parser.add_argument('--predictor-id', type=int, default=6,
                         help='Predictor ID for database storage (default: 6 for combined ELO)')
+    parser.add_argument('--future-only', action='store_true',
+                        help='Only output predictions for upcoming matches')
 
     args = parser.parse_args()
     
@@ -797,7 +818,8 @@ def main():
         start_year=args.start_year,
         output_dir=args.output_dir,
         save_to_db=args.save_to_db,
-        predictor_id=args.predictor_id
+        predictor_id=args.predictor_id,
+        future_only=args.future_only
     )
 
 
