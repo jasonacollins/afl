@@ -5,6 +5,14 @@ let currentSelectedYear;
 let currentUserId;
 let excludedPredictors = new Set();
 
+function formatRoundDisplay(roundNumber) {
+  if (roundNumber === 'OR') {
+    return 'Opening Round';
+  }
+
+  return isNaN(roundNumber) ? roundNumber : `Round ${roundNumber}`;
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async function() {
   // Get values from data attributes
@@ -127,15 +135,13 @@ function loadRoundStats(roundNumber) {
 
   // Show container and update round display
   roundContainer.style.display = 'block';
-  roundDisplay.textContent = roundNumber === 'OR' ? 'Opening Round' :
-                            isNaN(roundNumber) ? roundNumber :
-                            'Round ' + roundNumber;
+  roundDisplay.textContent = formatRoundDisplay(roundNumber);
 
   // Show loading
   roundContent.innerHTML = '<div class="loading">Loading round statistics...</div>';
 
   // Fetch round data
-  fetch(`/matches/stats/round/${roundNumber}?year=${currentSelectedYear}`)
+  fetch(`/matches/stats/round/${encodeURIComponent(roundNumber)}?year=${currentSelectedYear}`)
     .then(response => response.json())
     .then(data => {
       if (data.success) {

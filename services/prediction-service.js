@@ -2,6 +2,7 @@
 const { getQuery, getOne, runQuery } = require('../models/db');
 const { AppError, createNotFoundError, createValidationError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
+const roundService = require('./round-service');
 
 // Get predictions for a specific user
 async function getPredictionsForUser(userId) {
@@ -200,11 +201,62 @@ async function getPredictionsWithResultsForRound(predictorId, year, round) {
   }
 }
 
+// Get predictions with results for a display round selection and year.
+// Supports grouped selections like "Finals Week 1".
+async function getPredictionsWithResultsForRoundSelection(predictorId, year, roundSelection) {
+  try {
+    const sourceRounds = roundService.expandRoundSelection(roundSelection);
+
+    if (!sourceRounds || sourceRounds.length === 0) {
+      logger.warn('No source rounds resolved for prediction round selection', {
+        predictorId,
+        year,
+        roundSelection
+      });
+      return [];
+    }
+
+    logger.debug('Fetching predictions with results for round selection', {
+      predictorId,
+      year,
+      roundSelection,
+      sourceRounds
+    });
+
+    const placeholders = sourceRounds.map(() => '?').join(', ');
+    const predictions = await getQuery(
+      `
+      SELECT p.*, m.hscore, m.ascore
+      FROM predictions p
+      JOIN matches m ON p.match_id = m.match_id
+      WHERE p.predictor_id = ?
+      AND m.hscore IS NOT NULL AND m.ascore IS NOT NULL
+      AND m.year = ?
+      AND m.round_number IN (${placeholders})
+      `,
+      [predictorId, year, ...sourceRounds]
+    );
+
+    logger.info(`Retrieved ${predictions.length} predictions with results for predictor ${predictorId}, year ${year}, round selection ${roundSelection}`);
+
+    return predictions;
+  } catch (error) {
+    logger.error('Error fetching predictions with results for round selection', {
+      predictorId,
+      year,
+      roundSelection,
+      error: error.message
+    });
+    throw new AppError('Failed to fetch predictions', 500, 'DATABASE_ERROR');
+  }
+}
+
 module.exports = {
   getPredictionsForUser,
   getAllPredictionsWithDetails,
   savePrediction,
   deletePrediction,
   getPredictionsWithResultsForYear,
-  getPredictionsWithResultsForRound
+  getPredictionsWithResultsForRound,
+  getPredictionsWithResultsForRoundSelection
 };

@@ -3,6 +3,9 @@ const { getQuery } = require('../models/db');
 const { AppError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 
+const FINALS_WEEK_1_LABEL = 'Finals Week 1';
+const FINALS_WEEK_1_ROUNDS = ['Elimination Final', 'Qualifying Final'];
+
 // Define round order constants
 const ROUND_ORDER = {
   'OR': 0,                    // Opening Round
@@ -110,6 +113,8 @@ async function resolveYear(requestedYear, options = {}) {
 function getRoundDisplayName(roundNumber) {
   if (roundNumber === 'OR') {
     return 'Opening Round';
+  } else if (roundNumber === FINALS_WEEK_1_LABEL) {
+    return FINALS_WEEK_1_LABEL;
   } else if (ROUND_ORDER[roundNumber]) {
     return roundNumber;
   } else {
@@ -117,11 +122,91 @@ function getRoundDisplayName(roundNumber) {
   }
 }
 
+function isFinalsWeek1Round(roundNumber) {
+  return FINALS_WEEK_1_ROUNDS.includes(roundNumber);
+}
+
+function normalizeRoundForDisplay(roundNumber) {
+  if (!roundNumber) {
+    return roundNumber;
+  }
+
+  if (roundNumber === FINALS_WEEK_1_LABEL || isFinalsWeek1Round(roundNumber)) {
+    return FINALS_WEEK_1_LABEL;
+  }
+
+  return roundNumber;
+}
+
+function expandRoundSelection(roundSelection, availableRounds = null) {
+  if (roundSelection === FINALS_WEEK_1_LABEL || isFinalsWeek1Round(roundSelection)) {
+    if (Array.isArray(availableRounds) && availableRounds.length > 0) {
+      const availableRoundSet = new Set(availableRounds);
+      const presentRounds = FINALS_WEEK_1_ROUNDS.filter(round => availableRoundSet.has(round));
+
+      if (presentRounds.length > 0) {
+        return presentRounds;
+      }
+    }
+
+    return [...FINALS_WEEK_1_ROUNDS];
+  }
+
+  return [roundSelection];
+}
+
+function combineRoundsForDisplay(rounds) {
+  if (!Array.isArray(rounds) || rounds.length === 0) {
+    return [];
+  }
+
+  const finalsWeek1Rows = rounds.filter(roundObj => isFinalsWeek1Round(roundObj.round_number));
+  const finalsWeek1RoundNumbers = finalsWeek1Rows.map(roundObj => roundObj.round_number);
+  let finalsWeek1Added = false;
+
+  return rounds.reduce((accumulator, roundObj) => {
+    if (!isFinalsWeek1Round(roundObj.round_number)) {
+      accumulator.push({
+        ...roundObj,
+        source_round_numbers: [roundObj.round_number]
+      });
+      return accumulator;
+    }
+
+    if (finalsWeek1Added) {
+      return accumulator;
+    }
+
+    finalsWeek1Added = true;
+
+    const combinedRound = {
+      ...roundObj,
+      round_number: FINALS_WEEK_1_LABEL,
+      source_round_numbers: finalsWeek1RoundNumbers.length > 0
+        ? finalsWeek1RoundNumbers
+        : [...FINALS_WEEK_1_ROUNDS]
+    };
+
+    if (finalsWeek1Rows.length > 0 && typeof finalsWeek1Rows[0].isCompleted !== 'undefined') {
+      combinedRound.isCompleted = finalsWeek1Rows.every(row => row.isCompleted);
+    }
+
+    accumulator.push(combinedRound);
+    return accumulator;
+  }, []);
+}
+
 module.exports = {
+  FINALS_WEEK_1_LABEL,
+  FINALS_WEEK_1_ROUNDS,
   ROUND_ORDER,
   ROUND_ORDER_SQL,
   getRoundsForYear,
   getRoundDisplayName,
   getAvailableYears,
-  resolveYear
+  resolveYear,
+  isFinalsWeek1Round,
+  normalizeRoundForDisplay,
+  expandRoundSelection,
+  combineRoundsForDisplay
 };

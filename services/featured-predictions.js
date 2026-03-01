@@ -99,8 +99,8 @@ async function getPredictionsForRound(predictorId, round, year) {
     // Get predictor details
     const predictor = await predictorService.getPredictorById(predictorId);
     
-    // Get matches for the round
-    const matches = await matchService.getMatchesByRoundAndYear(round, year);
+    // Get matches for the selected display round (supports grouped finals week)
+    const matches = await matchService.getMatchesByRoundSelectionAndYear(round, year);
     
     // Get predictions for these matches
     const predictions = await predictionService.getPredictionsForUser(predictorId);

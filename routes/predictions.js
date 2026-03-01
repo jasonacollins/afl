@@ -51,8 +51,7 @@ router.get('/', catchAsync(async (req, res) => {
   });
   
   // Add completion status to rounds and determine current round
-  let currentRound = null;
-  const rounds = allRounds.map(roundObj => {
+  const roundsWithStatus = allRounds.map(roundObj => {
     const roundNumber = roundObj.round_number;
     const roundMatches = matchesByRound[roundNumber] || [];
     
@@ -60,20 +59,19 @@ router.get('/', catchAsync(async (req, res) => {
     const allMatchesCompleted = roundMatches.length > 0 && 
       roundMatches.every(match => match.hscore !== null && match.ascore !== null);
     
-    // If this round is not completed and we haven't found current round yet
-    if (!allMatchesCompleted && !currentRound) {
-      currentRound = roundNumber;
-    }
-    
     return {
       ...roundObj,
       isCompleted: allMatchesCompleted
     };
   });
+
+  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus);
+  const currentRoundObj = rounds.find(round => !round.isCompleted);
+  const currentRound = currentRoundObj ? currentRoundObj.round_number : null;
   
   // Resolve default selected round based on fixture dates/results rather than the `complete` flag.
   // This is more reliable when new-season fixtures are imported before Squiggle updates completion values.
-  let selectedRound = req.query.round || null;
+  let selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null);
   if (!selectedRound) {
     const currentDate = new Date();
     let nextUpcomingMatch = null;
@@ -102,7 +100,7 @@ router.get('/', catchAsync(async (req, res) => {
     }
 
     if (nextUpcomingMatch) {
-      selectedRound = nextUpcomingMatch.round_number;
+      selectedRound = roundService.normalizeRoundForDisplay(nextUpcomingMatch.round_number);
     } else {
       // Second priority: most recently completed round.
       let mostRecentCompletedMatch = null;
@@ -126,7 +124,7 @@ router.get('/', catchAsync(async (req, res) => {
       }
 
       if (mostRecentCompletedMatch) {
-        selectedRound = mostRecentCompletedMatch.round_number;
+        selectedRound = roundService.normalizeRoundForDisplay(mostRecentCompletedMatch.round_number);
       }
     }
   }
@@ -139,7 +137,7 @@ router.get('/', catchAsync(async (req, res) => {
   // Get matches for the selected round AND year
   let matches = [];
   if (selectedRound) {
-    matches = await matchService.getMatchesByRoundAndYear(selectedRound, selectedYear);
+    matches = await matchService.getMatchesByRoundSelectionAndYear(selectedRound, selectedYear);
     matches = matchService.processMatchLockStatus(matches);
   }
   
@@ -171,10 +169,10 @@ router.get('/', catchAsync(async (req, res) => {
 
 // Get matches for a specific round (AJAX)
 router.get('/round/:round', catchAsync(async (req, res) => {
-  const round = req.params.round;
+  const round = roundService.normalizeRoundForDisplay(req.params.round);
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
   
-  const matches = await matchService.getMatchesByRoundAndYear(round, year);
+  const matches = await matchService.getMatchesByRoundSelectionAndYear(round, year);
   const processedMatches = matchService.processMatchLockStatus(matches);
   
   logger.debug(`Fetched ${matches.length} matches for round ${round}, year ${year}`);

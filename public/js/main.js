@@ -59,7 +59,7 @@ function fetchMatchesForRound(round) {
   });
   
   // Fetch matches from server with year parameter
-  fetch(`/predictions/round/${round}?year=${year}`)
+  fetch(`/predictions/round/${encodeURIComponent(round)}?year=${year}`)
     .then(response => response.json())
     .then(matches => {
       currentMatchesData = matches; // Store fetched matches

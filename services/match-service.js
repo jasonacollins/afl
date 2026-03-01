@@ -2,6 +2,7 @@
 const { getQuery, getOne, runQuery } = require('../models/db');
 const { AppError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
+const roundService = require('./round-service');
 
 // Get matches with team information
 async function getMatchesWithTeams(whereClause = '', params = []) {
@@ -53,6 +54,40 @@ async function getMatchesByRoundAndYear(round, year) {
       year
     });
     throw error; // Re-throw the error from getMatchesWithTeams
+  }
+}
+
+// Get matches for a round selection and year.
+// Supports grouped display selections like "Finals Week 1".
+async function getMatchesByRoundSelectionAndYear(roundSelection, year) {
+  try {
+    const sourceRounds = roundService.expandRoundSelection(roundSelection);
+
+    if (!sourceRounds || sourceRounds.length === 0) {
+      logger.warn('No source rounds resolved for round selection', { roundSelection, year });
+      return [];
+    }
+
+    logger.debug('Fetching matches for round selection', {
+      roundSelection,
+      sourceRounds,
+      year
+    });
+
+    const placeholders = sourceRounds.map(() => '?').join(', ');
+    const matches = await getMatchesWithTeams(
+      `WHERE m.round_number IN (${placeholders}) AND m.year = ? ORDER BY m.match_date`,
+      [...sourceRounds, year]
+    );
+
+    return matches;
+  } catch (error) {
+    logger.error('Error fetching matches by round selection and year', {
+      error: error.message,
+      roundSelection,
+      year
+    });
+    throw error;
   }
 }
 
@@ -142,6 +177,42 @@ async function getCompletedMatchesForRound(year, round) {
   }
 }
 
+// Get completed matches for a display round selection and year.
+// Supports grouped selections like "Finals Week 1".
+async function getCompletedMatchesForRoundSelection(year, roundSelection) {
+  try {
+    const sourceRounds = roundService.expandRoundSelection(roundSelection);
+
+    if (!sourceRounds || sourceRounds.length === 0) {
+      logger.warn('No source rounds resolved for completed round selection', { roundSelection, year });
+      return [];
+    }
+
+    logger.debug('Fetching completed matches for round selection', {
+      year,
+      roundSelection,
+      sourceRounds
+    });
+
+    const placeholders = sourceRounds.map(() => '?').join(', ');
+    const matches = await getMatchesWithTeams(
+      `WHERE m.hscore IS NOT NULL AND m.ascore IS NOT NULL AND m.year = ? AND m.round_number IN (${placeholders}) ORDER BY m.match_date DESC`,
+      [year, ...sourceRounds]
+    );
+
+    logger.info(`Found ${matches.length} completed matches for year ${year}, round selection ${roundSelection}`);
+
+    return matches;
+  } catch (error) {
+    logger.error('Error fetching completed matches for round selection', {
+      error: error.message,
+      year,
+      roundSelection
+    });
+    throw error;
+  }
+}
+
 // Get the most recent round with completed results
 async function getMostRecentRoundWithResults() {
   try {
@@ -176,8 +247,10 @@ async function getMostRecentRoundWithResults() {
 module.exports = {
   getMatchesWithTeams,
   getMatchesByRoundAndYear,
+  getMatchesByRoundSelectionAndYear,
   getCompletedMatchesForYear,
   getCompletedMatchesForRound,
+  getCompletedMatchesForRoundSelection,
   getMostRecentRoundWithResults,
   processMatchLockStatus
 };

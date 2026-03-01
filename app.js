@@ -177,8 +177,7 @@ app.get('/', catchAsync(async (req, res) => {
     matchesByRound[match.round_number].push(match);
   });
   
-  // Add completion status to rounds and determine current round
-  let currentRound = null;
+  // Add completion status to rounds
   const roundsWithStatus = allRounds.map(roundObj => {
     const roundNumber = roundObj.round_number;
     const roundMatches = matchesByRound[roundNumber] || [];
@@ -187,16 +186,15 @@ app.get('/', catchAsync(async (req, res) => {
     const allMatchesCompleted = roundMatches.length > 0 && 
       roundMatches.every(match => match.hscore !== null && match.ascore !== null);
     
-    // If this round is not completed and we haven't found current round yet
-    if (!allMatchesCompleted && !currentRound) {
-      currentRound = roundNumber;
-    }
-    
     return {
       ...roundObj,
       isCompleted: allMatchesCompleted
     };
   });
+
+  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus);
+  const currentRoundObj = rounds.find(round => !round.isCompleted);
+  const currentRound = currentRoundObj ? currentRoundObj.round_number : null;
   
   // First priority: Find the round with the next upcoming match
   let targetRound = null;
@@ -226,7 +224,7 @@ app.get('/', catchAsync(async (req, res) => {
   
   // If we found an upcoming match, use its round
   if (nextUpcomingMatch) {
-    targetRound = nextUpcomingMatch.round_number;
+    targetRound = roundService.normalizeRoundForDisplay(nextUpcomingMatch.round_number);
     logger.info(`Found next upcoming match in round ${targetRound}`, { 
       match: `${nextUpcomingMatch.home_team} vs ${nextUpcomingMatch.away_team}`,
       date: nextUpcomingMatch.match_date
@@ -244,7 +242,7 @@ app.get('/', catchAsync(async (req, res) => {
         if (!isNaN(matchDate.getTime()) && 
             (!mostRecentMatch || matchDate > new Date(mostRecentMatch.match_date))) {
           mostRecentMatch = match;
-          mostRecentCompletedRound = match.round_number;
+          mostRecentCompletedRound = roundService.normalizeRoundForDisplay(match.round_number);
         }
       } catch (err) {
         logger.error('Error parsing match date', { 
@@ -260,7 +258,7 @@ app.get('/', catchAsync(async (req, res) => {
     } else {
       // Third priority: Just use the first round
       if (allRounds.length > 0) {
-        targetRound = allRounds[0].round_number;
+        targetRound = roundService.normalizeRoundForDisplay(allRounds[0].round_number);
         logger.info(`No completed matches found, using first round: ${targetRound}`);
       }
     }
@@ -350,7 +348,7 @@ app.get('/', catchAsync(async (req, res) => {
     featuredPredictorStats: featuredPredictorStats,
     years,
     selectedYear: currentYear,
-    rounds: roundsWithStatus,
+    rounds,
     selectedRound: targetRound,
     currentRound: currentRound,
     matches,

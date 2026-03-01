@@ -90,13 +90,13 @@ const ensureDefaultPredictions = catchAsync(async (selectedYear) => {
 
 // Get all matches
 router.get('/round/:round', catchAsync(async (req, res) => {
-  const round = req.params.round;
+  const round = roundService.normalizeRoundForDisplay(req.params.round);
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
   
   logger.debug(`Fetching matches for round ${round}, year ${year}`);
   
   // Get matches for the specific round and year
-  const matches = await matchService.getMatchesByRoundAndYear(round, year);
+  const matches = await matchService.getMatchesByRoundSelectionAndYear(round, year);
   
   res.json(matches);
 }));
@@ -121,7 +121,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   });
   
   // Get round parameter for round-by-round stats
-  const selectedRound = req.query.round || null;
+  const selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null);
   
   logger.info(`Stats page accessed by user ${req.session.user.id} for year ${selectedYear}${selectedRound ? `, round ${selectedRound}` : ''}`);
   
@@ -152,7 +152,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   });
   
   // Add completion status to rounds
-  const rounds = allRounds.map(roundObj => {
+  const roundsWithStatus = allRounds.map(roundObj => {
     const roundNumber = roundObj.round_number;
     const roundMatches = matchesByRound[roundNumber] || [];
     
@@ -165,10 +165,13 @@ router.get('/stats', catchAsync(async (req, res) => {
       isCompleted: allMatchesCompleted
     };
   });
+  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus);
   
   // Get the most recent round with results for default selection
   const mostRecentRound = await matchService.getMostRecentRoundWithResults();
-  const defaultRound = mostRecentRound && mostRecentRound.year === selectedYear ? mostRecentRound.round : null;    
+  const defaultRound = mostRecentRound && mostRecentRound.year === selectedYear
+    ? roundService.normalizeRoundForDisplay(mostRecentRound.round)
+    : null;
   
   // Ensure all predictors have predictions for completed matches
   await ensureDefaultPredictions(selectedYear);
@@ -309,12 +312,16 @@ router.get('/stats', catchAsync(async (req, res) => {
     logger.debug(`Calculating round statistics for round ${roundToShow}`);
     
     // Get completed matches for the specific round
-    completedMatchesForRound = await matchService.getCompletedMatchesForRound(selectedYear, roundToShow);
+    completedMatchesForRound = await matchService.getCompletedMatchesForRoundSelection(selectedYear, roundToShow);
     
     // Calculate round-specific statistics for each predictor
     for (const predictor of predictors) {
       // Get predictions for this predictor for the specific round
-      const roundPredictionResults = await predictionService.getPredictionsWithResultsForRound(predictor.predictor_id, selectedYear, roundToShow);
+      const roundPredictionResults = await predictionService.getPredictionsWithResultsForRoundSelection(
+        predictor.predictor_id,
+        selectedYear,
+        roundToShow
+      );
       
       let tipPoints = 0;
       let totalBrierScore = 0;
@@ -429,7 +436,7 @@ router.get('/stats', catchAsync(async (req, res) => {
 // AJAX route for round statistics
 router.get('/stats/round/:round', catchAsync(async (req, res) => {
   const startTime = Date.now();
-  const roundNumber = req.params.round;
+  const roundNumber = roundService.normalizeRoundForDisplay(req.params.round);
   
   const { selectedYear } = await roundService.resolveYear(req.query.year, {
     minYear: 2022
@@ -442,14 +449,18 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
   
   // Get completed matches for the specific round
-  const completedMatchesForRound = await matchService.getCompletedMatchesForRound(selectedYear, roundNumber);
+  const completedMatchesForRound = await matchService.getCompletedMatchesForRoundSelection(selectedYear, roundNumber);
   
   // Calculate round-specific statistics for each predictor
   const roundPredictorStats = [];
   
   for (const predictor of predictors) {
     // Get predictions for this predictor for the specific round
-    const roundPredictionResults = await predictionService.getPredictionsWithResultsForRound(predictor.predictor_id, selectedYear, roundNumber);
+    const roundPredictionResults = await predictionService.getPredictionsWithResultsForRoundSelection(
+      predictor.predictor_id,
+      selectedYear,
+      roundNumber
+    );
     
     let tipPoints = 0;
     let totalBrierScore = 0;
