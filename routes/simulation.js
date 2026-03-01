@@ -36,6 +36,7 @@ router.get('/years', catchAsync(async (req, res) => {
         return match ? parseInt(match[1]) : null;
       })
       .filter(year => year !== null)
+      .filter((year, index, list) => list.indexOf(year) === index)
       .sort((a, b) => b - a); // Sort descending
 
     logger.info('Available simulation years requested', {
@@ -107,7 +108,7 @@ router.get('/:year', catchAsync(async (req, res) => {
     const simulationData = JSON.parse(fileContent);
 
     // Check if ladder position data exists
-    const hasLadderPositionData = simulationData.results &&
+    const hasLadderPositionData = Array.isArray(simulationData.results) &&
                                    simulationData.results[0] &&
                                    simulationData.results[0].ladder_position_probabilities;
 
@@ -184,6 +185,8 @@ router.get('/:year/summary', catchAsync(async (req, res) => {
     const fileContent = await fs.readFile(filePath, 'utf-8');
     const simulationData = JSON.parse(fileContent);
 
+    const summaryResults = Array.isArray(simulationData.results) ? simulationData.results : [];
+
     // Extract summary statistics
     const summary = {
       year: simulationData.year,
@@ -191,7 +194,8 @@ router.get('/:year/summary', catchAsync(async (req, res) => {
       completed_matches: simulationData.completed_matches,
       remaining_matches: simulationData.remaining_matches,
       last_updated: simulationData.last_updated,
-      top_5_premiership_contenders: simulationData.results
+      current_round_label: simulationData.current_round_label || null,
+      top_5_premiership_contenders: summaryResults
         .slice(0, 5)
         .map(r => ({
           team: r.team,

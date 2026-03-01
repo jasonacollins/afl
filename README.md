@@ -72,8 +72,13 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 
 The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture to project ladder outcomes, finals progression, and premiership chances. Results are written to `data/simulations/season_simulation_YYYY.json` and surfaced on `/simulation`.
 
+- The `/simulation` page supports round snapshot tabs (`Before Round X`, finals stages, and `Post`) so users can review historical “before round” states for the same season.
 - Current standings and ELO ratings seed every simulation before match outcomes are sampled.
 - Finals series are simulated using the AFL finals format with double chances for the top four.
+- Combined mode mirrors Dad's AI:
+  - win probabilities and win-rating updates from win ELO model
+  - margin updates from margin ELO model
+- Completed finals results are treated as hard constraints for later rounds in finals snapshots.
 - Percentile win ranges (10th–90th) now interpolate within the cumulative distribution instead of snapping to the nearest integer win count:
   - We locate the discrete win bucket whose probability mass contains the desired percentile.
   - Using the depth of the percentile inside that bucket, we linearly blend toward the neighbouring win total (or back toward the previous value for the upper tail).
@@ -82,11 +87,13 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   ```bash
   python3 scripts/season_simulator.py \
     --year 2025 \
+    --win-model data/models/win/afl_elo_win_trained_to_2024.json \
     --model-path data/models/margin/afl_elo_margin_only_trained_to_2024.json \
     --db-path data/database/afl_predictions.db \
     --output data/simulations/season_simulation_2025.json
   ```
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
+  Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 
 Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, ELO prediction updates, season simulation regeneration for the current season, and ELO history regeneration.
 

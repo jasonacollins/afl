@@ -571,6 +571,7 @@ async function buildScriptCommand(scriptKey, params = {}) {
   if (scriptKey === 'season-simulation') {
     const year = toInteger(params.year, 'year', { required: true, min: YEAR_MIN, max: yearMax });
     const modelPath = normalizeRepoPath(params.modelPath, 'modelPath');
+    const winModelPath = normalizeOptionalRepoPath(params.winModelPath, 'winModelPath');
     const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
     const numSimulations = toInteger(params.numSimulations, 'numSimulations', {
       required: false,
@@ -578,13 +579,21 @@ async function buildScriptCommand(scriptKey, params = {}) {
       max: 200000
     }) || 50000;
     const fromScratch = normalizeBoolean(params.fromScratch, false);
+    const backfillRoundSnapshots = normalizeBoolean(params.backfillRoundSnapshots, false);
+
+    if (fromScratch && backfillRoundSnapshots) {
+      throw new Error('fromScratch cannot be combined with backfillRoundSnapshots');
+    }
+
     const output = normalizeOutputPathForSimulation(year, fromScratch, params.output);
 
     normalizedParams.year = year;
     normalizedParams.modelPath = modelPath;
+    normalizedParams.winModelPath = winModelPath;
     normalizedParams.dbPath = dbPath;
     normalizedParams.numSimulations = numSimulations;
     normalizedParams.fromScratch = fromScratch;
+    normalizedParams.backfillRoundSnapshots = backfillRoundSnapshots;
     normalizedParams.output = output;
 
     const args = [
@@ -596,8 +605,14 @@ async function buildScriptCommand(scriptKey, params = {}) {
       '--output', output
     ];
 
+    if (winModelPath) {
+      args.push('--win-model', winModelPath);
+    }
     if (fromScratch) {
       args.push('--from-scratch');
+    }
+    if (backfillRoundSnapshots) {
+      args.push('--backfill-round-snapshots');
     }
 
     return {

@@ -88,8 +88,11 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Automated pipeline: Daily sync performs fixture sync, writes predictions to database, and regenerates historical CSV when matches update
 - Clean separation between operational data (database) and analytical data (CSV)
 
-**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` now regenerates the current season simulation automatically after sync and prediction updates. When updating the simulator:
+**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` now regenerates the current season simulation automatically after sync and prediction updates. The simulation page supports round snapshot tabs (before each round/finals stage + post-season). When updating the simulator:
 - Keep the finals structure and seeding logic intact.
+- Preserve combined mode parity with Dad's AI (`--win-model` + `--model-path` margin).
+- Treat completed finals matches as hard constraints for later-round simulations (eliminated teams must stay eliminated).
+- Backfill mode (`--backfill-round-snapshots`) is destructive by design for the target file: it resets the JSON first, then rebuilds snapshots round-by-round.
 - Maintain the percentile helper (`interpolate_percentile`) so 10th/90th win bounds are interpolated between adjacent win totals instead of rounding to whole numbers. The helper finds the bucket containing the percentile and linearly blends toward the neighbouring win count (or back toward the previous value at the upper edge) to keep results within the feasible win range.
 
 ## Testing Framework

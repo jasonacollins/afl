@@ -109,9 +109,11 @@ const SCRIPT_DEFINITIONS = {
     fields: [
       { name: 'year', label: 'Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'modelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
+      { name: 'winModelPath', label: 'Win Model (Combined Mode)', type: 'select', required: false, optionSource: 'modelFiles.win' },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
       { name: 'numSimulations', label: 'Simulations', type: 'number', required: false, min: 1000, max: 200000 },
       { name: 'fromScratch', label: 'From Scratch', type: 'boolean', required: false },
+      { name: 'backfillRoundSnapshots', label: 'Backfill Round Snapshots', type: 'boolean', required: false },
       { name: 'output', label: 'Output File', type: 'text', required: false }
     ]
   }

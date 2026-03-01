@@ -8,6 +8,8 @@
 
     // State
     let simulationData = null;
+    let roundSnapshots = [];
+    let activeSnapshot = null;
     let currentSort = { column: 'premiership', direction: 'desc' };
 
     // DOM elements
@@ -21,6 +23,9 @@
     const ladderPositionCard = document.getElementById('ladder-position-card');
     const matrixHeader = document.getElementById('matrix-header');
     const matrixTbody = document.getElementById('matrix-tbody');
+    const roundSnapshotNav = document.getElementById('round-snapshot-nav');
+    const roundTabsContainer = document.getElementById('round-tabs');
+    const roundSnapshotContext = document.getElementById('round-snapshot-context');
 
     // Color palette for probability visualization (low → high)
     const PROBABILITY_COLOR_STOPS = [
@@ -99,12 +104,17 @@
             const data = await response.json();
 
             if (data.success && data.years && data.years.length > 0) {
+                const currentlySelectedYear = yearSelect.value;
+
                 // Populate year select
                 yearSelect.innerHTML = '';
                 data.years.forEach(year => {
                     const option = document.createElement('option');
                     option.value = year;
                     option.textContent = year;
+                    if (String(year) === String(currentlySelectedYear)) {
+                        option.selected = true;
+                    }
                     yearSelect.appendChild(option);
                 });
             }
@@ -150,54 +160,196 @@
         hideLoading();
         hideError();
 
-        // Update page title and subtitle
+        // Update page title
         document.getElementById('simulation-title').textContent =
             `${simulationData.year} AFL Season Simulation`;
 
-        const subtitleEl = document.getElementById('simulation-subtitle');
-        if (subtitleEl) {
-            subtitleEl.textContent =
-                `ELO-based Monte Carlo simulation • ${simulationData.completed_matches} matches completed`;
+        initializeRoundSnapshots();
+        renderRoundTabs();
+
+        if (!activeSnapshot) {
+            showError('Simulation snapshot data is missing or invalid.');
+            return;
         }
 
-        // Update summary statistics
-        document.getElementById('num-simulations').textContent =
-            simulationData.num_simulations.toLocaleString();
-        document.getElementById('completed-matches').textContent =
-            simulationData.completed_matches;
-        document.getElementById('completed-subtext').textContent =
-            `${simulationData.completed_matches} matches played`;
-        document.getElementById('remaining-matches').textContent =
-            simulationData.remaining_matches;
+        displayActiveSnapshot();
+    }
 
-        // Format last updated date
-        const lastUpdated = new Date(simulationData.last_updated);
+    function initializeRoundSnapshots() {
+        if (Array.isArray(simulationData.round_snapshots) && simulationData.round_snapshots.length > 0) {
+            roundSnapshots = simulationData.round_snapshots
+                .map(normalizeRoundSnapshot)
+                .filter(snapshot => snapshot && Array.isArray(snapshot.results))
+                .sort((a, b) => {
+                    if (a.round_order !== b.round_order) {
+                        return a.round_order - b.round_order;
+                    }
+                    return a.round_label.localeCompare(b.round_label);
+                });
+        } else {
+            roundSnapshots = [
+                normalizeRoundSnapshot({
+                    round_key: simulationData.current_round_key || 'latest',
+                    round_label: simulationData.current_round_label || 'Current Snapshot',
+                    round_tab_label: simulationData.current_round_tab_label || 'Current',
+                    round_order: 9999,
+                    round_number: simulationData.current_round_number || null,
+                    num_simulations: simulationData.num_simulations,
+                    completed_matches: simulationData.completed_matches,
+                    remaining_matches: simulationData.remaining_matches,
+                    last_updated: simulationData.last_updated,
+                    results: simulationData.results || []
+                })
+            ];
+        }
+
+        const defaultRoundKey = getDefaultRoundSnapshotKey();
+        activeSnapshot = roundSnapshots.find(snapshot => snapshot.round_key === defaultRoundKey) ||
+            roundSnapshots[roundSnapshots.length - 1] ||
+            null;
+    }
+
+    function normalizeRoundSnapshot(snapshot) {
+        if (!snapshot) {
+            return null;
+        }
+
+        const completedMatches = Number.isFinite(Number(snapshot.completed_matches))
+            ? Number(snapshot.completed_matches)
+            : 0;
+        const remainingMatches = Number.isFinite(Number(snapshot.remaining_matches))
+            ? Number(snapshot.remaining_matches)
+            : 0;
+        const numSimulations = Number.isFinite(Number(snapshot.num_simulations))
+            ? Number(snapshot.num_simulations)
+            : 0;
+        const roundOrder = Number.isFinite(Number(snapshot.round_order))
+            ? Number(snapshot.round_order)
+            : 9999;
+
+        return {
+            round_key: String(snapshot.round_key || 'round-unknown'),
+            round_label: String(snapshot.round_label || 'Current Snapshot'),
+            round_tab_label: String(snapshot.round_tab_label || snapshot.round_label || 'Current'),
+            round_order: roundOrder,
+            round_number: snapshot.round_number || null,
+            completed_matches: completedMatches,
+            remaining_matches: remainingMatches,
+            num_simulations: numSimulations,
+            last_updated: snapshot.last_updated || simulationData.last_updated || null,
+            results: Array.isArray(snapshot.results) ? snapshot.results : []
+        };
+    }
+
+    function getDefaultRoundSnapshotKey() {
+        if (simulationData.current_round_key) {
+            return String(simulationData.current_round_key);
+        }
+
+        if (roundSnapshots.length > 0) {
+            return roundSnapshots[roundSnapshots.length - 1].round_key;
+        }
+
+        return null;
+    }
+
+    function renderRoundTabs() {
+        if (!roundSnapshotNav || !roundTabsContainer) {
+            return;
+        }
+
+        roundTabsContainer.innerHTML = '';
+
+        if (roundSnapshots.length <= 1) {
+            roundSnapshotNav.style.display = 'none';
+            if (roundSnapshotContext && activeSnapshot) {
+                roundSnapshotContext.textContent = activeSnapshot.round_label;
+            }
+            return;
+        }
+
+        roundSnapshotNav.style.display = 'block';
+
+        roundSnapshots.forEach(snapshot => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'round-tab-button';
+            button.textContent = snapshot.round_tab_label;
+            button.dataset.roundKey = snapshot.round_key;
+            button.setAttribute('role', 'tab');
+            button.setAttribute('aria-selected', snapshot.round_key === activeSnapshot?.round_key ? 'true' : 'false');
+            button.title = snapshot.round_label;
+
+            if (snapshot.round_key === activeSnapshot?.round_key) {
+                button.classList.add('active');
+            }
+
+            button.addEventListener('click', () => handleRoundTabChange(snapshot.round_key));
+            roundTabsContainer.appendChild(button);
+        });
+    }
+
+    function handleRoundTabChange(roundKey) {
+        const nextSnapshot = roundSnapshots.find(snapshot => snapshot.round_key === roundKey);
+        if (!nextSnapshot || nextSnapshot.round_key === activeSnapshot?.round_key) {
+            return;
+        }
+
+        activeSnapshot = nextSnapshot;
+        renderRoundTabs();
+        displayActiveSnapshot();
+    }
+
+    function displayActiveSnapshot() {
+        if (!activeSnapshot) {
+            return;
+        }
+
+        if (roundSnapshotContext) {
+            roundSnapshotContext.textContent = activeSnapshot.round_label;
+        }
+
+        document.getElementById('num-simulations').textContent =
+            activeSnapshot.num_simulations.toLocaleString();
+        document.getElementById('completed-matches').textContent =
+            activeSnapshot.completed_matches;
+        document.getElementById('completed-subtext').textContent =
+            `${activeSnapshot.round_label} • ${activeSnapshot.completed_matches} matches played`;
+        document.getElementById('remaining-matches').textContent =
+            activeSnapshot.remaining_matches;
+        document.getElementById('last-updated').textContent =
+            formatRelativeTime(activeSnapshot.last_updated);
+
+        summaryStats.style.display = 'grid';
+        tableContainer.style.display = 'block';
+
+        populateTable();
+        populateLadderPositionMatrix();
+    }
+
+    function formatRelativeTime(isoDate) {
+        if (!isoDate) {
+            return '-';
+        }
+
+        const timestamp = new Date(isoDate);
+        if (Number.isNaN(timestamp.getTime())) {
+            return '-';
+        }
+
         const now = new Date();
-        const diffMs = now - lastUpdated;
+        const diffMs = now - timestamp;
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
 
-        let lastUpdatedText;
         if (diffMins < 60) {
-            lastUpdatedText = diffMins === 0 ? 'Just now' : `${diffMins}m ago`;
-        } else if (diffHours < 24) {
-            lastUpdatedText = `${diffHours}h ago`;
-        } else {
-            lastUpdatedText = `${diffDays}d ago`;
+            return diffMins <= 0 ? 'Just now' : `${diffMins}m ago`;
         }
-
-        document.getElementById('last-updated').textContent = lastUpdatedText;
-
-        // Show summary stats and table
-        summaryStats.style.display = 'grid';
-        tableContainer.style.display = 'block';
-
-        // Populate table
-        populateTable();
-
-        // Populate ladder position matrix if data is available
-        populateLadderPositionMatrix();
+        if (diffHours < 24) {
+            return `${diffHours}h ago`;
+        }
+        return `${diffDays}d ago`;
     }
 
     /**
@@ -206,8 +358,12 @@
     function populateTable() {
         tbody.innerHTML = '';
 
+        if (!activeSnapshot || !Array.isArray(activeSnapshot.results)) {
+            return;
+        }
+
         // Sort the data
-        const sortedResults = sortResults(simulationData.results);
+        const sortedResults = sortResults(activeSnapshot.results);
 
         // Create table rows
         sortedResults.forEach((team, index) => {
@@ -218,7 +374,7 @@
             const posClass = position <= 8 ? 'top8' : '';
 
             // Record
-            const record = `${team.current_wins}-${team.current_losses}`;
+            let record = `${team.current_wins}-${team.current_losses}`;
             if (team.current_draws > 0) {
                 record += `-${team.current_draws}`;
             }
@@ -303,8 +459,8 @@
      */
     function populateLadderPositionMatrix() {
         // Check if ladder position data is available
-        if (!simulationData || !simulationData.results || !simulationData.results[0] ||
-            !simulationData.results[0].ladder_position_probabilities) {
+        if (!activeSnapshot || !activeSnapshot.results || !activeSnapshot.results[0] ||
+            !activeSnapshot.results[0].ladder_position_probabilities) {
             // Hide the ladder position card if data is not available
             ladderPositionCard.style.display = 'none';
             return;
@@ -314,7 +470,7 @@
         ladderPositionCard.style.display = 'block';
 
         // Get the number of teams
-        const numTeams = simulationData.results.length;
+        const numTeams = activeSnapshot.results.length;
 
         // Create header row
         matrixHeader.innerHTML = '<th>Team</th>';
@@ -328,7 +484,7 @@
         matrixTbody.innerHTML = '';
 
         // Sort teams by current ladder position (based on projected wins)
-        const sortedTeams = [...simulationData.results].sort((a, b) =>
+        const sortedTeams = [...activeSnapshot.results].sort((a, b) =>
             b.projected_wins - a.projected_wins
         );
 
@@ -475,6 +631,9 @@
         summaryStats.style.display = 'none';
         tableContainer.style.display = 'none';
         ladderPositionCard.style.display = 'none';
+        if (roundSnapshotNav) {
+            roundSnapshotNav.style.display = 'none';
+        }
     }
 
     /**
@@ -494,6 +653,9 @@
         summaryStats.style.display = 'none';
         tableContainer.style.display = 'none';
         ladderPositionCard.style.display = 'none';
+        if (roundSnapshotNav) {
+            roundSnapshotNav.style.display = 'none';
+        }
     }
 
     /**
