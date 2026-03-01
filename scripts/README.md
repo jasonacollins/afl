@@ -196,7 +196,11 @@ python3 scripts/elo_win_predict.py --start-year 2024 --model-path data/models/wi
 - `combined/combined_elo_predictions_YYYY_YYYY.csv`: Best of both models combined
 
 ### Historical Data (data/historical/)
-- `afl_elo_complete_history.csv`: Match-by-match rating changes for all years
+- `afl_elo_complete_history.csv`: Match-by-match rating changes for chart years (2000 onward)
+- History replay is seeded from 1990 so 2000 ratings reflect prior seasons.
+- `scripts/elo_history_generator.py` supports:
+  - `--mode full` for one-off rebuilds
+  - `--mode incremental` to append only newly completed matches
 
 ### Rating History Files (data/predictions/)
 - `combined/*_rating_history_from_YYYY.csv`: Combined model rating evolution
@@ -216,7 +220,7 @@ The `daily-sync.js` script automatically:
 2. Generates Dad's AI predictions using the margin-only model
 3. Updates database with new predictions
 4. Regenerates current-season simulation snapshots when fixture/result data changed or the current round snapshot is missing
-5. Regenerates historical CSV in `data/historical/` directory for homepage charts
+5. Incrementally appends ELO history rows only when new completed results arrive (no historical rewrites)
 
 ## Margin Prediction Methods
 

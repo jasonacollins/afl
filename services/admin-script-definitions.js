@@ -108,9 +108,14 @@ const SCRIPT_DEFINITIONS = {
     label: 'ELO History Generator',
     description: 'Regenerate historical ELO CSV for charting.',
     fields: [
-      { name: 'modelPath', label: 'Model Path', type: 'select', required: true, optionSource: 'modelFiles.win' },
-      { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
-      { name: 'endYear', label: 'End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'modelPath', label: 'Model Path', type: 'select', required: true, optionSource: 'modelFiles.history' },
+      { name: 'mode', label: 'Mode', type: 'text', required: false },
+      { name: 'seedStartYear', label: 'Seed Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'seedEndYear', label: 'Seed End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'outputStartYear', label: 'Output Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'outputEndYear', label: 'Output End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'startYear', label: 'Legacy Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'endYear', label: 'Legacy End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
       { name: 'outputDir', label: 'Output Directory', type: 'text', required: false },
       { name: 'outputPrefix', label: 'Output Prefix', type: 'text', required: false }

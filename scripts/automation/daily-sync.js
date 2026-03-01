@@ -7,22 +7,30 @@ const path = require('path');
 const { getQuery } = require('../../models/db');
 const { logger } = require('../../utils/logger');
 
+const ELO_HISTORY_MODEL_PATH = 'data/models/margin/afl_elo_margin_only_trained_to_2025.json';
+const ELO_HISTORY_SEED_START_YEAR = 1990;
+const ELO_HISTORY_OUTPUT_START_YEAR = 2000;
+
 /**
- * Regenerate ELO historical data with new match results
+ * Regenerate ELO historical data.
+ * Default behavior is incremental append so existing historical rows remain unchanged.
  */
-async function regenerateEloHistory() {
-  logger.info('Regenerating ELO historical data...');
+async function regenerateEloHistory({ mode = 'incremental' } = {}) {
+  logger.info('Regenerating ELO historical data...', { mode });
   
   return new Promise((resolve, reject) => {
     // Get project root directory (two levels up from automation folder)
     const projectRoot = path.join(__dirname, '../..');
-    const modelPath = path.join(projectRoot, 'data/models/win/afl_elo_win_trained_to_2024.json');
+    const modelPath = path.join(projectRoot, ELO_HISTORY_MODEL_PATH);
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
     const outputDir = path.join(projectRoot, 'data/historical');
     
     const pythonProcess = spawn('python3', [
       'scripts/elo_history_generator.py',
       '--model-path', modelPath,
+      '--mode', mode,
+      '--seed-start-year', String(ELO_HISTORY_SEED_START_YEAR),
+      '--output-start-year', String(ELO_HISTORY_OUTPUT_START_YEAR),
       '--db-path', dbPath,
       '--output-dir', outputDir,
       '--output-prefix', 'afl_elo_complete_history'
@@ -43,7 +51,7 @@ async function regenerateEloHistory() {
     
     pythonProcess.on('close', (code) => {
       if (code === 0) {
-        logger.info('ELO historical data regeneration completed successfully');
+        logger.info('ELO historical data regeneration completed successfully', { mode });
         resolve({ success: true, message: 'ELO history updated' });
       } else {
         logger.error('ELO history generator failed', { 
@@ -134,6 +142,10 @@ function hasMatchDataChanges(fixtureSyncResults, apiResults) {
     refreshFixtureUpdates > 0 ||
     refreshScoreUpdates > 0
   );
+}
+
+function hasCompletedResultChanges(apiResults) {
+  return Number(apiResults?.scoresUpdated || 0) > 0;
 }
 
 function normalizeRoundText(roundNumber) {
@@ -451,10 +463,27 @@ async function dailySync() {
       logger.info('Skipping season simulation regeneration (no match-data changes and snapshot already exists)');
     }
 
-    // Step 5: Always regenerate ELO historical data to ensure consistency
-    logger.info('Regenerating ELO historical data...');
-    const historyResults = await regenerateEloHistory();
-    logger.info('ELO history regeneration complete', { message: historyResults.message });
+    // Step 5: Update ELO history only when results complete (or when bootstrap file is missing)
+    const historyCsvPath = path.join(projectRoot, 'data/historical/afl_elo_complete_history.csv');
+    const hasHistoryFile = fs.existsSync(historyCsvPath);
+    const resultChangesDetected = hasCompletedResultChanges(apiResults);
+    const shouldUpdateHistory = resultChangesDetected || !hasHistoryFile;
+
+    if (shouldUpdateHistory) {
+      const reasons = [];
+      if (resultChangesDetected) {
+        reasons.push('completed_results_changed');
+      }
+      if (!hasHistoryFile) {
+        reasons.push('history_file_missing_bootstrap');
+      }
+
+      logger.info('Updating ELO historical data incrementally...', { reasons });
+      const historyResults = await regenerateEloHistory({ mode: 'incremental' });
+      logger.info('ELO history regeneration complete', { message: historyResults.message, mode: 'incremental' });
+    } else {
+      logger.info('Skipping ELO history update (no newly completed results and history file present)');
+    }
     
     logger.info('Daily sync completed successfully');
     process.exit(0);

@@ -2,22 +2,46 @@
 """
 AFL ELO History Generator
 
-Generates complete ELO rating history using optimal parameters from a trained model.
-This script creates comprehensive rating history in CSV and JSON formats for charting
-and analysis purposes.
+Generates chart history from completed matches without modifying the database.
+
+Modes:
+  - full: rebuild complete history from a seed window, then publish an output window
+  - incremental: append only newly completed matches to an existing CSV
 
 Usage:
-    python3 scripts/elo_history_generator.py --model-path data/models/win/afl_elo_win_trained_to_2024.json
-    python3 scripts/elo_history_generator.py --model-path data/models/win/afl_elo_win_trained_to_2024.json --start-year 2000 --end-year 2024
+    # Full rebuild seeded from 1990, chart output from 2000
+    python3 scripts/elo_history_generator.py \
+      --model-path data/models/margin/afl_elo_margin_only_trained_to_2025.json \
+      --mode full \
+      --seed-start-year 1990 \
+      --output-start-year 2000 \
+      --output-dir data/historical \
+      --output-prefix afl_elo_complete_history
+
+    # Daily incremental append
+    python3 scripts/elo_history_generator.py \
+      --model-path data/models/margin/afl_elo_margin_only_trained_to_2025.json \
+      --mode incremental \
+      --seed-start-year 1990 \
+      --output-start-year 2000 \
+      --output-dir data/historical \
+      --output-prefix afl_elo_complete_history
 """
 
-import pandas as pd
-import numpy as np
-import sqlite3
+import argparse
 import json
 import os
-import argparse
-from datetime import datetime
+import sqlite3
+
+import numpy as np
+import pandas as pd
+
+
+MODEL_TYPE_WIN = 'win_elo'
+MODEL_TYPE_MARGIN = 'margin_elo'
+DEFAULT_SEED_START_YEAR = 1990
+DEFAULT_OUTPUT_START_YEAR = 2000
+
 
 # Team state mapping for interstate home advantage calculation
 TEAM_STATES = {
@@ -43,100 +67,139 @@ TEAM_STATES = {
 
 
 class AFLEloHistoryGenerator:
-    def __init__(self, base_rating=1500, k_factor=20, default_home_advantage=30, interstate_home_advantage=60, 
-                 margin_factor=0.3, season_carryover=0.6, max_margin=120):
-        """
-        Initialize the AFL ELO history generator with model parameters
-        """
-        self.base_rating = base_rating
-        self.k_factor = k_factor
-        self.default_home_advantage = default_home_advantage
-        self.interstate_home_advantage = interstate_home_advantage
-        self.margin_factor = margin_factor
-        self.season_carryover = season_carryover
-        self.max_margin = max_margin
+    """Rating engine for both win and margin model history replay."""
+
+    def __init__(
+        self,
+        model_type=MODEL_TYPE_WIN,
+        base_rating=1500,
+        k_factor=20,
+        home_advantage=30,
+        default_home_advantage=None,
+        interstate_home_advantage=None,
+        margin_factor=0.3,
+        season_carryover=0.6,
+        max_margin=120,
+        margin_scale=0.15,
+        scaling_factor=80
+    ):
+        self.model_type = model_type
+        self.base_rating = float(base_rating)
+        self.k_factor = float(k_factor)
+        self.home_advantage = float(home_advantage)
+        self.default_home_advantage = float(
+            default_home_advantage if default_home_advantage is not None else home_advantage
+        )
+        self.interstate_home_advantage = float(
+            interstate_home_advantage if interstate_home_advantage is not None else home_advantage
+        )
+        self.margin_factor = float(margin_factor)
+        self.season_carryover = float(season_carryover)
+        self.max_margin = float(max_margin)
+        self.margin_scale = float(margin_scale)
+        self.scaling_factor = float(scaling_factor)
         self.team_ratings = {}
-        self.rating_history = []  # Complete history for CSV/JSON export
-        
+        self.rating_history = []
+
     def initialize_ratings(self, teams):
-        """Initialize all team ratings to the base rating"""
         self.team_ratings = {team: self.base_rating for team in teams}
-    
+
+    def set_team_ratings(self, team_ratings):
+        self.team_ratings = dict(team_ratings)
+
     def _cap_margin(self, margin):
-        """Cap margin to reduce effect of blowouts"""
         return min(abs(margin), self.max_margin) * np.sign(margin)
-    
-    def calculate_win_probability(self, home_team, away_team, venue_state=None):
-        """Calculate probability of home team winning based on ELO difference"""
+
+    def predict_margin(self, home_team, away_team):
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Apply contextual home ground advantage
+        rating_diff = (home_rating + self.home_advantage) - away_rating
+        return rating_diff * self.margin_scale
+
+    def calculate_win_probability(self, home_team, away_team, venue_state=None):
+        if self.model_type == MODEL_TYPE_MARGIN:
+            predicted_margin = self.predict_margin(home_team, away_team)
+            rating_diff = (
+                (self.team_ratings.get(home_team, self.base_rating) + self.home_advantage)
+                - self.team_ratings.get(away_team, self.base_rating)
+                if self.margin_scale == 0
+                else predicted_margin / self.margin_scale
+            )
+            return 1.0 / (1.0 + 10 ** (-rating_diff / 400))
+
+        home_rating = self.team_ratings.get(home_team, self.base_rating)
+        away_rating = self.team_ratings.get(away_team, self.base_rating)
         home_advantage = self.get_contextual_home_advantage(home_team, away_team, venue_state)
         rating_diff = (home_rating + home_advantage) - away_rating
-        
-        # Convert rating difference to win probability using logistic function
-        win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
-        
-        return win_probability
-    
+        return 1.0 / (1.0 + 10 ** (-rating_diff / 400))
+
     def get_contextual_home_advantage(self, home_team, away_team, venue_state):
-        """Calculate home advantage based on whether away team is traveling interstate"""
         away_team_state = TEAM_STATES.get(away_team)
-        
-        # Use venue state if available, otherwise fall back to home team state
-        if venue_state is None:
-            venue_state = TEAM_STATES.get(home_team)
-        
-        # If away team is from a different state than the venue, use interstate advantage
-        if away_team_state and venue_state and away_team_state != venue_state:
+        venue_state_value = venue_state if venue_state is not None else TEAM_STATES.get(home_team)
+
+        if away_team_state and venue_state_value and away_team_state != venue_state_value:
             return self.interstate_home_advantage
-        else:
-            return self.default_home_advantage
-    
-    def update_ratings(self, home_team, away_team, hscore, ascore, year, 
-                      match_id=None, round_number=None, match_date=None, venue=None, venue_state=None):
-        """
-        Update team ratings based on match result and record complete history
-        """
-        # Ensure teams exist in ratings
+        return self.default_home_advantage
+
+    def _calculate_win_rating_change(self, home_team, away_team, hscore, ascore, venue_state):
+        home_win_prob = self.calculate_win_probability(home_team, away_team, venue_state=venue_state)
+
+        actual_result = 1.0 if hscore > ascore else 0.0
+        if hscore == ascore:
+            actual_result = 0.5
+
+        margin = hscore - ascore
+        capped_margin = self._cap_margin(margin)
+
+        margin_multiplier = 1.0
+        if self.margin_factor > 0:
+            margin_multiplier = (
+                np.log1p(abs(capped_margin) * self.margin_factor)
+                / np.log1p(self.max_margin * self.margin_factor)
+            )
+
+        return self.k_factor * margin_multiplier * (actual_result - home_win_prob)
+
+    def _calculate_margin_rating_change(self, home_team, away_team, hscore, ascore):
+        if self.scaling_factor == 0:
+            raise ValueError('scaling_factor cannot be zero for margin model history generation')
+
+        predicted_margin = self.predict_margin(home_team, away_team)
+        actual_margin = hscore - ascore
+        margin_error = predicted_margin - actual_margin
+
+        # Keep aligned with scripts/elo_margin_predict.py
+        return -self.k_factor * margin_error / self.scaling_factor
+
+    def update_ratings(
+        self,
+        home_team,
+        away_team,
+        hscore,
+        ascore,
+        year,
+        match_id=None,
+        round_number=None,
+        match_date=None,
+        venue=None,
+        venue_state=None
+    ):
         if home_team not in self.team_ratings:
             self.team_ratings[home_team] = self.base_rating
         if away_team not in self.team_ratings:
             self.team_ratings[away_team] = self.base_rating
-        
-        # Get current ratings before the match
+
         home_rating_before = self.team_ratings[home_team]
         away_rating_before = self.team_ratings[away_team]
-        
-        # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team, venue_state=venue_state)
-        
-        # Determine actual result (1 for home win, 0 for away win)
-        actual_result = 1.0 if hscore > ascore else 0.0
-        
-        # Handle draws (0.5 points each)
-        if hscore == ascore:
-            actual_result = 0.5
-        
-        # Calculate rating change based on result
-        margin = hscore - ascore
-        capped_margin = self._cap_margin(margin)
-        
-        # Adjust K-factor by margin
-        margin_multiplier = 1.0
-        if self.margin_factor > 0:
-            margin_multiplier = np.log1p(abs(capped_margin) * self.margin_factor) / np.log1p(self.max_margin * self.margin_factor)
-        
-        # Calculate ELO update
-        rating_change = self.k_factor * margin_multiplier * (actual_result - home_win_prob)
-        
-        # Update ratings
+
+        if self.model_type == MODEL_TYPE_MARGIN:
+            rating_change = self._calculate_margin_rating_change(home_team, away_team, hscore, ascore)
+        else:
+            rating_change = self._calculate_win_rating_change(home_team, away_team, hscore, ascore, venue_state)
+
         self.team_ratings[home_team] += rating_change
         self.team_ratings[away_team] -= rating_change
-        
-        # Record complete rating history for both teams
-        # Home team record
+
         self.rating_history.append({
             'match_id': match_id,
             'date': match_date,
@@ -152,8 +215,7 @@ class AFLEloHistoryGenerator:
             'rating_change': rating_change,
             'venue': venue
         })
-        
-        # Away team record
+
         self.rating_history.append({
             'match_id': match_id,
             'date': match_date,
@@ -169,283 +231,440 @@ class AFLEloHistoryGenerator:
             'rating_change': -rating_change,
             'venue': venue
         })
-    
+
     def apply_season_carryover(self, new_year):
-        """Apply regression to mean between seasons (no longer recorded in history)"""
-        print(f"Applying season carryover for {new_year}...")
-        
-        # Apply carryover to each team (without recording in history)
+        print(f'Applying season carryover for {new_year}...')
         for team in self.team_ratings:
             old_rating = self.team_ratings[team]
-            new_rating = self.base_rating + self.season_carryover * (old_rating - self.base_rating)
-            self.team_ratings[team] = new_rating
-    
-    def save_history_to_csv(self, filename):
-        """Save complete rating history to CSV file"""
+            self.team_ratings[team] = self.base_rating + self.season_carryover * (old_rating - self.base_rating)
+
+    def get_history_dataframe(self):
         if not self.rating_history:
-            print("No rating history to save")
-            return
-        
-        # Convert to DataFrame and sort by date
+            return pd.DataFrame()
+
         df = pd.DataFrame(self.rating_history)
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        df = df.sort_values(['date', 'match_id'])
-        
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
-        
-        # Save to CSV
-        df.to_csv(filename, index=False)
-        print(f"Saved complete ELO rating history with {len(df)} records to {filename}")
-    
-    
-    def get_team_history_summary(self):
-        """Get a summary of each team's rating journey"""
-        if not self.rating_history:
-            return {}
-        
-        summary = {}
-        
-        for record in self.rating_history:
-                
-            team = record['team']
-            if team not in summary:
-                summary[team] = {
-                    'matches_played': 0,
-                    'wins': 0,
-                    'losses': 0,
-                    'draws': 0,
-                    'first_rating': record['rating_before'],
-                    'final_rating': record['rating_after'],
-                    'highest_rating': record['rating_after'],
-                    'lowest_rating': record['rating_after'],
-                    'first_match_date': record['date'],
-                    'last_match_date': record['date']
-                }
-            
-            summary[team]['matches_played'] += 1
-            summary[team]['final_rating'] = record['rating_after']
-            summary[team]['highest_rating'] = max(summary[team]['highest_rating'], record['rating_after'])
-            summary[team]['lowest_rating'] = min(summary[team]['lowest_rating'], record['rating_after'])
-            summary[team]['last_match_date'] = record['date']
-            
-            if record['result'] == 'win':
-                summary[team]['wins'] += 1
-            elif record['result'] == 'loss':
-                summary[team]['losses'] += 1
-            elif record['result'] == 'draw':
-                summary[team]['draws'] += 1
-        
-        # Calculate win percentages
-        for team_data in summary.values():
-            total_games = team_data['matches_played']
-            if total_games > 0:
-                team_data['win_percentage'] = team_data['wins'] / total_games
-                team_data['rating_change'] = team_data['final_rating'] - team_data['first_rating']
-        
-        return summary
+        df['date'] = pd.to_datetime(df['date'], errors='coerce', utc=True)
+        df['match_id'] = pd.to_numeric(df['match_id'], errors='coerce')
+        df['year'] = pd.to_numeric(df['year'], errors='coerce')
+        return df.sort_values(['date', 'match_id', 'team'])
 
 
-def fetch_afl_data(db_path, start_year=None, end_year=None):
-    """
-    Fetch historical AFL match data from SQLite database
-    """
+def infer_model_type(model_data, params):
+    explicit_type = model_data.get('model_type')
+    if explicit_type in (MODEL_TYPE_WIN, MODEL_TYPE_MARGIN, 'margin_only_elo'):
+        if explicit_type in (MODEL_TYPE_MARGIN, 'margin_only_elo'):
+            return MODEL_TYPE_MARGIN
+        return MODEL_TYPE_WIN
+
+    if 'margin_factor' in params:
+        return MODEL_TYPE_WIN
+
+    if 'margin_scale' in params and 'scaling_factor' in params:
+        return MODEL_TYPE_MARGIN
+
+    return MODEL_TYPE_WIN
+
+
+def load_model_config(model_path):
+    try:
+        with open(model_path, 'r', encoding='utf-8') as handle:
+            model_data = json.load(handle)
+    except Exception as error:
+        print(f'Error loading model file: {error}')
+        return None
+
+    params = model_data.get('parameters')
+    if not isinstance(params, dict):
+        print('Error loading model parameters: model file missing "parameters" object')
+        return None
+
+    model_type = infer_model_type(model_data, params)
+
+    print(f'Loaded model parameters from {model_path}:')
+    print(f'  model_type: {model_type}')
+    for key, value in params.items():
+        print(f'  {key}: {value}')
+
+    return {
+        'model_type': model_type,
+        'params': params
+    }
+
+
+def build_generator_from_config(model_config):
+    params = model_config['params']
+    return AFLEloHistoryGenerator(
+        model_type=model_config['model_type'],
+        base_rating=params.get('base_rating', 1500),
+        k_factor=params.get('k_factor', 20),
+        home_advantage=params.get('home_advantage', 30),
+        default_home_advantage=params.get('default_home_advantage', params.get('home_advantage', 30)),
+        interstate_home_advantage=params.get('interstate_home_advantage', params.get('home_advantage', 60)),
+        margin_factor=params.get('margin_factor', 0.0),
+        season_carryover=params.get('season_carryover', 0.6),
+        max_margin=params.get('max_margin', 120),
+        margin_scale=params.get('margin_scale', 0.15),
+        scaling_factor=params.get('scaling_factor', 80)
+    )
+
+
+def fetch_afl_data(db_path, start_year=None, end_year=None, after_date=None, after_match_id=None):
     conn = sqlite3.connect(db_path)
-    
-    year_clause = ""
-    if start_year:
-        year_clause += f"AND m.year >= {start_year} "
-    if end_year:
-        year_clause += f"AND m.year <= {end_year}"
-    
+    conditions = ['m.hscore IS NOT NULL', 'm.ascore IS NOT NULL']
+    params = []
+
+    if start_year is not None:
+        conditions.append('m.year >= ?')
+        params.append(int(start_year))
+    if end_year is not None:
+        conditions.append('m.year <= ?')
+        params.append(int(end_year))
+    if after_date is not None and after_match_id is not None:
+        conditions.append(
+            '(julianday(m.match_date) > julianday(?) OR (julianday(m.match_date) = julianday(?) AND m.match_id > ?))'
+        )
+        params.extend([after_date, after_date, int(after_match_id)])
+
     query = f"""
-    SELECT 
-        m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, 
-        ht.name as home_team, at.name as away_team,
-        v.state as venue_state
-    FROM 
-        matches m
-    JOIN 
-        teams ht ON m.home_team_id = ht.team_id
-    JOIN 
-        teams at ON m.away_team_id = at.team_id
-    LEFT JOIN 
-        venues v ON m.venue_id = v.venue_id
-    WHERE 
-        m.hscore IS NOT NULL AND m.ascore IS NOT NULL
-        {year_clause}
-    ORDER BY 
-        m.year, m.match_date
+    SELECT
+        m.match_id, m.match_number, m.round_number, m.match_date,
+        m.venue, m.year, m.hscore, m.ascore,
+        ht.name AS home_team, at.name AS away_team,
+        v.state AS venue_state
+    FROM matches m
+    JOIN teams ht ON m.home_team_id = ht.team_id
+    JOIN teams at ON m.away_team_id = at.team_id
+    LEFT JOIN venues v ON m.venue_id = v.venue_id
+    WHERE {' AND '.join(conditions)}
+    ORDER BY m.year, m.match_date, m.match_id
     """
-    
-    df = pd.read_sql_query(query, conn)
+
+    df = pd.read_sql_query(query, conn, params=params)
     conn.close()
-    
     return df
 
 
-def load_model_parameters(model_path):
-    """Load parameters from a trained model JSON file"""
-    try:
-        with open(model_path, 'r') as f:
-            model_data = json.load(f)
-        
-        params = model_data['parameters']
-        print(f"Loaded model parameters from {model_path}:")
-        for key, value in params.items():
-            print(f"  {key}: {value}")
-        
-        return params
-    except Exception as e:
-        print(f"Error loading model parameters: {e}")
-        return None
-
-
-def generate_elo_history(data, params):
-    """
-    Generate complete ELO history using the provided parameters
-    """
-    # Initialize generator with parameters
-    generator = AFLEloHistoryGenerator(
-        base_rating=params['base_rating'],
-        k_factor=params['k_factor'],
-        default_home_advantage=params.get('default_home_advantage', params.get('home_advantage', 30)),
-        interstate_home_advantage=params.get('interstate_home_advantage', params.get('home_advantage', 60)),
-        margin_factor=params['margin_factor'],
-        season_carryover=params['season_carryover'],
-        max_margin=params['max_margin']
-    )
-    
-    # Get unique teams
-    all_teams = pd.concat([data['home_team'], data['away_team']]).unique()
-    print(f"Found {len(all_teams)} unique teams")
-    
-    # Initialize ratings
-    generator.initialize_ratings(all_teams)
-    
-    # Process matches chronologically
-    prev_year = None
+def apply_matches_to_generator(generator, data, previous_year=None):
     matches_processed = 0
-    
-    print(f"Processing {len(data)} matches chronologically...")
-    
+    prev_year = previous_year
+
+    print(f'Processing {len(data)} matches chronologically...')
     for _, match in data.iterrows():
-        # Apply season carryover at the start of a new season
-        if prev_year is not None and match['year'] != prev_year:
-            generator.apply_season_carryover(match['year'])
-        
-        # Update ratings based on match result
+        match_year = int(match['year'])
+
+        if prev_year is not None and match_year != prev_year:
+            for transition_year in range(prev_year + 1, match_year + 1):
+                generator.apply_season_carryover(transition_year)
+
         venue_state = match.get('venue_state') if pd.notna(match.get('venue_state')) else None
         generator.update_ratings(
             home_team=match['home_team'],
             away_team=match['away_team'],
             hscore=match['hscore'],
             ascore=match['ascore'],
-            year=match['year'],
+            year=match_year,
             match_id=match['match_id'],
             round_number=match['round_number'],
             match_date=match['match_date'],
             venue=match['venue'],
             venue_state=venue_state
         )
-        
+
         matches_processed += 1
         if matches_processed % 1000 == 0:
-            print(f"  Processed {matches_processed:,} matches...")
-        
-        prev_year = match['year']
-    
-    print(f"Completed processing {matches_processed:,} matches")
-    return generator
+            print(f'  Processed {matches_processed:,} matches...')
+
+        prev_year = match_year
+
+    print(f'Completed processing {matches_processed:,} matches')
+    return prev_year
+
+
+def filter_history_output(df, output_start_year=None, output_end_year=None):
+    if df.empty:
+        return df
+
+    filtered = df.copy()
+    if output_start_year is not None:
+        filtered = filtered[filtered['year'] >= int(output_start_year)]
+    if output_end_year is not None:
+        filtered = filtered[filtered['year'] <= int(output_end_year)]
+
+    return filtered.sort_values(['date', 'match_id', 'team'])
+
+
+def load_existing_history(csv_path):
+    if not os.path.exists(csv_path):
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_csv(csv_path)
+    except Exception as error:
+        print(f'Error loading existing history file: {error}')
+        return pd.DataFrame()
+
+    if df.empty:
+        return df
+
+    df['_parsed_date'] = pd.to_datetime(df['date'], errors='coerce', utc=True)
+    df['match_id'] = pd.to_numeric(df['match_id'], errors='coerce')
+    df['year'] = pd.to_numeric(df['year'], errors='coerce')
+    df['rating_after'] = pd.to_numeric(df['rating_after'], errors='coerce')
+    return df.sort_values(['_parsed_date', 'match_id', 'team'])
+
+
+def get_checkpoint_from_history(existing_df):
+    if existing_df.empty:
+        return None
+
+    valid_rows = existing_df[
+        existing_df['_parsed_date'].notna()
+        & existing_df['match_id'].notna()
+        & existing_df['year'].notna()
+    ]
+    if valid_rows.empty:
+        return None
+
+    last_row = valid_rows.iloc[-1]
+    return {
+        'date': last_row['date'],
+        'match_id': int(last_row['match_id']),
+        'year': int(last_row['year'])
+    }
+
+
+def build_team_ratings_from_history(existing_df):
+    if existing_df.empty:
+        return {}
+
+    valid_rows = existing_df[
+        existing_df['_parsed_date'].notna()
+        & existing_df['match_id'].notna()
+        & existing_df['rating_after'].notna()
+    ]
+    if valid_rows.empty:
+        return {}
+
+    latest_per_team = valid_rows.drop_duplicates(subset=['team'], keep='last')
+    ratings = {}
+    for _, row in latest_per_team.iterrows():
+        team = row.get('team')
+        if not team:
+            continue
+        ratings[team] = float(row['rating_after'])
+
+    return ratings if ratings else {}
+
+
+def get_output_csv_path(output_dir, output_prefix, legacy_start_year=None, legacy_end_year=None):
+    year_suffix = ''
+    if legacy_start_year is not None or legacy_end_year is not None:
+        start = legacy_start_year if legacy_start_year is not None else 'min'
+        end = legacy_end_year if legacy_end_year is not None else 'max'
+        year_suffix = f'_{start}_to_{end}'
+    return os.path.join(output_dir, f'{output_prefix}{year_suffix}.csv')
+
+
+def resolve_year_bounds(args):
+    seed_start_year = args.seed_start_year if args.seed_start_year is not None else args.start_year
+    seed_end_year = args.seed_end_year if args.seed_end_year is not None else args.end_year
+    output_start_year = args.output_start_year if args.output_start_year is not None else args.start_year
+    output_end_year = args.output_end_year if args.output_end_year is not None else args.end_year
+
+    if seed_start_year is None:
+        seed_start_year = DEFAULT_SEED_START_YEAR
+    if output_start_year is None:
+        output_start_year = DEFAULT_OUTPUT_START_YEAR
+
+    if seed_end_year is not None and seed_start_year > seed_end_year:
+        raise ValueError('seed-start-year cannot be greater than seed-end-year')
+    if output_end_year is not None and output_start_year > output_end_year:
+        raise ValueError('output-start-year cannot be greater than output-end-year')
+
+    return {
+        'seed_start_year': int(seed_start_year),
+        'seed_end_year': int(seed_end_year) if seed_end_year is not None else None,
+        'output_start_year': int(output_start_year),
+        'output_end_year': int(output_end_year) if output_end_year is not None else None
+    }
+
+
+def run_full_rebuild(model_config, db_path, output_csv_path, year_bounds):
+    print('\nFetching AFL match data from database for full rebuild...')
+    data = fetch_afl_data(
+        db_path=db_path,
+        start_year=year_bounds['seed_start_year'],
+        end_year=year_bounds['seed_end_year']
+    )
+    if data.empty:
+        print('No match data found for the specified seed criteria')
+        return 0
+
+    print(f"Fetched {len(data):,} matches from {data['year'].min()} to {data['year'].max()}")
+    generator = build_generator_from_config(model_config)
+
+    all_teams = pd.concat([data['home_team'], data['away_team']]).dropna().unique()
+    print(f'Found {len(all_teams)} unique teams')
+    generator.initialize_ratings(all_teams)
+
+    apply_matches_to_generator(generator, data)
+
+    history_df = generator.get_history_dataframe()
+    output_df = filter_history_output(
+        history_df,
+        output_start_year=year_bounds['output_start_year'],
+        output_end_year=year_bounds['output_end_year']
+    )
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_csv_path)), exist_ok=True)
+    output_df.to_csv(output_csv_path, index=False)
+    print(f'Saved complete ELO rating history with {len(output_df)} records to {output_csv_path}')
+    return len(output_df)
+
+
+def run_incremental_update(model_config, db_path, output_csv_path, year_bounds):
+    if not os.path.exists(output_csv_path):
+        print('No existing history CSV found; performing full rebuild bootstrap instead.')
+        return run_full_rebuild(model_config, db_path, output_csv_path, year_bounds)
+
+    existing_df = load_existing_history(output_csv_path)
+    if existing_df.empty:
+        print('Existing history CSV is empty; performing full rebuild bootstrap instead.')
+        return run_full_rebuild(model_config, db_path, output_csv_path, year_bounds)
+
+    checkpoint = get_checkpoint_from_history(existing_df)
+    if checkpoint is None:
+        print('Could not determine checkpoint from existing history; performing full rebuild bootstrap instead.')
+        return run_full_rebuild(model_config, db_path, output_csv_path, year_bounds)
+
+    print(
+        f"Incremental checkpoint: match_id={checkpoint['match_id']}, "
+        f"date={checkpoint['date']}, year={checkpoint['year']}"
+    )
+
+    new_data = fetch_afl_data(
+        db_path=db_path,
+        start_year=year_bounds['seed_start_year'],
+        end_year=year_bounds['seed_end_year'],
+        after_date=checkpoint['date'],
+        after_match_id=checkpoint['match_id']
+    )
+
+    if new_data.empty:
+        print('No new completed matches found after checkpoint. Nothing to append.')
+        return 0
+
+    print(f'Found {len(new_data)} newly completed matches to append')
+    generator = build_generator_from_config(model_config)
+
+    current_ratings = build_team_ratings_from_history(existing_df)
+    all_teams = pd.concat([new_data['home_team'], new_data['away_team']]).dropna().unique()
+    merged_ratings = {team: generator.base_rating for team in all_teams}
+    merged_ratings.update(current_ratings)
+    generator.set_team_ratings(merged_ratings)
+
+    apply_matches_to_generator(generator, new_data, previous_year=checkpoint['year'])
+
+    new_history_df = generator.get_history_dataframe()
+    append_df = filter_history_output(
+        new_history_df,
+        output_start_year=year_bounds['output_start_year'],
+        output_end_year=year_bounds['output_end_year']
+    )
+
+    if append_df.empty:
+        print('No new rows remain after output-year filtering. Nothing appended.')
+        return 0
+
+    append_df.drop(columns=['_parsed_date'], errors='ignore', inplace=True)
+    append_df.to_csv(output_csv_path, mode='a', header=False, index=False)
+    print(f'Appended {len(append_df)} records to {output_csv_path}')
+    return len(append_df)
 
 
 def main():
-    """Main function to generate ELO history"""
-    parser = argparse.ArgumentParser(description='Generate AFL ELO rating history using optimal parameters')
-    parser.add_argument('--model-path', type=str, required=True,
-                        help='Path to the trained ELO model JSON file containing optimal parameters')
-    parser.add_argument('--start-year', type=int,
-                        help='Start year for history generation (default: all available data)')
-    parser.add_argument('--end-year', type=int,
-                        help='End year for history generation (default: all available data)')
-    parser.add_argument('--db-path', type=str, default='data/database/afl_predictions.db',
-                        help='Path to the SQLite database')
-    parser.add_argument('--output-dir', type=str, default='.',
-                        help='Directory to save output files')
-    parser.add_argument('--output-prefix', type=str, default='afl_elo_complete_history',
-                        help='Prefix for output files')
-    
+    parser = argparse.ArgumentParser(description='Generate AFL ELO rating history for charting.')
+    parser.add_argument('--model-path', type=str, required=True, help='Path to trained model JSON')
+    parser.add_argument('--db-path', type=str, default='data/database/afl_predictions.db', help='Path to SQLite DB')
+    parser.add_argument('--output-dir', type=str, default='.', help='Output directory')
+    parser.add_argument('--output-prefix', type=str, default='afl_elo_complete_history', help='Output CSV prefix')
+
+    parser.add_argument('--mode', choices=['full', 'incremental'], default='full', help='History generation mode')
+    parser.add_argument('--incremental', action='store_true', help='Alias for --mode incremental')
+
+    # Legacy year args (backwards compatible)
+    parser.add_argument('--start-year', type=int, help='Legacy: defaults seed/output start')
+    parser.add_argument('--end-year', type=int, help='Legacy: defaults seed/output end')
+
+    # Explicit seeding/output ranges
+    parser.add_argument('--seed-start-year', type=int, help='Year to start replaying matches for rating seeding')
+    parser.add_argument('--seed-end-year', type=int, help='Year to end replaying matches for rating seeding')
+    parser.add_argument('--output-start-year', type=int, help='First season included in output CSV')
+    parser.add_argument('--output-end-year', type=int, help='Last season included in output CSV')
+
     args = parser.parse_args()
-    
-    print("AFL ELO Complete History Generator")
-    print("=================================")
-    
-    # Check if files exist
+
+    mode = 'incremental' if args.incremental else args.mode
+    print('AFL ELO History Generator')
+    print('=========================')
+    print(f'Mode: {mode}')
+
     if not os.path.exists(args.db_path):
-        print(f"Error: Database not found at {args.db_path}")
+        print(f'Error: Database not found at {args.db_path}')
         return
-    
     if not os.path.exists(args.model_path):
-        print(f"Error: Model file not found at {args.model_path}")
+        print(f'Error: Model file not found at {args.model_path}')
         return
-    
-    # Load model parameters
-    print(f"Loading optimal parameters from {args.model_path}...")
-    params = load_model_parameters(args.model_path)
-    if params is None:
+
+    try:
+        year_bounds = resolve_year_bounds(args)
+    except ValueError as error:
+        print(f'Error: {error}')
         return
-    
-    # Make sure output directory exists
+
+    print(
+        f"Seed years: {year_bounds['seed_start_year']} to "
+        f"{year_bounds['seed_end_year'] if year_bounds['seed_end_year'] is not None else 'latest'}"
+    )
+    print(
+        f"Output years: {year_bounds['output_start_year']} to "
+        f"{year_bounds['output_end_year'] if year_bounds['output_end_year'] is not None else 'latest'}"
+    )
+
+    print(f'Loading model configuration from {args.model_path}...')
+    model_config = load_model_config(args.model_path)
+    if model_config is None:
+        return
+
     os.makedirs(args.output_dir, exist_ok=True)
-    
-    # Fetch data from database
-    print("\\nFetching AFL match data from database...")
-    data = fetch_afl_data(args.db_path, start_year=args.start_year, end_year=args.end_year)
-    
-    if len(data) == 0:
-        print("No match data found for the specified criteria")
-        return
-    
-    print(f"Fetched {len(data):,} matches from {data['year'].min()} to {data['year'].max()}")
-    
-    # Generate complete ELO history
-    print("\\nGenerating complete ELO history with optimal parameters...")
-    generator = generate_elo_history(data, params)
-    
-    # Save history as CSV
-    year_suffix = ""
-    if args.start_year or args.end_year:
-        start = args.start_year or data['year'].min()
-        end = args.end_year or data['year'].max()
-        year_suffix = f"_{start}_to_{end}"
-    
-    csv_filename = os.path.join(args.output_dir, f"{args.output_prefix}{year_suffix}.csv")
-    
-    print("\\nSaving complete history...")
-    generator.save_history_to_csv(csv_filename)
-    
-    # Generate and display team summary
-    print("\\nGenerating team summary...")
-    summary = generator.get_team_history_summary()
-    
-    print("\\nFinal Team Ratings (sorted by rating):")
-    sorted_teams = sorted(summary.items(), key=lambda x: x[1]['final_rating'], reverse=True)
-    for team, stats in sorted_teams:
-        print(f"  {team:20s}: {stats['final_rating']:7.1f} "
-              f"(+{stats['rating_change']:+6.1f}) "
-              f"W-L-D: {stats['wins']}-{stats['losses']}-{stats['draws']} "
-              f"({stats['win_percentage']:.1%})")
-    
-    print("\\nTop Rating Gainers:")
-    top_gainers = sorted(summary.items(), key=lambda x: x[1]['rating_change'], reverse=True)[:5]
-    for team, stats in top_gainers:
-        print(f"  {team:20s}: +{stats['rating_change']:6.1f} points "
-              f"({stats['first_rating']:.1f} → {stats['final_rating']:.1f})")
-    
-    print("\\nHistory generation complete!")
-    print(f"CSV output: {csv_filename}")
+    use_legacy_suffix = (
+        (args.start_year is not None or args.end_year is not None)
+        and args.seed_start_year is None
+        and args.seed_end_year is None
+        and args.output_start_year is None
+        and args.output_end_year is None
+        and mode == 'full'
+    )
+    output_csv_path = get_output_csv_path(
+        args.output_dir,
+        args.output_prefix,
+        legacy_start_year=args.start_year if use_legacy_suffix else None,
+        legacy_end_year=args.end_year if use_legacy_suffix else None
+    )
+
+    try:
+        if mode == 'incremental':
+            written_rows = run_incremental_update(model_config, args.db_path, output_csv_path, year_bounds)
+        else:
+            written_rows = run_full_rebuild(model_config, args.db_path, output_csv_path, year_bounds)
+    except Exception as error:
+        print(f'History generation failed: {error}')
+        raise
+
+    print('\nHistory generation complete!')
+    print(f'CSV output: {output_csv_path}')
+    print(f'Rows written in this run: {written_rows}')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

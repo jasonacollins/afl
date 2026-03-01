@@ -207,11 +207,11 @@ class EloChart {
     const endYearSelect = document.getElementById('end-year');
     
     if (startYearSelect && endYearSelect) {
-      // Generate years from 1990 to current year
-      const currentYear = new Date().getFullYear();
-      const years = [];
-      for (let year = 1990; year <= currentYear; year++) {
-        years.push(year);
+      // Build from available years to match backend filtering
+      const years = [...this.availableYears].sort((a, b) => a - b);
+      if (years.length === 0) {
+        const fallbackYear = new Date().getFullYear();
+        years.push(fallbackYear);
       }
       
       const yearOptions = years.map(year => 
@@ -221,9 +221,12 @@ class EloChart {
       startYearSelect.innerHTML = yearOptions;
       endYearSelect.innerHTML = yearOptions;
       
-      // Set default values (last 5 years)
-      startYearSelect.value = Math.max(1990, currentYear - 4);
-      endYearSelect.value = currentYear;
+      // Set default values (last 5 available years)
+      const endYear = years[years.length - 1];
+      const startCandidate = endYear - 4;
+      const startYear = years.find(year => year >= startCandidate) || years[0];
+      startYearSelect.value = String(startYear);
+      endYearSelect.value = String(endYear);
     }
   }
 

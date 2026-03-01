@@ -180,8 +180,10 @@
       'marginOptimizeEndYear',
       'marginTrainStartYear',
       'marginTrainEndYear',
-      'historyStartYear',
-      'historyEndYear',
+      'historySeedStartYear',
+      'historySeedEndYear',
+      'historyOutputStartYear',
+      'historyOutputEndYear',
       'simYear'
     ];
 
@@ -215,6 +217,15 @@
     }
     if (getEl('historyOutputPrefix') && !getEl('historyOutputPrefix').value) {
       getEl('historyOutputPrefix').value = defaults.historicalOutputPrefix || '';
+    }
+    if (getEl('historyMode') && !getEl('historyMode').value) {
+      getEl('historyMode').value = defaults.historicalMode || 'incremental';
+    }
+    if (getEl('historySeedStartYear') && !getEl('historySeedStartYear').value) {
+      getEl('historySeedStartYear').value = String(defaults.historicalSeedStartYear || 1990);
+    }
+    if (getEl('historyOutputStartYear') && !getEl('historyOutputStartYear').value) {
+      getEl('historyOutputStartYear').value = String(defaults.historicalOutputStartYear || 2000);
     }
     if (getEl('simDbPath') && !getEl('simDbPath').value) {
       getEl('simDbPath').value = defaults.dbPath || '';
@@ -259,10 +270,12 @@
 
     const winModelOptions = (scriptMetadata.modelFiles?.win || []).map((entry) => ({ value: entry, label: entry }));
     const marginModelOptions = (scriptMetadata.modelFiles?.margin || []).map((entry) => ({ value: entry, label: entry }));
+    const historyModelOptions = (scriptMetadata.modelFiles?.history || []).map((entry) => ({ value: entry, label: entry }));
     const defaultMarginModelPath = chooseLatestTrainedMarginModel(marginModelOptions);
+    const defaultHistoryModelPath = defaultMarginModelPath || (historyModelOptions[0] ? historyModelOptions[0].value : null);
 
     populateSelect('combinedWinModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
-    populateSelect('historyModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
+    populateSelect('historyModelPath', historyModelOptions, defaultHistoryModelPath);
     populateSelect('combinedMarginModelPath', marginModelOptions, defaultMarginModelPath);
     populateSelect('simModelPath', marginModelOptions, defaultMarginModelPath);
     populateSelect('winTrainParamsFile', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_elo_params')) || {}).value, true);

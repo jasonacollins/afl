@@ -110,7 +110,7 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
   Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 
-Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and ELO history regeneration.
+Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and incremental ELO history updates when new completed results arrive.
 
 ## Architecture
 
@@ -320,7 +320,7 @@ The application includes an advanced ELO-based prediction system using a dual-mo
 - **Consolidated Core Logic**: Centralized implementation ensuring consistency across training, optimization, and prediction
 
 ### Quick ELO Commands
-- `npm run daily-sync` - Complete daily synchronization (fixture sync + API refresh + ELO predictions + conditional simulation snapshot regeneration + historical data)
+- `npm run daily-sync` - Complete daily synchronization (fixture sync + API refresh + ELO predictions + conditional simulation snapshot regeneration + incremental ELO history update)
 - `npm run import` - Initialize database with team data
 - `npm run sync-games` - Sync match data from Squiggle API (defaults to current year when no options are provided)
 
@@ -353,12 +353,13 @@ The application includes an interactive ELO chart that displays team strength ra
 
 ### Data Sources
 
-- **File**: `data/historical/afl_elo_complete_history.csv` (1897-present)
-- **Updates**: Automated daily regeneration when new match results available
+- **File**: `data/historical/afl_elo_complete_history.csv` (chart years 2000-present)
+- **Seeding**: Replayed from 1990 so the 2000 baseline is properly seeded
+- **Updates**: Daily sync appends only newly completed matches (no historical rewrites)
 - **Performance**: Optimized CSV structure for fast chart rendering
 
 ### API Endpoints
 
-- `GET /api/elo/years` - Returns available years for ELO data
-- `GET /api/elo/ratings/:year` - Returns processed ELO rating data for single year visualization
-- `GET /api/elo/ratings/range?startYear=YYYY&endYear=YYYY` - Returns ELO data for year range visualization
+- `GET /api/elo/years` - Returns available chart years (2000 onward)
+- `GET /api/elo/ratings/:year` - Returns processed ELO rating data for a single year (>= 2000)
+- `GET /api/elo/ratings/range?startYear=YYYY&endYear=YYYY` - Returns ELO data for year range visualization (>= 2000)

@@ -4,6 +4,8 @@ const { catchAsync } = require('../utils/error-handler');
 const eloService = require('../services/elo-service');
 const { logger } = require('../utils/logger');
 
+const MIN_ELO_YEAR = 2000;
+
 /**
  * GET /api/elo/ratings/range
  * Get ELO ratings data for a year range
@@ -27,9 +29,9 @@ router.get('/ratings/range', catchAsync(async (req, res) => {
     });
   }
 
-  if (start < 1990 || end > new Date().getFullYear() + 1) {
+  if (start < MIN_ELO_YEAR || end > new Date().getFullYear() + 1) {
     return res.status(400).json({
-      error: 'Years must be between 1990 and current year + 1.'
+      error: `Years must be between ${MIN_ELO_YEAR} and current year + 1.`
     });
   }
 
@@ -90,9 +92,9 @@ router.get('/ratings/range', catchAsync(async (req, res) => {
 router.get('/ratings/:year', catchAsync(async (req, res) => {
   const year = parseInt(req.params.year);
   
-  if (isNaN(year) || year < 1900 || year > new Date().getFullYear() + 1) {
+  if (isNaN(year) || year < MIN_ELO_YEAR || year > new Date().getFullYear() + 1) {
     return res.status(400).json({
-      error: 'Invalid year parameter. Must be a valid year between 1900 and current year + 1.'
+      error: `Invalid year parameter. Must be a valid year between ${MIN_ELO_YEAR} and current year + 1.`
     });
   }
 

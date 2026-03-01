@@ -246,21 +246,36 @@
 
         <div class="script-card">
           <h3>ELO History Generator</h3>
-          <p>Regenerate historical ELO chart CSV output.</p>
+          <p>Generate chart history from the selected model (full rebuild or incremental append).</p>
           <form class="script-run-form" data-script-key="elo-history">
             <div class="form-group">
               <label for="historyModelPath">Model</label>
               <select id="historyModelPath" name="modelPath" required></select>
             </div>
+            <div class="form-group">
+              <label for="historyMode">Mode</label>
+              <select id="historyMode" name="mode">
+                <option value="incremental">Incremental (append new completed matches)</option>
+                <option value="full">Full rebuild</option>
+              </select>
+            </div>
             <details class="script-advanced">
               <summary>Advanced</summary>
               <div class="form-group">
-                <label for="historyStartYear">Start Year</label>
-                <input type="number" id="historyStartYear" name="startYear" min="1990">
+                <label for="historySeedStartYear">Seed Start Year</label>
+                <input type="number" id="historySeedStartYear" name="seedStartYear" min="1990">
               </div>
               <div class="form-group">
-                <label for="historyEndYear">End Year</label>
-                <input type="number" id="historyEndYear" name="endYear" min="1990">
+                <label for="historySeedEndYear">Seed End Year (optional)</label>
+                <input type="number" id="historySeedEndYear" name="seedEndYear" min="1990">
+              </div>
+              <div class="form-group">
+                <label for="historyOutputStartYear">Output Start Year</label>
+                <input type="number" id="historyOutputStartYear" name="outputStartYear" min="1990">
+              </div>
+              <div class="form-group">
+                <label for="historyOutputEndYear">Output End Year (optional)</label>
+                <input type="number" id="historyOutputEndYear" name="outputEndYear" min="1990">
               </div>
               <div class="form-group">
                 <label for="historyDbPath">DB Path</label>

@@ -21,7 +21,10 @@ const DEFAULTS = {
   marginModelOutputDir: 'data/models/margin',
   marginOptimizeOutputPath: LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH,
   historicalOutputDir: 'data/historical',
-  historicalOutputPrefix: 'afl_elo_complete_history'
+  historicalOutputPrefix: 'afl_elo_complete_history',
+  historicalMode: 'incremental',
+  historicalSeedStartYear: 1990,
+  historicalOutputStartYear: 2000
 };
 
 const MAX_LOG_MESSAGE_LENGTH = 4000;
@@ -207,7 +210,9 @@ async function getModelFiles() {
     listJsonFiles('data/models/margin')
   ]);
 
-  return { win, margin };
+  const history = [...new Set([...margin, ...win])].sort((a, b) => a.localeCompare(b));
+
+  return { win, margin, history };
 }
 
 async function getScriptMetadata() {
@@ -234,7 +239,10 @@ async function getScriptMetadata() {
       marginModelOutputDir: DEFAULTS.marginModelOutputDir,
       marginOptimizeOutputPath: getMarginOptimizeOutputPath(defaultMarginOptimizeEndYear),
       historicalOutputDir: DEFAULTS.historicalOutputDir,
-      historicalOutputPrefix: DEFAULTS.historicalOutputPrefix
+      historicalOutputPrefix: DEFAULTS.historicalOutputPrefix,
+      historicalMode: DEFAULTS.historicalMode,
+      historicalSeedStartYear: DEFAULTS.historicalSeedStartYear,
+      historicalOutputStartYear: DEFAULTS.historicalOutputStartYear
     }
   };
 }
@@ -601,11 +609,40 @@ async function buildScriptCommand(scriptKey, params = {}) {
 
   if (scriptKey === 'elo-history') {
     const modelPath = normalizeRepoPath(params.modelPath, 'modelPath');
-    const startYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax });
-    const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax });
+    const modeRaw = trimToNull(params.mode) || DEFAULTS.historicalMode;
+    const mode = ['full', 'incremental'].includes(modeRaw) ? modeRaw : null;
+    if (!mode) {
+      throw new Error('mode must be one of: full, incremental');
+    }
 
-    if (startYear !== null && endYear !== null && startYear > endYear) {
-      throw new Error('startYear cannot be greater than endYear');
+    const legacyStartYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax });
+    const legacyEndYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax });
+    const seedStartYear = toInteger(params.seedStartYear, 'seedStartYear', {
+      required: false,
+      min: YEAR_MIN,
+      max: yearMax
+    }) || legacyStartYear || DEFAULTS.historicalSeedStartYear;
+    const seedEndYear = toInteger(params.seedEndYear, 'seedEndYear', {
+      required: false,
+      min: YEAR_MIN,
+      max: yearMax
+    }) || legacyEndYear;
+    const outputStartYear = toInteger(params.outputStartYear, 'outputStartYear', {
+      required: false,
+      min: YEAR_MIN,
+      max: yearMax
+    }) || legacyStartYear || DEFAULTS.historicalOutputStartYear;
+    const outputEndYear = toInteger(params.outputEndYear, 'outputEndYear', {
+      required: false,
+      min: YEAR_MIN,
+      max: yearMax
+    }) || legacyEndYear;
+
+    if (seedEndYear !== null && seedStartYear > seedEndYear) {
+      throw new Error('seedStartYear cannot be greater than seedEndYear');
+    }
+    if (outputEndYear !== null && outputStartYear > outputEndYear) {
+      throw new Error('outputStartYear cannot be greater than outputEndYear');
     }
 
     const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
@@ -613,8 +650,13 @@ async function buildScriptCommand(scriptKey, params = {}) {
     const outputPrefix = trimToNull(params.outputPrefix) || DEFAULTS.historicalOutputPrefix;
 
     normalizedParams.modelPath = modelPath;
-    normalizedParams.startYear = startYear;
-    normalizedParams.endYear = endYear;
+    normalizedParams.mode = mode;
+    normalizedParams.seedStartYear = seedStartYear;
+    normalizedParams.seedEndYear = seedEndYear;
+    normalizedParams.outputStartYear = outputStartYear;
+    normalizedParams.outputEndYear = outputEndYear;
+    normalizedParams.startYear = legacyStartYear;
+    normalizedParams.endYear = legacyEndYear;
     normalizedParams.dbPath = dbPath;
     normalizedParams.outputDir = outputDir;
     normalizedParams.outputPrefix = outputPrefix;
@@ -622,16 +664,19 @@ async function buildScriptCommand(scriptKey, params = {}) {
     const args = [
       'scripts/elo_history_generator.py',
       '--model-path', modelPath,
+      '--mode', mode,
+      '--seed-start-year', String(seedStartYear),
+      '--output-start-year', String(outputStartYear),
       '--db-path', dbPath,
       '--output-dir', outputDir,
       '--output-prefix', outputPrefix
     ];
 
-    if (startYear !== null) {
-      args.push('--start-year', String(startYear));
+    if (seedEndYear !== null) {
+      args.push('--seed-end-year', String(seedEndYear));
     }
-    if (endYear !== null) {
-      args.push('--end-year', String(endYear));
+    if (outputEndYear !== null) {
+      args.push('--output-end-year', String(outputEndYear));
     }
 
     return {

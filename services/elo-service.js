@@ -4,6 +4,8 @@ const { parse } = require('csv-parse');
 const { logger } = require('../utils/logger');
 const { getQuery } = require('../models/db');
 
+const MIN_CHART_YEAR = 2000;
+
 /**
  * Service for processing and serving ELO rating data
  */
@@ -787,7 +789,10 @@ class EloService {
       
       rawData.forEach(row => {
         if (row.year) {
-          years.add(parseInt(row.year));
+          const parsedYear = parseInt(row.year, 10);
+          if (Number.isFinite(parsedYear) && parsedYear >= MIN_CHART_YEAR) {
+            years.add(parsedYear);
+          }
         }
       });
       
