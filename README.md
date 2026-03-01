@@ -37,6 +37,8 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - `/elo` - ELO team ratings chart and historical filters
 - `/simulation` - Season simulation outputs and ladder probability matrices
 - `/admin/scripts` - Admin-only scripts runner for operational and training workflows
+- Primary nav labels are `Model predictions` (`/`), `ELO` (`/elo`), and `Simulation` (`/simulation`)
+- When logged in, nav also includes `Predictor page` (`/predictions`); admins also see `Admin panel` (`/admin`)
 
 Homepage model selection is controlled from the admin dashboard as a single featured predictor (no homepage model selector).
 

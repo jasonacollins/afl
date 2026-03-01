@@ -18,9 +18,15 @@
       </div>
 
       <nav class="main-nav" aria-label="Primary">
-        <a href="/" class="main-nav-link <%= currentPath === '/' ? 'active' : '' %>">Predictions</a>
+        <a href="/" class="main-nav-link <%= currentPath === '/' ? 'active' : '' %>">Model predictions</a>
         <a href="/elo" class="main-nav-link <%= currentPath === '/elo' ? 'active' : '' %>">ELO</a>
         <a href="/simulation" class="main-nav-link <%= currentPath === '/simulation' ? 'active' : '' %>">Simulation</a>
+        <% if (locals.user) { %>
+          <a href="/predictions" class="main-nav-link <%= currentPath === '/predictions' || currentPath.startsWith('/predictions/') ? 'active' : '' %>">Predictor page</a>
+          <% if (locals.isAdmin) { %>
+            <a href="/admin" class="main-nav-link <%= currentPath === '/admin' || currentPath.startsWith('/admin/') ? 'active' : '' %>">Admin panel</a>
+          <% } %>
+        <% } %>
       </nav>
       
       <% if (locals.user) { %>
