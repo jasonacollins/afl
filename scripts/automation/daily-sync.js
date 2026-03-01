@@ -70,15 +70,13 @@ async function regenerateSeasonSimulation(year) {
 
   return new Promise((resolve, reject) => {
     const projectRoot = path.join(__dirname, '../..');
-    const winModelPath = path.join(projectRoot, 'data/models/win/afl_elo_win_trained_to_2024.json');
-    const modelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2024.json');
+    const modelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2025.json');
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
     const outputPath = path.join(projectRoot, `data/simulations/season_simulation_${year}.json`);
 
     const pythonProcess = spawn('python3', [
       'scripts/season_simulator.py',
       '--year', String(year),
-      '--win-model', winModelPath,
       '--model-path', modelPath,
       '--db-path', dbPath,
       '--output', outputPath

@@ -92,6 +92,7 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   - win probabilities and win-rating updates from win ELO model
   - margin updates from margin ELO model
 - Daily sync writes Dad's AI predictions using the margin-only model (`scripts/elo_margin_predict.py`) for predictor `6`.
+- Daily sync regenerates Dad's AI season simulations in margin-only mode (no `--win-model`), using the promoted margin model.
 - Completed finals results are treated as hard constraints for later rounds in finals snapshots.
 - Percentile win ranges (10th–90th) now interpolate within the cumulative distribution instead of snapping to the nearest integer win count:
   - We locate the discrete win bucket whose probability mass contains the desired percentile.
@@ -100,12 +101,12 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
 - Run from the project root with:
   ```bash
   python3 scripts/season_simulator.py \
-    --year 2025 \
-    --win-model data/models/win/afl_elo_win_trained_to_2024.json \
-    --model-path data/models/margin/afl_elo_margin_only_trained_to_2024.json \
+    --year 2026 \
+    --model-path data/models/margin/afl_elo_margin_only_trained_to_2025.json \
     --db-path data/database/afl_predictions.db \
-    --output data/simulations/season_simulation_2025.json
+    --output data/simulations/season_simulation_2026.json
   ```
+  Add `--win-model <path>` to run in combined mode when needed.
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
   Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 

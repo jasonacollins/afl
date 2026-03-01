@@ -94,6 +94,32 @@
     return `data/models/margin/optimal_margin_only_elo_params_trained_to_${endYear}.json`;
   }
 
+  function extractTrainedToYearFromPath(modelPath) {
+    const match = String(modelPath || '').match(/trained_to_(\d{4})\.json$/);
+    if (!match) return null;
+    return Number.parseInt(match[1], 10);
+  }
+
+  function chooseLatestTrainedMarginModel(options) {
+    if (!Array.isArray(options) || options.length === 0) {
+      return null;
+    }
+
+    let best = null;
+    options.forEach((option) => {
+      const year = extractTrainedToYearFromPath(option.value);
+      if (!Number.isInteger(year)) {
+        return;
+      }
+
+      if (!best || year > best.year) {
+        best = { value: option.value, year };
+      }
+    });
+
+    return best ? best.value : options[0].value;
+  }
+
   function getMarginOptimizeEndYear() {
     const endYearInput = getEl('marginOptimizeEndYear');
     const parsed = Number.parseInt(endYearInput ? endYearInput.value : '', 10);
@@ -233,11 +259,12 @@
 
     const winModelOptions = (scriptMetadata.modelFiles?.win || []).map((entry) => ({ value: entry, label: entry }));
     const marginModelOptions = (scriptMetadata.modelFiles?.margin || []).map((entry) => ({ value: entry, label: entry }));
+    const defaultMarginModelPath = chooseLatestTrainedMarginModel(marginModelOptions);
 
     populateSelect('combinedWinModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
     populateSelect('historyModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
-    populateSelect('combinedMarginModelPath', marginModelOptions, marginModelOptions[0] ? marginModelOptions[0].value : null);
-    populateSelect('simModelPath', marginModelOptions, marginModelOptions[0] ? marginModelOptions[0].value : null);
+    populateSelect('combinedMarginModelPath', marginModelOptions, defaultMarginModelPath);
+    populateSelect('simModelPath', marginModelOptions, defaultMarginModelPath);
     populateSelect('winTrainParamsFile', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_elo_params')) || {}).value, true);
     populateSelect('winTrainMarginParams', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_margin_methods')) || {}).value, true);
     populateSelect('marginTrainParamsFile', marginModelOptions, (marginModelOptions.find((option) => option.value.includes('optimal_margin_only_elo_params')) || marginModelOptions[0] || {}).value);

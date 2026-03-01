@@ -93,6 +93,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - **Predictions**: Written directly to database by Python scripts (transactional, real-time)
 - **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
 - **Daily Dad's AI Updates**: `npm run daily-sync` writes predictor `6` using margin-only predictions (`scripts/elo_margin_predict.py`)
+- **Daily Dad's AI Simulation Context**: `npm run daily-sync` regenerates season simulations in margin-only mode (`scripts/season_simulator.py` with `--model-path` only)
 - This separation allows for data integrity in predictions while maintaining fast chart rendering
 - Hybrid storage approach: predictions in database, historical ratings in CSV
 - Direct database writes for ELO predictions ensure transactional integrity

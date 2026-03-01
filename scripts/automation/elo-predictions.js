@@ -18,7 +18,7 @@ async function runEloPredictions() {
     // Step 1: Run Python margin-only ELO prediction script (writes directly to database)
     // Get project root directory (two levels up from automation folder)
     const projectRoot = path.join(__dirname, '../..');
-    const marginModelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2024.json');
+    const marginModelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2025.json');
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
     const outputDir = path.join(projectRoot, 'data/temp');
     
