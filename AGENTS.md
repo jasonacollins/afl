@@ -84,6 +84,9 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - UI notes:
   - The predictions runner is labelled `Predictions` (internal script key remains `combined-predictions`).
   - The predictions card includes a `Predict future games only` option that maps to `--future-only` for `scripts/elo_predict_combined.py`.
+  - The predictions card includes a model-type mode switch:
+    - `Combined (Win + Margin)` maps to `combined-predictions` (`scripts/elo_predict_combined.py`)
+    - `Margin-only (Derive Win %)` maps to `margin-predictions` (`scripts/elo_margin_predict.py`)
   - Training is presented as one `Train Model` card with an `Optimise For` selector (`Win Probability` or `Margin`) that routes to `win-train` or `margin-train`.
 
 **ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:

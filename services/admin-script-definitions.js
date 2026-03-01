@@ -49,6 +49,20 @@ const SCRIPT_DEFINITIONS = {
       { name: 'saveToDb', label: 'Save to DB', type: 'boolean', required: false }
     ]
   },
+  'margin-predictions': {
+    key: 'margin-predictions',
+    label: 'Margin Predictions',
+    description: 'Run margin-only ELO predictions and derive win probabilities.',
+    fields: [
+      { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'modelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
+      { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
+      { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
+      { name: 'outputDir', label: 'Output Directory', type: 'text', required: false },
+      { name: 'saveToDb', label: 'Save to DB', type: 'boolean', required: false },
+      { name: 'overrideCompleted', label: 'Override Completed', type: 'boolean', required: false }
+    ]
+  },
   'win-train': {
     key: 'win-train',
     label: 'Train Win Model',

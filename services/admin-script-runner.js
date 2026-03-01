@@ -12,12 +12,14 @@ const {
 } = require('./admin-script-definitions');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
+const LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH = 'data/models/margin/optimal_margin_only_elo_params.json';
 const DEFAULTS = {
   dbPath: 'data/database/afl_predictions.db',
   combinedOutputDir: 'data/predictions/combined',
+  marginPredictionsOutputDir: 'data/predictions/margin',
   winModelOutputDir: 'data/models/win',
   marginModelOutputDir: 'data/models/margin',
-  marginOptimizeOutputPath: 'data/models/margin/optimal_margin_only_elo_params.json',
+  marginOptimizeOutputPath: LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH,
   historicalOutputDir: 'data/historical',
   historicalOutputPrefix: 'afl_elo_complete_history'
 };
@@ -40,6 +42,17 @@ let activeProcess = null;
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function getDefaultMarginOptimizeEndYear() {
+  return new Date().getFullYear() - 1;
+}
+
+function getMarginOptimizeOutputPath(endYear) {
+  return path.posix.join(
+    'data/models/margin',
+    `optimal_margin_only_elo_params_trained_to_${endYear}.json`
+  );
 }
 
 function trimToNull(value) {
@@ -146,12 +159,12 @@ async function getActivePredictors() {
   );
 }
 
-function chooseDefaultPredictorId(activePredictors) {
+function chooseDefaultPredictorId(activePredictors, preferredPredictorId = 6) {
   if (!Array.isArray(activePredictors) || activePredictors.length === 0) {
     return null;
   }
 
-  const preferred = activePredictors.find((predictor) => predictor.predictor_id === 6);
+  const preferred = activePredictors.find((predictor) => predictor.predictor_id === preferredPredictorId);
   return preferred ? preferred.predictor_id : activePredictors[0].predictor_id;
 }
 
@@ -202,20 +215,24 @@ async function getScriptMetadata() {
     getModelFiles(),
     getActivePredictors()
   ]);
+  const currentYear = new Date().getFullYear();
+  const defaultMarginOptimizeEndYear = getDefaultMarginOptimizeEndYear();
 
   return {
     scripts: getScriptCatalog(),
     modelFiles,
     activePredictors,
     defaults: {
-      currentYear: new Date().getFullYear(),
+      currentYear,
       yearMax: getYearMax(),
-      predictorId: chooseDefaultPredictorId(activePredictors),
+      predictorId: chooseDefaultPredictorId(activePredictors, 6),
+      marginPredictorId: chooseDefaultPredictorId(activePredictors, 7),
       dbPath: DEFAULTS.dbPath,
       combinedOutputDir: DEFAULTS.combinedOutputDir,
+      marginPredictionsOutputDir: DEFAULTS.marginPredictionsOutputDir,
       winModelOutputDir: DEFAULTS.winModelOutputDir,
       marginModelOutputDir: DEFAULTS.marginModelOutputDir,
-      marginOptimizeOutputPath: DEFAULTS.marginOptimizeOutputPath,
+      marginOptimizeOutputPath: getMarginOptimizeOutputPath(defaultMarginOptimizeEndYear),
       historicalOutputDir: DEFAULTS.historicalOutputDir,
       historicalOutputPrefix: DEFAULTS.historicalOutputPrefix
     }
@@ -400,6 +417,57 @@ async function buildScriptCommand(scriptKey, params = {}) {
     };
   }
 
+  if (scriptKey === 'margin-predictions') {
+    const startYear = toInteger(params.startYear, 'startYear', { required: true, min: YEAR_MIN, max: yearMax });
+    const modelPath = normalizeRepoPath(params.modelPath, 'modelPath');
+    const predictorId = toInteger(params.predictorId, 'predictorId', {
+      required: true,
+      min: 1,
+      max: Number.MAX_SAFE_INTEGER
+    });
+
+    await assertActivePredictor(predictorId);
+
+    const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
+    const outputDir = normalizeOptionalRepoPath(
+      params.outputDir,
+      'outputDir',
+      DEFAULTS.marginPredictionsOutputDir
+    );
+    const saveToDb = normalizeBoolean(params.saveToDb, true);
+    const overrideCompleted = normalizeBoolean(params.overrideCompleted, false);
+
+    normalizedParams.startYear = startYear;
+    normalizedParams.modelPath = modelPath;
+    normalizedParams.predictorId = predictorId;
+    normalizedParams.dbPath = dbPath;
+    normalizedParams.outputDir = outputDir;
+    normalizedParams.saveToDb = saveToDb;
+    normalizedParams.overrideCompleted = overrideCompleted;
+
+    const args = [
+      'scripts/elo_margin_predict.py',
+      '--start-year', String(startYear),
+      '--model-path', modelPath,
+      '--db-path', dbPath,
+      '--output-dir', outputDir,
+      '--predictor-id', String(predictorId)
+    ];
+
+    if (!saveToDb) {
+      args.push('--no-save-to-db');
+    }
+    if (overrideCompleted) {
+      args.push('--override-completed');
+    }
+
+    return {
+      command: 'python3',
+      args,
+      normalizedParams
+    };
+  }
+
   if (scriptKey === 'win-train') {
     const startYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax }) || YEAR_MIN;
     const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax }) || new Date().getFullYear();
@@ -454,7 +522,8 @@ async function buildScriptCommand(scriptKey, params = {}) {
 
   if (scriptKey === 'margin-optimize') {
     const startYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax }) || YEAR_MIN;
-    const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax }) || 2024;
+    const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax })
+      || getDefaultMarginOptimizeEndYear();
     if (startYear > endYear) {
       throw new Error('startYear cannot be greater than endYear');
     }
@@ -465,10 +534,14 @@ async function buildScriptCommand(scriptKey, params = {}) {
       max: 5000
     }) || 500;
     const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
+    const requestedOutputPath = trimToNull(params.outputPath);
+    const outputPathInput = requestedOutputPath === LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH
+      ? null
+      : requestedOutputPath;
     const outputPath = normalizeOptionalRepoPath(
-      params.outputPath,
+      outputPathInput,
       'outputPath',
-      DEFAULTS.marginOptimizeOutputPath
+      getMarginOptimizeOutputPath(endYear)
     );
 
     normalizedParams.startYear = startYear;

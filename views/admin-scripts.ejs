@@ -77,13 +77,20 @@
 
         <div class="script-card">
           <h3>Predictions</h3>
-          <p>Generate ELO predictions and write to selected predictor.</p>
+          <p>Generate predictions and write to selected predictor.</p>
           <form class="script-run-form" data-script-key="combined-predictions">
             <div class="form-group">
               <label for="combinedStartYear">Start Year</label>
               <input type="number" id="combinedStartYear" name="startYear" min="1990" required>
             </div>
             <div class="form-group">
+              <label for="predictionsMode">Model Type</label>
+              <select id="predictionsMode" name="predictionMode">
+                <option value="combined">Combined (Win + Margin)</option>
+                <option value="margin">Margin-only (Derive Win %)</option>
+              </select>
+            </div>
+            <div class="form-group" data-predictions-mode-panel="combined">
               <label for="combinedWinModelPath">Win Model</label>
               <select id="combinedWinModelPath" name="winModelPath" required></select>
             </div>
@@ -95,7 +102,7 @@
               <label for="combinedPredictorId">Predictor</label>
               <select id="combinedPredictorId" name="predictorId" required></select>
             </div>
-            <div class="form-group checkbox">
+            <div class="form-group checkbox" data-predictions-mode-panel="combined">
               <input type="checkbox" id="combinedFutureOnly" name="futureOnly" checked>
               <label for="combinedFutureOnly">Predict future games only</label>
             </div>
@@ -112,6 +119,10 @@
               <div class="form-group checkbox">
                 <input type="checkbox" id="combinedSaveToDb" name="saveToDb" checked>
                 <label for="combinedSaveToDb">Save predictions to database</label>
+              </div>
+              <div class="form-group checkbox" data-predictions-mode-panel="margin">
+                <input type="checkbox" id="combinedOverrideCompleted" name="overrideCompleted">
+                <label for="combinedOverrideCompleted">Override completed/started matches</label>
               </div>
             </details>
             <button type="submit" class="button primary-button">Run Predictions</button>
@@ -197,7 +208,7 @@
                 </div>
                 <div class="form-group">
                   <label for="marginOptimizeOutputPath">Output Path</label>
-                  <input type="text" id="marginOptimizeOutputPath" name="outputPath" placeholder="data/models/margin/optimal_margin_only_elo_params.json">
+                  <input type="text" id="marginOptimizeOutputPath" name="outputPath" placeholder="data/models/margin/optimal_margin_only_elo_params_trained_to_YYYY.json">
                 </div>
               </details>
               <button type="submit" class="button primary-button">Run Margin Optimisation</button>

@@ -7,6 +7,8 @@
   let isRefreshing = false;
 
   const RUNNING_STATES = new Set(['queued', 'running']);
+  const LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH = 'data/models/margin/optimal_margin_only_elo_params.json';
+  const MARGIN_OPTIMIZE_OUTPUT_PATH_PATTERN = /^data\/models\/margin\/optimal_margin_only_elo_params_trained_to_\d{4}\.json$/;
 
   function getCsrfToken() {
     const metaTag = document.querySelector('meta[name="csrf-token"]');
@@ -88,6 +90,54 @@
     });
   }
 
+  function buildMarginOptimizeOutputPath(endYear) {
+    return `data/models/margin/optimal_margin_only_elo_params_trained_to_${endYear}.json`;
+  }
+
+  function getMarginOptimizeEndYear() {
+    const endYearInput = getEl('marginOptimizeEndYear');
+    const parsed = Number.parseInt(endYearInput ? endYearInput.value : '', 10);
+
+    if (Number.isInteger(parsed)) {
+      return parsed;
+    }
+
+    const currentYear = scriptMetadata?.defaults?.currentYear || new Date().getFullYear();
+    return currentYear - 1;
+  }
+
+  function setupMarginOptimizeOutputPathSync() {
+    const endYearInput = getEl('marginOptimizeEndYear');
+    const outputPathInput = getEl('marginOptimizeOutputPath');
+    if (!endYearInput || !outputPathInput) {
+      return;
+    }
+
+    const getSuggestedPath = () => buildMarginOptimizeOutputPath(getMarginOptimizeEndYear());
+    const shouldAutoManage = (value) =>
+      !value || value === LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH || MARGIN_OPTIMIZE_OUTPUT_PATH_PATTERN.test(value);
+    const currentValue = outputPathInput.value.trim();
+
+    if (shouldAutoManage(currentValue)) {
+      outputPathInput.value = getSuggestedPath();
+      outputPathInput.dataset.autoManaged = 'true';
+    } else {
+      outputPathInput.dataset.autoManaged = 'false';
+    }
+
+    endYearInput.addEventListener('input', () => {
+      if (outputPathInput.dataset.autoManaged === 'true') {
+        outputPathInput.value = getSuggestedPath();
+      }
+    });
+
+    outputPathInput.addEventListener('input', () => {
+      const value = outputPathInput.value.trim();
+      const suggestedPath = getSuggestedPath();
+      outputPathInput.dataset.autoManaged = String(value === suggestedPath || shouldAutoManage(value));
+    });
+  }
+
   function applyMetadataToForm() {
     if (!scriptMetadata) return;
 
@@ -112,7 +162,12 @@
     yearInputIds.forEach((id) => {
       const input = getEl(id);
       if (!input) return;
-      if (!input.value && (id === 'apiRefreshYear' || id === 'combinedStartYear' || id === 'simYear' || id === 'winTrainEndYear')) {
+      if (!input.value && (
+        id === 'apiRefreshYear' ||
+        id === 'combinedStartYear' ||
+        id === 'simYear' ||
+        id === 'winTrainEndYear'
+      )) {
         input.value = String(currentYear);
       }
       if (defaults.yearMax) {
@@ -154,7 +209,8 @@
       getEl('marginTrainOutputDir').value = defaults.marginModelOutputDir || 'data/models/margin';
     }
     if (getEl('marginOptimizeOutputPath') && !getEl('marginOptimizeOutputPath').value) {
-      getEl('marginOptimizeOutputPath').value = defaults.marginOptimizeOutputPath || 'data/models/margin/optimal_margin_only_elo_params.json';
+      getEl('marginOptimizeOutputPath').value =
+        defaults.marginOptimizeOutputPath || buildMarginOptimizeOutputPath(currentYear - 1);
     }
     if (getEl('simNumSimulations') && !getEl('simNumSimulations').value) {
       getEl('simNumSimulations').value = '50000';
@@ -360,7 +416,8 @@
     clearPageError();
 
     const form = event.currentTarget;
-    const scriptKey = form.getAttribute('data-script-key');
+    const baseScriptKey = form.getAttribute('data-script-key');
+    let scriptKey = baseScriptKey;
     if (!scriptKey) {
       showPageError('Missing script key for form submission');
       return;
@@ -374,6 +431,21 @@
 
     try {
       const params = getFormParams(form);
+
+      if (baseScriptKey === 'combined-predictions') {
+        const predictionMode = params.predictionMode === 'margin' ? 'margin' : 'combined';
+        delete params.predictionMode;
+
+        if (predictionMode === 'margin') {
+          scriptKey = 'margin-predictions';
+          params.modelPath = params.marginModelPath;
+          delete params.winModelPath;
+          delete params.futureOnly;
+        } else {
+          delete params.overrideCompleted;
+          delete params.modelPath;
+        }
+      }
 
       const response = await fetch('/admin/api/script-runs', {
         method: 'POST',
@@ -479,6 +551,44 @@
     });
   }
 
+  function setPredictionsModePanel(mode) {
+    const normalizedMode = mode === 'margin' ? 'margin' : 'combined';
+    document.querySelectorAll('[data-predictions-mode-panel]').forEach((panel) => {
+      const panelMode = panel.getAttribute('data-predictions-mode-panel');
+      panel.style.display = panelMode === normalizedMode ? 'block' : 'none';
+    });
+
+    const winModelSelect = getEl('combinedWinModelPath');
+    if (winModelSelect) {
+      winModelSelect.required = normalizedMode === 'combined';
+    }
+
+    const outputDirInput = getEl('combinedOutputDir');
+    if (outputDirInput) {
+      const defaults = scriptMetadata?.defaults || {};
+      const combinedDefault = defaults.combinedOutputDir || 'data/predictions/combined';
+      const marginDefault = defaults.marginPredictionsOutputDir || 'data/predictions/margin';
+      const currentValue = outputDirInput.value.trim();
+
+      if (!currentValue || currentValue === combinedDefault || currentValue === marginDefault) {
+        outputDirInput.value = normalizedMode === 'margin' ? marginDefault : combinedDefault;
+      }
+    }
+  }
+
+  function bindPredictionsModeToggle() {
+    const modeSelect = getEl('predictionsMode');
+    if (!modeSelect) {
+      return;
+    }
+
+    modeSelect.addEventListener('change', (event) => {
+      setPredictionsModePanel(event.target.value);
+    });
+
+    setPredictionsModePanel(modeSelect.value);
+  }
+
   function setTrainingModePanel(mode) {
     const normalizedMode = mode === 'margin' ? 'margin' : 'win';
     document.querySelectorAll('[data-train-mode-panel]').forEach((panel) => {
@@ -522,10 +632,13 @@
     initializeSubmitButtons();
     bindFormHandlers();
     bindHistoryActions();
+    bindPredictionsModeToggle();
     bindTrainingModeToggle();
 
     try {
       await loadMetadata();
+      setPredictionsModePanel(getEl('predictionsMode') ? getEl('predictionsMode').value : 'combined');
+      setupMarginOptimizeOutputPathSync();
       await refreshRuns();
     } catch (error) {
       showPageError(error.message);

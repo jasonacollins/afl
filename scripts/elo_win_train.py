@@ -236,7 +236,7 @@ def main():
         margin_model = train_margin_model(data, model, margin_data)
         
         # Save margin model
-        margin_model_file = os.path.join(args.output_dir, f"afl_elo_win_margin_model_{args.end_year}.json")
+        margin_model_file = os.path.join(args.output_dir, f"afl_elo_win_margin_model_trained_to_{args.end_year}.json")
         with open(margin_model_file, 'w') as f:
             json.dump(margin_model, f, indent=4)
         

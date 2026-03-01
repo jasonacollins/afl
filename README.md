@@ -50,6 +50,7 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - `sync-games` (`scripts/automation/sync-games.js`)
 - `api-refresh` (`scripts/automation/api-refresh.js`)
 - `predictions` (`combined-predictions` key, `scripts/elo_predict_combined.py`)
+- `margin-predictions` (`scripts/elo_margin_predict.py`, launched via mode option inside the `Predictions` card)
 - `win-train` (`scripts/elo_win_train.py`)
 - `margin-train` (`scripts/elo_margin_train.py`)
 - `elo-history` (`scripts/elo_history_generator.py`)
@@ -70,6 +71,9 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - The `Predictions` card supports a `Predict future games only` option:
   - enabled: only upcoming fixtures are output/saved
   - disabled: full-year prediction output is generated from the chosen `startYear`
+- The `Predictions` card includes a model-type mode switch:
+  - `Combined (Win + Margin)` runs `scripts/elo_predict_combined.py`
+  - `Margin-only (Derive Win %)` runs `scripts/elo_margin_predict.py` and writes derived win probabilities + margins
 - The training UI is a single `Train Model` card with an `Optimise For` selector (`Win Probability` or `Margin`), which routes to `win-train` or `margin-train`.
 
 ### Safety and Validation

@@ -102,9 +102,9 @@ def main():
                         help='End year for optimization data (inclusive)')
     parser.add_argument('--max-combinations', type=int, default=500,
                         help='Maximum number of parameter combinations to test')
-    parser.add_argument('--output-path', type=str, 
-                        default='data/models/margin/optimal_margin_only_elo_params.json',
-                        help='Path to save optimal parameters')
+    parser.add_argument('--output-path', type=str, default=None,
+                        help='Path to save optimal parameters '
+                             '(default: data/models/margin/optimal_margin_only_elo_params_trained_to_<end-year>.json)')
     
     args = parser.parse_args()
     
@@ -142,10 +142,11 @@ def main():
         'all_results': result['all_results']
     }
     
-    save_optimization_results(output_data, args.output_path)
+    output_path = args.output_path or f"data/models/margin/optimal_margin_only_elo_params_trained_to_{args.end_year}.json"
+    save_optimization_results(output_data, output_path)
     print("\nNext steps:")
     print("1. Train the margin model with these parameters:")
-    print(f"   python3 afl_elo_train_margin.py --params-file {args.output_path}")
+    print(f"   python3 afl_elo_train_margin.py --params-file {output_path}")
     print("2. Make predictions with the trained model:")
     print("   python3 afl_elo_predict_margin.py --start-year 2025 --model-path <trained_model.json>")
 

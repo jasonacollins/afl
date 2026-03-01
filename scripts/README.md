@@ -101,7 +101,7 @@ python3 scripts/elo_margin_optimize.py \
 
 # Train both models
 python3 scripts/elo_win_train.py --end-year 2024 --params-file data/models/win/optimal_elo_params_win.json
-python3 scripts/elo_margin_train.py --end-year 2024 --params-file data/models/margin/optimal_margin_only_elo_params.json
+python3 scripts/elo_margin_train.py --end-year 2024 --params-file data/models/margin/optimal_margin_only_elo_params_trained_to_2024.json
 
 # Generate combined predictions
 python3 scripts/elo_predict_combined.py --start-year 2025 \
@@ -118,9 +118,9 @@ python3 scripts/elo_win_train.py --end-year 2024 --params-file data/models/win/o
 python3 scripts/elo_win_predict.py --start-year 2025 --model-path data/models/win/afl_elo_win_trained_to_2024.json --no-save-to-db 
 
 # Margin ELO
-python3 scripts/elo_margin_optimize.py --max-combinations 500 --end-year 2024
-python3 scripts/elo_margin_train.py --end-year 2024 --params-file data/models/margin/optimal_margin_only_elo_params.json  
-python3 scripts/elo_margin_predict.py --start-year 2025 --model-path data/models/margin/afl_elo_margin_only_trained_to_2024.json --predictor-id 8
+python3 scripts/elo_margin_optimize.py --max-combinations 500 --end-year 2025
+python3 scripts/elo_margin_train.py --end-year 2025 --params-file data/models/margin/optimal_margin_only_elo_params_trained_to_2025.json  
+python3 scripts/elo_margin_predict.py --start-year 2026 --model-path data/models/margin/afl_elo_margin_only_trained_to_2025.json --predictor-id 8
 
 # Win ELO with optimized margin methods
 python3 scripts/elo_margin_methods_optimize.py --elo-params data/models/win/afl_elo_win_trained_to_2024.json --n-calls 50
@@ -180,11 +180,13 @@ python3 scripts/elo_win_predict.py --start-year 2024 --model-path data/models/wi
 ## Output Files
 
 ### Trained Models (data/models/)
+- Training artifacts commonly append `_trained_to_YYYY` to indicate the train-to cutoff.
 - `win/afl_elo_win_trained_to_YYYY.json`: Win model with ratings
 - `win/optimal_elo_params_win.json`: Optimized win ELO parameters
 - `win/optimal_margin_methods.json`: Optimized margin prediction methods (derived from win ELO)
+- `win/afl_elo_win_margin_model_trained_to_YYYY.json`: Optional win-derived margin model artifact
 - `margin/afl_elo_margin_only_trained_to_YYYY.json`: Margin model with ratings
-- `margin/optimal_margin_only_elo_params.json`: Optimized margin ELO parameters
+- `margin/optimal_margin_only_elo_params_trained_to_YYYY.json`: Optimized margin ELO parameters
 
 ### Predictions (data/predictions/)
 - `win/win_elo_predictions_YYYY_YYYY.csv`: Win probabilities + built-in margins
