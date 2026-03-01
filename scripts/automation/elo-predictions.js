@@ -5,19 +5,19 @@ const path = require('path');
 const { logger } = require('../../utils/logger');
 
 /**
- * Run ELO predictions for matches that haven't started
+ * Run ELO predictions for matches that haven't started.
+ * Daily automation now uses the margin-only model for Dad's AI (predictor 6).
  */
 async function runEloPredictions() {
   const currentYear = new Date().getFullYear();
-  const predictorId = 6; // ELO model predictor ID
+  const predictorId = 6; // Dad's AI predictor ID
   
   logger.info(`Starting ELO predictions for year ${currentYear}`);
   
   try {
-    // Step 1: Run Python ELO prediction script (now writes directly to database)
+    // Step 1: Run Python margin-only ELO prediction script (writes directly to database)
     // Get project root directory (two levels up from automation folder)
     const projectRoot = path.join(__dirname, '../..');
-    const modelPath = path.join(projectRoot, 'data/models/win/afl_elo_win_trained_to_2024.json');
     const marginModelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2024.json');
     const dbPath = path.join(projectRoot, 'data/database/afl_predictions.db');
     const outputDir = path.join(projectRoot, 'data/temp');
@@ -28,10 +28,9 @@ async function runEloPredictions() {
     }
     
     const pythonArgs = [
-      'scripts/elo_predict_combined.py',
+      'scripts/elo_margin_predict.py',
       '--start-year', currentYear.toString(),
-      '--win-model', modelPath,
-      '--margin-model', marginModelPath,
+      '--model-path', marginModelPath,
       '--db-path', dbPath,
       '--output-dir', outputDir,
       '--predictor-id', predictorId.toString()
@@ -62,7 +61,7 @@ async function runEloPredictions() {
     logger.info(`Found ${predictionCount.count} ELO predictions in database for year ${currentYear}`);
     
     // Step 3: Verify that rating history file exists for the ELO chart
-    const ratingHistoryPath = path.join(outputDir, `combined_elo_rating_history_from_${currentYear}.csv`);
+    const ratingHistoryPath = path.join(outputDir, `margin_elo_rating_history_from_${currentYear}.csv`);
     if (fs.existsSync(ratingHistoryPath)) {
       logger.info(`ELO rating history preserved at: ${ratingHistoryPath}`);
     } else {

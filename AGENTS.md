@@ -18,7 +18,7 @@ For comprehensive project information including architecture, features, and setu
 ### Data Management
 - `npm run import` - Initialize database with team data (`scripts/automation/import-data.js`)
 - `npm run sync-games` - Sync match data from Squiggle API (`scripts/automation/sync-games.js`). With no args, syncs the current year by default.
-- `npm run daily-sync` - Run comprehensive daily synchronization: fixture sync, API refresh, ELO predictions, current-season simulation regeneration, and historical data regeneration (`scripts/automation/daily-sync.js`)
+- `npm run daily-sync` - Run comprehensive daily synchronization: fixture sync, API refresh, ELO predictions, conditional current-season simulation regeneration, and historical data regeneration (`scripts/automation/daily-sync.js`)
 
 ### ELO Model Scripts
 For detailed documentation on ELO model training, optimization, and prediction workflows, see **[scripts/README.md](scripts/README.md)**. This includes complete workflow instructions, script parameters, and troubleshooting guides.
@@ -92,6 +92,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 **ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
 - **Predictions**: Written directly to database by Python scripts (transactional, real-time)
 - **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
+- **Daily Dad's AI Updates**: `npm run daily-sync` writes predictor `6` using margin-only predictions (`scripts/elo_margin_predict.py`)
 - This separation allows for data integrity in predictions while maintaining fast chart rendering
 - Hybrid storage approach: predictions in database, historical ratings in CSV
 - Direct database writes for ELO predictions ensure transactional integrity
@@ -99,9 +100,9 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Automated pipeline: Daily sync performs fixture sync, writes predictions to database, and regenerates historical CSV when matches update
 - Clean separation between operational data (database) and analytical data (CSV)
 
-**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` now regenerates the current season simulation automatically after sync and prediction updates. The simulation page supports round snapshot tabs (before each round/finals stage + post-season). When updating the simulator:
+**Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` regenerates the current season simulation when fixture/result data changed or when the current round snapshot is missing (to ensure round tabs remain available). The simulation page supports round snapshot tabs (before each round/finals stage + post-season). When updating the simulator:
 - Keep the finals structure and seeding logic intact.
-- Preserve combined mode parity with Dad's AI (`--win-model` + `--model-path` margin).
+- Preserve combined simulation mode behavior (`--win-model` + `--model-path` margin).
 - Treat completed finals matches as hard constraints for later-round simulations (eliminated teams must stay eliminated).
 - Backfill mode (`--backfill-round-snapshots`) is destructive by design for the target file: it resets the JSON first, then rebuilds snapshots round-by-round.
 - Maintain the percentile helper (`interpolate_percentile`) so 10th/90th win bounds are interpolated between adjacent win totals instead of rounding to whole numbers. The helper finds the bucket containing the percentile and linearly blends toward the neighbouring win count (or back toward the previous value at the upper edge) to keep results within the feasible win range.

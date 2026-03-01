@@ -88,9 +88,10 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
 - The `/simulation` page supports round snapshot tabs (`Before Round X`, finals stages, and `Post`) so users can review historical “before round” states for the same season.
 - Current standings and ELO ratings seed every simulation before match outcomes are sampled.
 - Finals series are simulated using the AFL finals format with double chances for the top four.
-- Combined mode mirrors Dad's AI:
+- Combined mode uses:
   - win probabilities and win-rating updates from win ELO model
   - margin updates from margin ELO model
+- Daily sync writes Dad's AI predictions using the margin-only model (`scripts/elo_margin_predict.py`) for predictor `6`.
 - Completed finals results are treated as hard constraints for later rounds in finals snapshots.
 - Percentile win ranges (10th–90th) now interpolate within the cumulative distribution instead of snapping to the nearest integer win count:
   - We locate the discrete win bucket whose probability mass contains the desired percentile.
@@ -108,7 +109,7 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
   Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 
-Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, ELO prediction updates, season simulation regeneration for the current season, and ELO history regeneration.
+Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and ELO history regeneration.
 
 ## Architecture
 
@@ -318,7 +319,7 @@ The application includes an advanced ELO-based prediction system using a dual-mo
 - **Consolidated Core Logic**: Centralized implementation ensuring consistency across training, optimization, and prediction
 
 ### Quick ELO Commands
-- `npm run daily-sync` - Complete daily synchronization (fixture sync + API refresh + ELO predictions + historical data)
+- `npm run daily-sync` - Complete daily synchronization (fixture sync + API refresh + ELO predictions + conditional simulation snapshot regeneration + historical data)
 - `npm run import` - Initialize database with team data
 - `npm run sync-games` - Sync match data from Squiggle API (defaults to current year when no options are provided)
 

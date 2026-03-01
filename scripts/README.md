@@ -205,7 +205,7 @@ python3 scripts/elo_win_predict.py --start-year 2024 --model-path data/models/wi
 ## Database Integration
 
 Predictions are stored in the `predictions` table with predictor IDs:
-- Predictor 6: Combined model (win probabilities + margin margins)
+- Predictor 6: Dad's AI (daily sync writes margin-only model outputs)
 - Predictor 7: Margin model
 - Predictor 5: Win model
 
@@ -213,9 +213,10 @@ Predictions are stored in the `predictions` table with predictor IDs:
 
 The `daily-sync.js` script automatically:
 1. Refreshes match data from Squiggle API
-2. Generates combined predictions using both models
+2. Generates Dad's AI predictions using the margin-only model
 3. Updates database with new predictions
-4. Regenerates historical CSV in `data/historical/` directory for homepage charts
+4. Regenerates current-season simulation snapshots when fixture/result data changed or the current round snapshot is missing
+5. Regenerates historical CSV in `data/historical/` directory for homepage charts
 
 ## Margin Prediction Methods
 
