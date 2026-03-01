@@ -14,16 +14,13 @@
   <% if (locals.featuredPredictor) { %>
     <!-- Featured Predictor Performance Card -->
     <% if (locals.featuredPredictorStats) { %>
-      <div class="performance-card" data-featured-predictor-id="<%= featuredPredictor.predictor_id %>">
+      <div
+        class="performance-card"
+        data-featured-predictor-id="<%= featuredPredictor.predictor_id %>"
+        data-selected-year="<%= selectedYear %>"
+      >
         <div class="performance-header">
           <h2>Model Performance</h2>
-          <div class="year-selector-performance">
-            <select id="performance-year-selector">
-              <% years.forEach(yearObj => { %>
-                <option value="<%= yearObj.year %>" <%= yearObj.year === selectedYear ? 'selected' : '' %>><%= yearObj.year %></option>
-              <% }) %>
-            </select>
-          </div>
         </div>
         <div class="performance-metrics" id="performance-metrics-container">
           <div class="metric">
@@ -424,38 +421,13 @@
   }
   
   .performance-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-    gap: 1rem;
   }
   
   .performance-card h2 {
     margin: 0;
     color: var(--primary-color);
     font-size: 1.3rem;
-  }
-  
-  .year-selector-performance {
-    display: flex;
-    align-items: center;
-  }
-  
-  .year-selector-performance select {
-    padding: 0.4rem 0.8rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: white;
-    color: var(--text-color);
-    font-size: 0.9rem;
-    cursor: pointer;
-  }
-  
-  .year-selector-performance select:focus {
-    outline: none;
-    border-color: var(--primary-color);
   }
   
   .performance-metrics {
@@ -502,12 +474,6 @@
   }
   
   @media (max-width: 768px) {
-    .performance-header {
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-    
     .performance-metrics {
       grid-template-columns: repeat(2, 1fr);
       gap: 1rem;

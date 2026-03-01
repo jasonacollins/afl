@@ -1,9 +1,27 @@
 // Homepage JavaScript functionality - extracted from inline script for CSP compliance
 
-function getSelectedPerformanceYear() {
-  const yearSelector = document.getElementById('performance-year-selector');
-  if (yearSelector && yearSelector.value) {
-    return yearSelector.value;
+function getSelectedSeasonYear() {
+  const performanceCard = document.querySelector('.performance-card');
+  if (performanceCard && performanceCard.dataset.selectedYear) {
+    return performanceCard.dataset.selectedYear;
+  }
+
+  const selectedYearButton = document.querySelector('.year-button.selected');
+  if (selectedYearButton) {
+    try {
+      const selectedYearUrl = new URL(selectedYearButton.getAttribute('href'), window.location.origin);
+      const selectedYear = selectedYearUrl.searchParams.get('year');
+      if (selectedYear) {
+        return selectedYear;
+      }
+    } catch (error) {
+      console.error('Error reading selected season year from homepage button:', error);
+    }
+  }
+
+  const urlYear = new URLSearchParams(window.location.search).get('year');
+  if (urlYear) {
+    return urlYear;
   }
 
   return String(new Date().getFullYear());
@@ -30,8 +48,8 @@ function fetchRoundPredictions(round) {
   
   const selectedPredictorId = getFeaturedPredictorId();
   
-  // Always use the homepage performance year selector for featured predictions.
-  const selectedYear = getSelectedPerformanceYear();
+  // Always use the currently selected homepage season.
+  const selectedYear = getSelectedSeasonYear();
   
   // Fetch predictions for this round and predictor
   const queryParams = new URLSearchParams({ year: selectedYear });
@@ -183,63 +201,6 @@ function renderPredictionsTable(matches, predictions) {
   document.getElementById('predictions-table-container').innerHTML = tableHtml;
 }
 
-// Function to update performance card when year or predictor changes
-function updatePerformanceData(selectedYear = null, selectedPredictorId = null) {
-  const container = document.getElementById('performance-metrics-container');
-  if (!container) return;
-  
-  const currentYear = selectedYear || getSelectedPerformanceYear();
-  const predictorId = selectedPredictorId || getFeaturedPredictorId();
-  
-  if (!predictorId) {
-    console.warn('No predictor ID available for performance update');
-    return;
-  }
-  
-  fetch(`/api/predictor-stats?predictorId=${predictorId}&year=${currentYear}`)
-    .then(response => response.json())
-    .then(data => {
-      if (data.success && data.stats) {
-        updateStatsDisplay(data.stats);
-      } else {
-        console.warn('No stats data available:', data);
-      }
-    })
-    .catch(error => {
-      console.error('Error fetching predictor stats:', error);
-    });
-}
-
-function updateStatsDisplay(stats) {
-  const container = document.querySelector('.performance-metrics');
-  if (!container) return;
-  
-  const metricsHtml = `
-    <div class="metric">
-      <div class="metric-label">Tip Accuracy</div>
-      <div class="metric-value">${stats.tipAccuracy}%</div>
-      <div class="metric-detail">${stats.tipPoints}/${stats.totalPredictions}</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Brier Score</div>
-      <div class="metric-value">${stats.brierScore}</div>
-      <div class="metric-detail">Lower is better</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Bits Score</div>
-      <div class="metric-value">${stats.bitsScore}</div>
-      <div class="metric-detail">Higher is better</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Margin MAE</div>
-      <div class="metric-value">${stats.marginMAE !== null ? stats.marginMAE : '-'}</div>
-      <div class="metric-detail">${stats.marginMAE !== null ? 'Lower is better' : 'No margin predictions'}</div>
-    </div>
-  `;
-  
-  container.innerHTML = metricsHtml;
-}
-
 // Initialize event listeners when page loads
 document.addEventListener('DOMContentLoaded', function() {
   // Add event listeners to round buttons
@@ -249,16 +210,4 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchRoundPredictions(round);
     });
   });
-  
-  // Add event listener to performance year selector if it exists
-  const performanceYearSelector = document.getElementById('performance-year-selector');
-  if (performanceYearSelector) {
-    performanceYearSelector.addEventListener('change', function() {
-      const selectedRound = document.querySelector('.round-button.selected');
-      updatePerformanceData(this.value);
-      if (selectedRound) {
-        fetchRoundPredictions(selectedRound.dataset.round);
-      }
-    });
-  }
 });
