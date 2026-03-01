@@ -71,27 +71,69 @@ router.get('/', catchAsync(async (req, res) => {
     };
   });
   
-  // Find the earliest round with incomplete matches (where complete != 100)
-  let selectedRound = null;
-  if (!req.query.round) { // Only auto-select if round not specified in URL
-    const incompleteRound = await getOne(
-      `SELECT m.round_number 
-       FROM matches m 
-       WHERE m.year = ? AND (m.complete IS NULL OR m.complete != 100)
-       ORDER BY ${roundService.ROUND_ORDER_SQL},
-       m.match_date
-       LIMIT 1`,
-      [selectedYear]
-    );
-    
-    if (incompleteRound) {
-      selectedRound = incompleteRound.round_number;
+  // Resolve default selected round based on fixture dates/results rather than the `complete` flag.
+  // This is more reliable when new-season fixtures are imported before Squiggle updates completion values.
+  let selectedRound = req.query.round || null;
+  if (!selectedRound) {
+    const currentDate = new Date();
+    let nextUpcomingMatch = null;
+
+    // First priority: round containing the earliest upcoming, unplayed match.
+    for (const match of allMatches) {
+      if (!match.match_date) {
+        continue;
+      }
+
+      try {
+        const matchDate = new Date(match.match_date);
+        const isUnplayed = match.hscore === null || match.ascore === null;
+
+        if (!isNaN(matchDate.getTime()) && isUnplayed && matchDate > currentDate) {
+          if (!nextUpcomingMatch || matchDate < new Date(nextUpcomingMatch.match_date)) {
+            nextUpcomingMatch = match;
+          }
+        }
+      } catch (err) {
+        logger.error('Error parsing match date for round auto-selection', {
+          matchDate: match.match_date,
+          error: err.message
+        });
+      }
+    }
+
+    if (nextUpcomingMatch) {
+      selectedRound = nextUpcomingMatch.round_number;
+    } else {
+      // Second priority: most recently completed round.
+      let mostRecentCompletedMatch = null;
+      for (const match of allMatches) {
+        if (!match.match_date || match.hscore === null || match.ascore === null) {
+          continue;
+        }
+
+        try {
+          const matchDate = new Date(match.match_date);
+          if (!isNaN(matchDate.getTime()) &&
+              (!mostRecentCompletedMatch || matchDate > new Date(mostRecentCompletedMatch.match_date))) {
+            mostRecentCompletedMatch = match;
+          }
+        } catch (err) {
+          logger.error('Error parsing match date for fallback round selection', {
+            matchDate: match.match_date,
+            error: err.message
+          });
+        }
+      }
+
+      if (mostRecentCompletedMatch) {
+        selectedRound = mostRecentCompletedMatch.round_number;
+      }
     }
   }
-  
-  // If no incomplete round found or round is specified in query, use the first round or query parameter
+
+  // Final fallback: first available round.
   if (!selectedRound) {
-    selectedRound = req.query.round || (rounds.length > 0 ? rounds[0].round_number : null);
+    selectedRound = rounds.length > 0 ? rounds[0].round_number : null;
   }
   
   // Get matches for the selected round AND year

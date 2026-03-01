@@ -12,10 +12,7 @@ function getSelectedPerformanceYear() {
 function fetchRoundPredictions(round) {
   // Update active button
   document.querySelectorAll('.round-button').forEach(btn => {
-    btn.classList.remove('selected');
-    if (btn.textContent.trim() === round) {
-      btn.classList.add('selected');
-    }
+    btn.classList.toggle('selected', btn.dataset.round === round);
   });
   
   // Show loading state
@@ -23,13 +20,19 @@ function fetchRoundPredictions(round) {
     '<div style="text-align: center; padding: 2rem;">Loading predictions...</div>';
   
   // Get current selected predictor
-  const selectedPredictorId = document.getElementById('predictor-selector').value;
+  const predictorSelector = document.getElementById('predictor-selector');
+  const selectedPredictorId = predictorSelector ? predictorSelector.value : null;
   
   // Always use the homepage performance year selector for featured predictions.
   const selectedYear = getSelectedPerformanceYear();
   
   // Fetch predictions for this round and predictor
-  fetch(`/featured-predictions/${round}?year=${selectedYear}&predictorId=${selectedPredictorId}`)
+  const queryParams = new URLSearchParams({ year: selectedYear });
+  if (selectedPredictorId) {
+    queryParams.set('predictorId', selectedPredictorId);
+  }
+
+  fetch(`/featured-predictions/${encodeURIComponent(round)}?${queryParams.toString()}`)
     .then(response => response.json())
     .then(data => {
       renderPredictionsTable(data.matches, data.predictions);

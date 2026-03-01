@@ -75,6 +75,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Concurrency rule: only one active script run (`queued` or `running`) at a time.
 - `sync-games` is the fixture bootstrap step for new seasons (inserts missing `matches` rows).
 - `sync-games` must treat missing/invalid Squiggle `complete` values as `0` because `matches.complete` is `NOT NULL`.
+- `sync-games` must treat future incomplete Squiggle `0-0` score placeholders (and `0` goals/behinds) as `NULL` so fixtures are still considered unplayed.
 - `api-refresh` is update-only for existing fixtures/results and does not insert new fixtures.
 - `api-refresh` should warn when API games exist for a year but no corresponding DB matches are found, instructing admins to run `sync-games` first.
 - UI notes:

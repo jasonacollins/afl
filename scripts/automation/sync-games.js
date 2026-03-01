@@ -200,15 +200,39 @@ async function syncGamesFromAPI(options = {}) {
           matchDate = new Date(game.date).toISOString();
         }
         
-        // Get home and away scores if game has started
-        const homeScore = game.hscore !== undefined ? game.hscore : null;
-        const awayScore = game.ascore !== undefined ? game.ascore : null;
-        
         // matches.complete is NOT NULL in schema; default unknown/invalid values to 0.
         const parsedCompletion = Number.parseInt(game.complete, 10);
         const completion = Number.isInteger(parsedCompletion) && parsedCompletion >= 0 && parsedCompletion <= 100
           ? parsedCompletion
           : 0;
+
+        const parsedMatchDate = matchDate ? new Date(matchDate) : null;
+        const hasValidMatchDate = parsedMatchDate && !Number.isNaN(parsedMatchDate.getTime());
+        const isFutureMatch = hasValidMatchDate && parsedMatchDate > new Date();
+
+        const hasZeroPlaceholderScores =
+          Number(game.hscore) === 0 &&
+          Number(game.ascore) === 0 &&
+          Number(game.hgoals) === 0 &&
+          Number(game.hbehinds) === 0 &&
+          Number(game.agoals) === 0 &&
+          Number(game.abehinds) === 0;
+
+        // Squiggle can return 0-0 placeholders for future fixtures.
+        // Store these as NULL to keep fixture/unplayed semantics consistent across the app.
+        const shouldNullFixtureScores = completion < 100 && isFutureMatch && hasZeroPlaceholderScores;
+
+        // Get home and away scores
+        const homeScore = shouldNullFixtureScores
+          ? null
+          : (game.hscore !== undefined ? game.hscore : null);
+        const awayScore = shouldNullFixtureScores
+          ? null
+          : (game.ascore !== undefined ? game.ascore : null);
+        const homeGoals = shouldNullFixtureScores ? null : (game.hgoals || null);
+        const homeBehinds = shouldNullFixtureScores ? null : (game.hbehinds || null);
+        const awayGoals = shouldNullFixtureScores ? null : (game.agoals || null);
+        const awayBehinds = shouldNullFixtureScores ? null : (game.abehinds || null);
         
         // Check if match already exists in database with the Squiggle ID
         const existingMatch = await getOne(
@@ -233,10 +257,10 @@ async function syncGamesFromAPI(options = {}) {
               awayTeamId, 
               homeScore, 
               awayScore,
-              game.hgoals || null,
-              game.hbehinds || null,
-              game.agoals || null,
-              game.abehinds || null,
+              homeGoals,
+              homeBehinds,
+              awayGoals,
+              awayBehinds,
               game.year || (matchDate ? new Date(matchDate).getFullYear() : new Date().getFullYear()),
               completion,
               existingMatch.match_id
@@ -259,10 +283,10 @@ async function syncGamesFromAPI(options = {}) {
               awayTeamId, 
               homeScore, 
               awayScore,
-              game.hgoals || null,
-              game.hbehinds || null,
-              game.agoals || null,
-              game.abehinds || null,
+              homeGoals,
+              homeBehinds,
+              awayGoals,
+              awayBehinds,
               game.year || (matchDate ? new Date(matchDate).getFullYear() : new Date().getFullYear()),
               completion // Add completion percentage
             ]
