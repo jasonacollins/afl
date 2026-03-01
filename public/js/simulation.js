@@ -408,8 +408,8 @@
                     <span class="projected">(${team.wins_10th_percentile.toFixed(1)}-${team.wins_90th_percentile.toFixed(1)})</span>
                 </td>
                 ${createProbabilityCell(team.wildcard_probability ?? 0)}
-                ${createProbabilityCell(team.finals_week2_probability ?? team.finals_probability)}
                 ${createProbabilityCell(team.top4_probability)}
+                ${createProbabilityCell(team.finals_week2_probability ?? team.finals_probability)}
                 ${createProbabilityCell(team.prelim_probability)}
                 ${createProbabilityCell(team.grand_final_probability)}
                 ${createProbabilityCell(team.premiership_probability)}
