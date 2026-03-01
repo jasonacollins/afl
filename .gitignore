@@ -139,6 +139,7 @@ data/database/backups/*.db
 # Temporary data directories  
 data/temp/
 data/cache/
+scripts/data/cache/
 
 # Python cache files
 scripts/__pycache__/
