@@ -54,6 +54,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - `/elo` is the dedicated ELO chart page
 - `/simulation` is the dedicated season simulation page
 - `/admin/scripts` is the admin-only scripts runner for operational and training jobs
+- Homepage uses one featured predictor selected in admin (no model selector on `/`).
 
 **Startup Behavior**:
 - Server startup runs `initializeDatabase()` before listening to ensure required schema and migrations exist.

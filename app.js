@@ -120,13 +120,32 @@ app.get('/api/excluded-predictors', catchAsync(async (req, res) => {
 
 // Home route - updated to show featured predictions
 app.get('/', catchAsync(async (req, res) => {
-  // Resolve year from available match data (fallback to latest available)
-  const { selectedYear: currentYear } = await roundService.resolveYear(req.query.year);
-  
-  // Get homepage available predictors and default featured predictor
+  // Get default featured predictor for homepage
   const featuredPredictionsService = require('./services/featured-predictions');
-  const homepageAvailablePredictors = await featuredPredictionsService.getHomepageAvailablePredictors();
   const defaultFeaturedPredictor = await featuredPredictionsService.getDefaultFeaturedPredictor();
+
+  // Restrict homepage year controls to seasons where the default featured model has predictions.
+  const predictionYearsRaw = await featuredPredictionsService.getPredictionYearsForPredictor(
+    defaultFeaturedPredictor?.predictor_id
+  );
+  const years = predictionYearsRaw
+    .map((row) => ({ year: parseInt(row.year, 10) }))
+    .filter((row) => !Number.isNaN(row.year));
+  const availablePredictionYears = years.map((row) => row.year);
+
+  const requestedYear = parseInt(req.query.year, 10);
+  const hasValidRequestedYear = !Number.isNaN(requestedYear) && availablePredictionYears.includes(requestedYear);
+
+  let currentYear = null;
+  if (hasValidRequestedYear) {
+    currentYear = requestedYear;
+  } else if (availablePredictionYears.length > 0) {
+    currentYear = availablePredictionYears[0];
+  } else {
+    // Fallback if there are no model predictions at all.
+    const { selectedYear } = await roundService.resolveYear(req.query.year);
+    currentYear = selectedYear;
+  }
   
   // Get rounds for current year ordered by the round ordering logic
   const allRounds = await roundService.getRoundsForYear(currentYear);
@@ -329,7 +348,8 @@ app.get('/', catchAsync(async (req, res) => {
     isAdmin: req.session.isAdmin,
     featuredPredictor: defaultFeaturedPredictor,
     featuredPredictorStats: featuredPredictorStats,
-    homepageAvailablePredictors: homepageAvailablePredictors,
+    years,
+    selectedYear: currentYear,
     rounds: roundsWithStatus,
     selectedRound: targetRound,
     currentRound: currentRound,

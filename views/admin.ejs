@@ -82,8 +82,8 @@
   <% } %>
   
   <div class="admin-section">
-    <h2>Featured Predictors</h2>
-    <p>Select which predictors can be featured on the homepage dropdown:</p>
+    <h2>Featured Predictor</h2>
+    <p>Select the single predictor to feature on the homepage:</p>
     <form action="/admin/set-featured-predictors" method="POST" class="admin-form">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <div class="form-group">
@@ -91,14 +91,15 @@
           <% predictors.forEach(predictor => { %>
             <div class="checkbox-item">
               <input 
-                type="checkbox" 
+                type="radio" 
                 id="predictor_<%= predictor.predictor_id %>" 
-                name="predictorIds" 
+                name="predictorId" 
                 value="<%= predictor.predictor_id %>"
-                <%= (featuredPredictorIds && featuredPredictorIds.includes(predictor.predictor_id.toString())) ? 'checked' : '' %>
+                <%= predictor.active === 0 ? 'disabled' : 'required' %>
+                <%= featuredPredictorId && featuredPredictorId.toString() === predictor.predictor_id.toString() ? 'checked' : '' %>
               >
               <label for="predictor_<%= predictor.predictor_id %>">
-                <%= predictor.display_name %>
+                <%= predictor.display_name %><%= predictor.active === 0 ? ' (Inactive)' : '' %>
               </label>
             </div>
           <% }) %>

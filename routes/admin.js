@@ -83,9 +83,9 @@ router.get('/', catchAsync(async (req, res) => {
   // Get all rounds for the selected year
   const rounds = await roundService.getRoundsForYear(selectedYear);
   
-  // Get featured predictor IDs
+  // Get featured predictor ID
   const featuredPredictionsService = require('../services/featured-predictions');
-  const featuredPredictorIds = await featuredPredictionsService.getHomepageAvailablePredictorIds();
+  const featuredPredictorId = await featuredPredictionsService.getDefaultFeaturedPredictorId();
   
   res.render('admin', {
     predictors,
@@ -93,7 +93,7 @@ router.get('/', catchAsync(async (req, res) => {
     years,
     selectedYear,
     selectedUser: null,
-    featuredPredictorIds,
+    featuredPredictorId,
     success: req.query.success || null,
     error: req.query.error || null,
     isAdmin: true
@@ -810,35 +810,39 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
 // Set featured predictors for homepage
 router.post('/set-featured-predictors', async (req, res, next) => {
   try {
-    const { predictorIds } = req.body;
-    const selectedIds = Array.isArray(predictorIds) ? predictorIds : (predictorIds ? [predictorIds] : []);
+    const selectedPredictorId = req.body.predictorId
+      || (Array.isArray(req.body.predictorIds) ? req.body.predictorIds[0] : req.body.predictorIds);
 
-    logger.info(`Admin ${req.session.user.id} setting featured predictors: ${selectedIds.join(', ')}`);
+    logger.info(`Admin ${req.session.user.id} setting featured predictor: ${selectedPredictorId || 'none'}`);
+
+    if (!selectedPredictorId) {
+      return res.redirect('/admin?error=' + encodeURIComponent('Please select a featured predictor'));
+    }
+
+    const predictor = await getOne(
+      'SELECT predictor_id FROM predictors WHERE predictor_id = ? AND active = 1',
+      [selectedPredictorId]
+    );
+
+    if (!predictor) {
+      return res.redirect('/admin?error=' + encodeURIComponent('Selected predictor must be active'));
+    }
 
     // Reset all predictors to not homepage available
     await runQuery('UPDATE predictors SET homepage_available = 0, is_default_featured = 0');
 
-    // Set selected predictors as homepage available
-    if (selectedIds.length > 0) {
-      const placeholders = selectedIds.map(() => '?').join(',');
-      await runQuery(
-        `UPDATE predictors SET homepage_available = 1 WHERE predictor_id IN (${placeholders})`,
-        selectedIds
-      );
+    // Set the selected predictor as homepage available and default featured.
+    await runQuery(
+      'UPDATE predictors SET homepage_available = 1, is_default_featured = 1 WHERE predictor_id = ?',
+      [selectedPredictorId]
+    );
 
-      // Set the first selected predictor as default featured
-      await runQuery(
-        'UPDATE predictors SET is_default_featured = 1 WHERE predictor_id = ?',
-        [selectedIds[0]]
-      );
-    }
+    logger.info(`Featured predictor updated: ${selectedPredictorId}`);
 
-    logger.info(`Featured predictors updated: ${selectedIds.join(', ')}`);
-
-    res.redirect('/admin?success=Featured predictors updated successfully');
+    res.redirect('/admin?success=Featured predictor updated successfully');
   } catch (error) {
     logger.error('Unexpected error setting featured predictors', {
-      predictorIds: req.body.predictorIds,
+      predictorId: req.body.predictorId,
       error: error.message
     });
     next(error);

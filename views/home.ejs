@@ -14,26 +14,14 @@
   <% if (locals.featuredPredictor) { %>
     <!-- Featured Predictor Performance Card -->
     <% if (locals.featuredPredictorStats) { %>
-      <div class="performance-card">
+      <div class="performance-card" data-featured-predictor-id="<%= featuredPredictor.predictor_id %>">
         <div class="performance-header">
           <h2>Model Performance</h2>
-          <div class="model-selector">
-            <select id="predictor-selector">
-              <% homepageAvailablePredictors.forEach(predictor => { %>
-                <option value="<%= predictor.predictor_id %>" <%= predictor.is_default_featured ? 'selected' : '' %>>
-                  <%= predictor.display_name %>
-                </option>
-              <% }) %>
-            </select>
-          </div>
           <div class="year-selector-performance">
             <select id="performance-year-selector">
-              <option value="<%= currentYear %>" selected><%= currentYear %></option>
-              <% if (currentYear > 2022) { %>
-                <% for (let year = currentYear - 1; year >= 2022; year--) { %>
-                  <option value="<%= year %>"><%= year %></option>
-                <% } %>
-              <% } %>
+              <% years.forEach(yearObj => { %>
+                <option value="<%= yearObj.year %>" <%= yearObj.year === selectedYear ? 'selected' : '' %>><%= yearObj.year %></option>
+              <% }) %>
             </select>
           </div>
         </div>
@@ -66,6 +54,19 @@
       <h2>Model Predictions</h2>
       
       <div class="header-controls">
+        <div class="year-selector">
+          <h2>Select Season</h2>
+          <div class="year-buttons">
+            <% years.forEach(yearObj => { %>
+              <a
+                href="/?year=<%= yearObj.year %>"
+                class="year-button <%= yearObj.year === selectedYear ? 'selected' : '' %>"
+              >
+                <%= yearObj.year %>
+              </a>
+            <% }) %>
+          </div>
+        </div>
         
         <div class="round-selector">
           <h2>Select Round</h2>
@@ -250,6 +251,19 @@
     font-weight: bold;
     color: var(--primary-color);
   }
+
+  .predictions-viewer .year-selector {
+    margin-bottom: 1rem;
+    background-color: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: none;
+  }
+
+  .predictions-viewer .year-selector h2 {
+    margin-bottom: 0.5rem;
+  }
   
   .round-selector {
     margin-bottom: 1rem;
@@ -422,28 +436,6 @@
     margin: 0;
     color: var(--primary-color);
     font-size: 1.3rem;
-  }
-  
-  .model-selector {
-    display: flex;
-  }
-  
-  .model-selector select {
-    padding: 0.5rem 0.8rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: white;
-    color: var(--text-color);
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    width: auto;
-    text-align: center;
-  }
-  
-  .model-selector select:focus {
-    outline: none;
-    border-color: var(--primary-color);
   }
   
   .year-selector-performance {

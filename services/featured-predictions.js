@@ -164,10 +164,35 @@ async function getPredictionsForRound(predictorId, round, year) {
   }
 }
 
+// Get available years that have predictions for a specific predictor
+async function getPredictionYearsForPredictor(predictorId) {
+  try {
+    if (!predictorId) {
+      return [];
+    }
+
+    return await getQuery(
+      `SELECT DISTINCT m.year
+       FROM predictions p
+       JOIN matches m ON p.match_id = m.match_id
+       WHERE p.predictor_id = ?
+       ORDER BY m.year DESC`,
+      [predictorId]
+    );
+  } catch (error) {
+    logger.error('Error fetching prediction years for predictor', {
+      predictorId,
+      error: error.message
+    });
+    return [];
+  }
+}
+
 module.exports = {
   getHomepageAvailablePredictorIds,
   getDefaultFeaturedPredictorId,
   getHomepageAvailablePredictors,
   getDefaultFeaturedPredictor,
-  getPredictionsForRound
+  getPredictionsForRound,
+  getPredictionYearsForPredictor
 };

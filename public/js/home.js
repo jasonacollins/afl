@@ -9,6 +9,15 @@ function getSelectedPerformanceYear() {
   return String(new Date().getFullYear());
 }
 
+function getFeaturedPredictorId() {
+  const performanceCard = document.querySelector('.performance-card');
+  if (!performanceCard) {
+    return null;
+  }
+
+  return performanceCard.dataset.featuredPredictorId || null;
+}
+
 function fetchRoundPredictions(round) {
   // Update active button
   document.querySelectorAll('.round-button').forEach(btn => {
@@ -19,9 +28,7 @@ function fetchRoundPredictions(round) {
   document.getElementById('predictions-table-container').innerHTML = 
     '<div style="text-align: center; padding: 2rem;">Loading predictions...</div>';
   
-  // Get current selected predictor
-  const predictorSelector = document.getElementById('predictor-selector');
-  const selectedPredictorId = predictorSelector ? predictorSelector.value : null;
+  const selectedPredictorId = getFeaturedPredictorId();
   
   // Always use the homepage performance year selector for featured predictions.
   const selectedYear = getSelectedPerformanceYear();
@@ -182,8 +189,7 @@ function updatePerformanceData(selectedYear = null, selectedPredictorId = null) 
   if (!container) return;
   
   const currentYear = selectedYear || getSelectedPerformanceYear();
-  const predictorSelector = document.getElementById('predictor-selector');
-  const predictorId = selectedPredictorId || (predictorSelector ? predictorSelector.value : null);
+  const predictorId = selectedPredictorId || getFeaturedPredictorId();
   
   if (!predictorId) {
     console.warn('No predictor ID available for performance update');
@@ -243,21 +249,6 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchRoundPredictions(round);
     });
   });
-  
-  // Add event listener to predictor selector if it exists
-  const predictorSelector = document.getElementById('predictor-selector');
-  if (predictorSelector) {
-    predictorSelector.addEventListener('change', function() {
-      // Update performance stats for new predictor
-      updatePerformanceData();
-      
-      // Refresh predictions table with new predictor
-      const selectedRound = document.querySelector('.round-button.selected');
-      if (selectedRound) {
-        fetchRoundPredictions(selectedRound.dataset.round);
-      }
-    });
-  }
   
   // Add event listener to performance year selector if it exists
   const performanceYearSelector = document.getElementById('performance-year-selector');

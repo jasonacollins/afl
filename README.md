@@ -29,7 +29,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Dedicated Simulation Page**: Monte Carlo season outcomes are available on `/simulation`
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 - **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted logs/history
-- **Featured Predictors System**: Homepage dropdown allowing users to view different predictor models and performance metrics
+- **Featured Predictor System**: Homepage shows one admin-selected model with performance metrics and round predictions
 
 ## Page Structure
 
@@ -37,6 +37,8 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - `/elo` - ELO team ratings chart and historical filters
 - `/simulation` - Season simulation outputs and ladder probability matrices
 - `/admin/scripts` - Admin-only scripts runner for operational and training workflows
+
+Homepage model selection is controlled from the admin dashboard as a single featured predictor (no homepage model selector).
 
 ## Admin Scripts Runner
 
