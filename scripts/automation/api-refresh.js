@@ -16,6 +16,7 @@ async function refreshAPIData(year, options = {}) {
   let insertCount = 0;
   let updateCount = 0;
   let scoresUpdated = 0;
+  let existingMatchCount = 0;
   const skippedFixtureUpdates = [];
   const skippedScoreUpdates = [];
 
@@ -71,6 +72,8 @@ async function refreshAPIData(year, options = {}) {
           continue; // Skip if match doesn't exist in database
         }
 
+        existingMatchCount++;
+
         // Check if there are actual differences
         const dateChanged = currentMatch.match_date !== apiDate;
         const venueChanged = currentMatch.venue !== apiVenue;
@@ -112,6 +115,11 @@ async function refreshAPIData(year, options = {}) {
     }
 
     logger.info(`Fixture updates complete. Updated ${updateCount} matches`);
+    if (existingMatchCount === 0 && gamesFromAPI.length > 0) {
+      logger.warn(
+        `No existing matches found in database for API year ${year}. Run sync-games for ${year} first to insert fixtures before API refresh.`
+      );
+    }
 
     // Update Final Scores & Set Completion to 100 for Completed Games
     const completedGamesWithScores = gamesFromAPI.filter(game =>

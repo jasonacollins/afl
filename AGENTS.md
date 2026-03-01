@@ -73,6 +73,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
   - `admin_script_runs`
   - `admin_script_run_logs`
 - Concurrency rule: only one active script run (`queued` or `running`) at a time.
+- `sync-games` is the fixture bootstrap step for new seasons (inserts missing `matches` rows).
+- `sync-games` must treat missing/invalid Squiggle `complete` values as `0` because `matches.complete` is `NOT NULL`.
+- `api-refresh` is update-only for existing fixtures/results and does not insert new fixtures.
+- `api-refresh` should warn when API games exist for a year but no corresponding DB matches are found, instructing admins to run `sync-games` first.
 - UI notes:
   - The predictions runner is labelled `Predictions` (internal script key remains `combined-predictions`).
   - The predictions card includes a `Predict future games only` option that maps to `--future-only` for `scripts/elo_predict_combined.py`.

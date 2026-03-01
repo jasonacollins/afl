@@ -204,8 +204,11 @@ async function syncGamesFromAPI(options = {}) {
         const homeScore = game.hscore !== undefined ? game.hscore : null;
         const awayScore = game.ascore !== undefined ? game.ascore : null;
         
-        // Get the match completion percentage
-        const completion = game.complete ? parseInt(game.complete) : null;
+        // matches.complete is NOT NULL in schema; default unknown/invalid values to 0.
+        const parsedCompletion = Number.parseInt(game.complete, 10);
+        const completion = Number.isInteger(parsedCompletion) && parsedCompletion >= 0 && parsedCompletion <= 100
+          ? parsedCompletion
+          : 0;
         
         // Check if match already exists in database with the Squiggle ID
         const existingMatch = await getOne(

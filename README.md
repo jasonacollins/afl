@@ -58,6 +58,10 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
   - `admin_script_runs`
   - `admin_script_run_logs`
 - Restart recovery marks in-flight jobs as `interrupted`.
+- `sync-games` is the fixture bootstrap step for a new season (inserts new `matches` rows when they do not exist yet).
+- `sync-games` normalizes missing/invalid Squiggle `complete` values to `0` so inserts satisfy `matches.complete` (`NOT NULL`).
+- `api-refresh` is update-only for existing fixtures/results; it does not insert missing matches.
+- If `api-refresh` finds API games for a year but zero existing DB matches, it logs a warning telling admins to run `sync-games` first.
 - The `Predictions` card supports a `Predict future games only` option:
   - enabled: only upcoming fixtures are output/saved
   - disabled: full-year prediction output is generated from the chosen `startYear`
