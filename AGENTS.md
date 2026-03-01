@@ -34,6 +34,16 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - `docker-compose logs` - View container logs
 - `docker-compose build` - Rebuild containers after code changes
 
+### Production Deployment Guardrails (Critical)
+- Production domain `afl.jcx.au` is served from VM origin `afl-predictions-vm` (`34.40.253.178`) in project `afl-predictions-jc`.
+- Production app path is `/var/www/afl-predictions`.
+- Do not deploy production with Cloud Run (`gcloud run deploy`).
+- For production updates, deploy on the VM with:
+  - `cd /var/www/afl-predictions && git pull origin main`
+  - `docker compose down && docker compose build && docker compose up -d`
+- Before production deploy, confirm local `HEAD` matches `origin/main`; if not, push first.
+- After deployment, verify `https://afl.jcx.au/js/main.js` reflects the new build (hash/marker check).
+
 ## AI-Specific Architecture Notes
 
 **Dual-Environment Code**: The scoring service (`services/scoring-service.js`) is uniquely designed to work in both Node.js and browser environments - it's served as a client-side script via `/js/scoring-service.js`.

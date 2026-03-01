@@ -286,23 +286,42 @@ npm run dev
 
 ### Production Deployment with Docker
 
+Production is served from a single VM origin behind Cloudflare:
+
+- Domain: `https://afl.jcx.au`
+- GCP project: `afl-predictions-jc`
+- VM instance: `afl-predictions-vm` (`34.40.253.178`)
+- App path on VM: `/var/www/afl-predictions`
+
+Important guardrail:
+- Do not use `gcloud run deploy` for production releases of this site.
+- Production changes must be deployed to the VM origin above.
+
+Pre-deploy check from local repo:
+```bash
+git rev-parse --short HEAD
+git rev-parse --short origin/main
+```
+If these differ, push first so production can pull the same commit.
+
 1. Pull latest changes:
    ```bash
    cd /var/www/afl-predictions
-   git pull
+   git pull origin main
    ```
 
 2. Rebuild and restart the Docker containers:
    ```bash
-   docker-compose down
-   docker-compose build
-   docker-compose up -d
+   docker compose down
+   docker compose build
+   docker compose up -d
    ```
 
 3. Verify deployment:
    ```bash
-   docker-compose ps
-   docker-compose logs
+   git rev-parse --short HEAD
+   docker compose ps
+   curl -sS "https://afl.jcx.au/js/main.js?v=$(date +%s)" | shasum -a 256
    ```
 
 ## Data Sources
