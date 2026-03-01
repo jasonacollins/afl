@@ -269,19 +269,32 @@
         }
 
         roundSnapshotNav.style.display = 'block';
+        const currentRoundKey = getDefaultRoundSnapshotKey();
+        const currentSnapshot = roundSnapshots.find(snapshot => snapshot.round_key === currentRoundKey) ||
+            roundSnapshots[roundSnapshots.length - 1] ||
+            null;
+        const currentRoundOrder = currentSnapshot ? currentSnapshot.round_order : null;
 
         roundSnapshots.forEach(snapshot => {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'round-tab-button';
+            button.className = 'round-button simulation-round-button';
             button.textContent = snapshot.round_tab_label;
             button.dataset.roundKey = snapshot.round_key;
             button.setAttribute('role', 'tab');
             button.setAttribute('aria-selected', snapshot.round_key === activeSnapshot?.round_key ? 'true' : 'false');
             button.title = snapshot.round_label;
 
+            if (Number.isFinite(currentRoundOrder) && snapshot.round_order < currentRoundOrder) {
+                button.classList.add('completed');
+            }
+
+            if (snapshot.round_key === currentRoundKey) {
+                button.classList.add('current');
+            }
+
             if (snapshot.round_key === activeSnapshot?.round_key) {
-                button.classList.add('active');
+                button.classList.add('selected');
             }
 
             button.addEventListener('click', () => handleRoundTabChange(snapshot.round_key));
