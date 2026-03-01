@@ -384,7 +384,8 @@
 
             // Position
             const position = index + 1;
-            const posClass = position <= 8 ? 'top8' : '';
+            const finalsCutoff = Number(simulationData?.year) >= 2026 ? 10 : 8;
+            const posClass = position <= finalsCutoff ? 'top8' : '';
 
             // Record
             let record = `${team.current_wins}-${team.current_losses}`;
@@ -406,7 +407,8 @@
                     <strong>${team.projected_wins.toFixed(1)}</strong>
                     <span class="projected">(${team.wins_10th_percentile.toFixed(1)}-${team.wins_90th_percentile.toFixed(1)})</span>
                 </td>
-                ${createProbabilityCell(team.finals_probability)}
+                ${createProbabilityCell(team.wildcard_probability ?? 0)}
+                ${createProbabilityCell(team.finals_week2_probability ?? team.finals_probability)}
                 ${createProbabilityCell(team.top4_probability)}
                 ${createProbabilityCell(team.prelim_probability)}
                 ${createProbabilityCell(team.grand_final_probability)}
@@ -560,9 +562,13 @@
                     aVal = a.projected_wins;
                     bVal = b.projected_wins;
                     break;
-                case 'finals':
-                    aVal = a.finals_probability;
-                    bVal = b.finals_probability;
+                case 'wildcard':
+                    aVal = a.wildcard_probability ?? 0;
+                    bVal = b.wildcard_probability ?? 0;
+                    break;
+                case 'finals-week-2':
+                    aVal = a.finals_week2_probability ?? a.finals_probability;
+                    bVal = b.finals_week2_probability ?? b.finals_probability;
                     break;
                 case 'top4':
                     aVal = a.top4_probability;

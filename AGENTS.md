@@ -57,8 +57,9 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Logged-in users see `Predictor page` (`/predictions`) in nav; admins additionally see `Admin panel` (`/admin`)
 - `/admin/scripts` is the admin-only scripts runner for operational and training jobs
 - Homepage uses one featured predictor selected in admin (no model selector on `/`).
-- Round selectors merge `Elimination Final` + `Qualifying Final` into `Finals Week 1` across `/elo`, `/`, `/predictions`, and `/matches/stats`.
-- Grouped round labels are display-only; data queries must expand `Finals Week 1` back to both source rounds.
+- Round selectors merge `Elimination Final` + `Qualifying Final` into `Finals Week 2` across `/elo`, `/`, `/predictions`, and `/matches/stats`.
+- From 2026 onward, round selectors also include `Wildcard Finals` (displayed even before wildcard fixtures are assigned).
+- Grouped round labels are display-only; data queries must expand `Finals Week 2` back to both source rounds.
 
 **Startup Behavior**:
 - Server startup runs `initializeDatabase()` before listening to ensure required schema and migrations exist.
@@ -104,7 +105,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Clean separation between operational data (database) and analytical data (CSV)
 
 **Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` regenerates the current season simulation when fixture/result data changed or when the current round snapshot is missing (to ensure round tabs remain available). The simulation page supports round snapshot tabs (before each round/finals stage + post-season). When updating the simulator:
-- Keep the finals structure and seeding logic intact.
+- Keep season-specific finals structure and seeding logic intact (pre-2026 top-8; 2026+ top-10 with `Wildcard Finals` feeding `Finals Week 2`).
 - Preserve combined simulation mode behavior (`--win-model` + `--model-path` margin).
 - Treat completed finals matches as hard constraints for later-round simulations (eliminated teams must stay eliminated).
 - Backfill mode (`--backfill-round-snapshots`) is destructive by design for the target file: it resets the JSON first, then rebuilds snapshots round-by-round.

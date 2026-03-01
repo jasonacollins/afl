@@ -4,7 +4,7 @@ AFL Season Simulator
 
 Monte Carlo simulation of AFL seasons using ELO margin model predictions.
 Simulates remaining fixtures and tracks finals outcomes including:
-- Finals qualification (Top 8)
+- Finals qualification (Top 8 or Top 10, season-dependent)
 - Top 4 finish
 - Preliminary finals appearance
 - Grand Final appearance
@@ -71,6 +71,11 @@ def interpolate_percentile(values, percentile):
 
 
 FINALS_ROUND_METADATA = {
+    'wildcard_round': {
+        'label': 'Wildcard Finals',
+        'tab_label': 'WC',
+        'order': 200
+    },
     'qualifying_final': {
         'label': 'Qualifying Final',
         'tab_label': 'QF',
@@ -99,6 +104,13 @@ FINALS_ROUND_METADATA = {
 }
 
 FINALS_ROUND_ALIASES = {
+    'wildcard round': 'wildcard_round',
+    'wild card round': 'wildcard_round',
+    'wildcard finals': 'wildcard_round',
+    'wild card finals': 'wildcard_round',
+    'wildcard': 'wildcard_round',
+    'wc': 'wildcard_round',
+    'wr': 'wildcard_round',
     'qualifying final': 'qualifying_final',
     'qualifying finals': 'qualifying_final',
     'qf': 'qualifying_final',
@@ -129,7 +141,8 @@ def normalize_round_text(round_number):
         return ''
 
     normalized = str(round_number).strip().lower()
-    normalized = normalized.replace('.', '')
+    normalized = normalized.replace('.', ' ')
+    normalized = normalized.replace('-', ' ')
     normalized = re.sub(r'\s+', ' ', normalized)
     return normalized
 
@@ -675,21 +688,37 @@ class SeasonSimulator:
             winner_rules = ensure_team(winner)
             loser_rules = ensure_team(loser)
 
-            if finals_key == 'qualifying_final':
+            if finals_key == 'wildcard_round':
+                winner_rules['require'].add('wildcard')
+                winner_rules['require'].add('finals_week2')
+                loser_rules['require'].add('wildcard')
+                loser_rules['forbid'].add('finals_week2')
+                loser_rules['forbid'].add('sf_plus')
+            elif finals_key == 'qualifying_final':
+                winner_rules['require'].add('finals_week2')
+                loser_rules['require'].add('finals_week2')
                 winner_rules['require'].add('prelim')
                 loser_rules['require'].add('sf_plus')
             elif finals_key == 'elimination_final':
+                winner_rules['require'].add('finals_week2')
+                loser_rules['require'].add('finals_week2')
                 winner_rules['require'].add('sf_plus')
                 loser_rules['forbid'].add('sf_plus')
             elif finals_key == 'semi_final':
+                winner_rules['require'].add('finals_week2')
+                loser_rules['require'].add('finals_week2')
                 winner_rules['require'].add('prelim')
                 loser_rules['require'].add('sf_plus')
                 loser_rules['forbid'].add('prelim')
             elif finals_key == 'preliminary_final':
+                winner_rules['require'].add('finals_week2')
+                loser_rules['require'].add('finals_week2')
                 winner_rules['require'].add('grand_final')
                 loser_rules['require'].add('prelim')
                 loser_rules['forbid'].add('grand_final')
             elif finals_key == 'grand_final':
+                winner_rules['require'].add('finals_week2')
+                loser_rules['require'].add('finals_week2')
                 winner_rules['require'].add('premiership')
                 loser_rules['require'].add('grand_final')
                 loser_rules['forbid'].add('premiership')
@@ -709,34 +738,51 @@ class SeasonSimulator:
             required = rule_set.get('require', set())
             forbidden = rule_set.get('forbid', set())
 
+            if 'wildcard' in required:
+                team_tracker['wildcard'] = True
+            if 'finals_week2' in required:
+                team_tracker['finals_week2'] = True
+
             if 'premiership' in required:
                 team_tracker['premiership'] = True
                 team_tracker['grand_final'] = True
                 team_tracker['prelim'] = True
                 team_tracker['sf_plus'] = True
+                team_tracker['finals_week2'] = True
             elif 'grand_final' in required:
                 team_tracker['grand_final'] = True
                 team_tracker['prelim'] = True
                 team_tracker['sf_plus'] = True
+                team_tracker['finals_week2'] = True
             elif 'prelim' in required:
                 team_tracker['prelim'] = True
                 team_tracker['sf_plus'] = True
+                team_tracker['finals_week2'] = True
             elif 'sf_plus' in required:
                 team_tracker['sf_plus'] = True
+                team_tracker['finals_week2'] = True
 
+            if 'wildcard' in forbidden:
+                team_tracker['wildcard'] = False
+            if 'finals_week2' in forbidden:
+                team_tracker['finals_week2'] = False
+                team_tracker['sf_plus'] = False
+                team_tracker['prelim'] = False
+                team_tracker['grand_final'] = False
+                team_tracker['premiership'] = False
             if 'sf_plus' in forbidden:
                 team_tracker['sf_plus'] = False
                 team_tracker['prelim'] = False
                 team_tracker['grand_final'] = False
                 team_tracker['premiership'] = False
-            elif 'prelim' in forbidden:
+            if 'prelim' in forbidden:
                 team_tracker['prelim'] = False
                 team_tracker['grand_final'] = False
                 team_tracker['premiership'] = False
-            elif 'grand_final' in forbidden:
+            if 'grand_final' in forbidden:
                 team_tracker['grand_final'] = False
                 team_tracker['premiership'] = False
-            elif 'premiership' in forbidden:
+            if 'premiership' in forbidden:
                 team_tracker['premiership'] = False
 
         return finals_tracker
@@ -1139,30 +1185,22 @@ class SeasonSimulator:
 
         return ladder
 
-    def simulate_finals_series(self, top8_teams, ratings, forced_results=None):
+    def simulate_finals_series(self, qualified_teams, ratings, forced_results=None):
         """
         Simulate AFL finals series
 
-        AFL Finals structure:
-        - Week 1 (Qualifying & Elimination Finals):
-          * QF1: 1st vs 4th -> Winner to Prelim, Loser to Semi
-          * QF2: 2nd vs 3rd -> Winner to Prelim, Loser to Semi
-          * EF1: 5th vs 8th -> Winner to Semi, Loser eliminated
-          * EF2: 6th vs 7th -> Winner to Semi, Loser eliminated
-        - Week 2 (Semi Finals):
-          * SF1: QF1 loser vs higher-ranked EF winner
-          * SF2: QF2 loser vs lower-ranked EF winner
-        - Week 3 (Preliminary Finals):
-          * PF1: QF1 winner vs SF winner
-          * PF2: QF2 winner vs SF winner
-        - Week 4 (Grand Final):
-          * GF: PF winners
+        Finals format by season:
+        - Pre-2026: top-8 finals
+        - 2026 onward: top-10 finals with wildcard round
 
         Returns:
         --------
         dict : Finals outcomes for each team
         """
         forced_results = forced_results or {}
+        wildcard_format = getattr(self, 'year', 0) >= 2026 and len(qualified_teams) >= 10
+        finals_cutoff = 10 if wildcard_format else 8
+        finals_teams = qualified_teams[:finals_cutoff]
 
         def resolve_winner(finals_round_key, team1, team2):
             forced_winner = forced_results.get((finals_round_key, frozenset((team1, team2))))
@@ -1173,38 +1211,61 @@ class SeasonSimulator:
         # Initialize finals tracker
         finals_tracker = {team: {
             'made_finals': True,
+            'wildcard': False,
+            'finals_week2': False,
             'top4': False,
             'sf_plus': False,
             'prelim': False,
             'grand_final': False,
             'premiership': False
-        } for team in top8_teams}
+        } for team in finals_teams}
 
         # Top 4 get double chances
-        top4 = top8_teams[:4]
+        top4 = finals_teams[:4]
         for team in top4:
             finals_tracker[team]['top4'] = True
             finals_tracker[team]['sf_plus'] = True
 
         # Week 1 - Qualifying Finals
-        qf1_winner = resolve_winner('qualifying_final', top8_teams[0], top8_teams[3])
-        qf1_loser = top8_teams[3] if qf1_winner == top8_teams[0] else top8_teams[0]
+        qf1_winner = resolve_winner('qualifying_final', finals_teams[0], finals_teams[3])
+        qf1_loser = finals_teams[3] if qf1_winner == finals_teams[0] else finals_teams[0]
 
-        qf2_winner = resolve_winner('qualifying_final', top8_teams[1], top8_teams[2])
-        qf2_loser = top8_teams[2] if qf2_winner == top8_teams[1] else top8_teams[1]
+        qf2_winner = resolve_winner('qualifying_final', finals_teams[1], finals_teams[2])
+        qf2_loser = finals_teams[2] if qf2_winner == finals_teams[1] else finals_teams[1]
 
-        # Week 1 - Elimination Finals
-        ef1_winner = resolve_winner('elimination_final', top8_teams[4], top8_teams[7])
-        ef2_winner = resolve_winner('elimination_final', top8_teams[5], top8_teams[6])
+        if wildcard_format:
+            for team in finals_teams[:6]:
+                finals_tracker[team]['finals_week2'] = True
+
+            # Wildcard Finals (7v10, 8v9) feed Elimination Finals.
+            for team in finals_teams[6:10]:
+                finals_tracker[team]['wildcard'] = True
+
+            wc1_winner = resolve_winner('wildcard_round', finals_teams[6], finals_teams[9])
+            wc2_winner = resolve_winner('wildcard_round', finals_teams[7], finals_teams[8])
+            finals_tracker[wc1_winner]['finals_week2'] = True
+            finals_tracker[wc2_winner]['finals_week2'] = True
+
+            # Elimination Finals (winners advance to Semi Finals).
+            ef1_winner = resolve_winner('elimination_final', finals_teams[4], wc2_winner)
+            ef2_winner = resolve_winner('elimination_final', finals_teams[5], wc1_winner)
+        else:
+            for team in finals_teams:
+                finals_tracker[team]['finals_week2'] = True
+
+            # Week 1 - Elimination Finals (legacy top-8 format)
+            ef1_winner = resolve_winner('elimination_final', finals_teams[4], finals_teams[7])
+            ef2_winner = resolve_winner('elimination_final', finals_teams[5], finals_teams[6])
+
+        # Elimination Final winners reach Semi Finals
         finals_tracker[ef1_winner]['sf_plus'] = True
         finals_tracker[ef2_winner]['sf_plus'] = True
 
-        # Week 2 - Semi Finals
-        # Match QF losers with EF winners
+        # Semi Finals
         sf1_winner = resolve_winner('semi_final', qf1_loser, ef1_winner)
         sf2_winner = resolve_winner('semi_final', qf2_loser, ef2_winner)
 
-        # Week 3 - Preliminary Finals
+        # Preliminary Finals
         pf1_winner = resolve_winner('preliminary_final', qf1_winner, sf1_winner)
         pf2_winner = resolve_winner('preliminary_final', qf2_winner, sf2_winner)
 
@@ -1212,7 +1273,7 @@ class SeasonSimulator:
         for team in [qf1_winner, qf2_winner, sf1_winner, sf2_winner]:
             finals_tracker[team]['prelim'] = True
 
-        # Week 4 - Grand Final
+        # Grand Final
         premier = resolve_winner('grand_final', pf1_winner, pf2_winner)
 
         # Mark grand finalists
@@ -1253,6 +1314,8 @@ class SeasonSimulator:
         team_outcomes = defaultdict(lambda: {
             'wins': [],
             'finals_count': 0,
+            'wildcard_count': 0,
+            'finals_week2_count': 0,
             'top4_count': 0,
             'sf_plus_count': 0,
             'prelim_count': 0,
@@ -1284,8 +1347,8 @@ class SeasonSimulator:
             # Get final ladder
             ladder = self.get_final_ladder(records)
 
-            # Get top 8 for finals
-            top8_teams = [team['team'] for team in ladder[:8]]
+            finals_cutoff = 10 if self.year >= 2026 else 8
+            finals_teams = [team['team'] for team in ladder[:finals_cutoff]]
 
             # Track regular season wins and ladder positions
             for position, team_data in enumerate(ladder, start=1):
@@ -1294,12 +1357,12 @@ class SeasonSimulator:
                 team_outcomes[team]['ladder_positions'][position] += 1
 
             # Track finals appearances
-            for team in top8_teams:
+            for team in finals_teams:
                 team_outcomes[team]['finals_count'] += 1
 
             # Simulate finals
             finals_results = self.simulate_finals_series(
-                top8_teams,
+                finals_teams,
                 self.initial_ratings,
                 forced_results=forced_finals_results
             )
@@ -1316,6 +1379,10 @@ class SeasonSimulator:
 
             # Aggregate finals results
             for team, results in finals_results.items():
+                if results.get('wildcard'):
+                    team_outcomes[team]['wildcard_count'] += 1
+                if results.get('finals_week2'):
+                    team_outcomes[team]['finals_week2_count'] += 1
                 if results['top4']:
                     team_outcomes[team]['top4_count'] += 1
                 if results['sf_plus']:
@@ -1350,6 +1417,12 @@ class SeasonSimulator:
                 'wins_10th_percentile': interpolate_percentile(wins_array, 10),
                 'wins_90th_percentile': interpolate_percentile(wins_array, 90),
                 'finals_probability': outcomes['finals_count'] / self.num_simulations,
+                'wildcard_probability': outcomes['wildcard_count'] / self.num_simulations,
+                'finals_week2_probability': (
+                    outcomes['finals_week2_count'] / self.num_simulations
+                    if self.year >= 2026
+                    else outcomes['finals_count'] / self.num_simulations
+                ),
                 'top4_probability': outcomes['top4_count'] / self.num_simulations,
                 'sf_plus_probability': outcomes['sf_plus_count'] / self.num_simulations,
                 'prelim_probability': outcomes['prelim_count'] / self.num_simulations,

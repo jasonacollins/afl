@@ -158,10 +158,17 @@ function normalizeRoundText(roundNumber) {
     return '';
   }
 
-  return raw.replace(/\./g, '').replace(/\s+/g, ' ');
+  return raw.replace(/[.\-]/g, ' ').replace(/\s+/g, ' ');
 }
 
 const FINALS_ROUND_ALIASES = {
+  'wildcard round': 'wildcard_round',
+  'wild card round': 'wildcard_round',
+  'wildcard finals': 'wildcard_round',
+  'wild card finals': 'wildcard_round',
+  'wildcard': 'wildcard_round',
+  'wc': 'wildcard_round',
+  'wr': 'wildcard_round',
   'qualifying final': 'qualifying_final',
   'qualifying finals': 'qualifying_final',
   'qf': 'qualifying_final',
@@ -233,6 +240,7 @@ function buildRoundSnapshotMetadata(roundNumber) {
   const finalsRoundKey = resolveFinalsRoundKey(raw);
   if (finalsRoundKey) {
     const finalsLabelMap = {
+      wildcard_round: 'Wildcard Finals',
       qualifying_final: 'Qualifying Final',
       elimination_final: 'Elimination Final',
       semi_final: 'Semi Final',

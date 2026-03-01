@@ -75,8 +75,21 @@ def test_round_snapshot_metadata_for_finals_round():
     assert metadata['round_order'] == 204
 
 
+def test_round_snapshot_metadata_for_wildcard_round():
+    """Wildcard finals should have dedicated finals metadata."""
+    metadata = build_round_snapshot_metadata('Wildcard Finals')
+
+    assert metadata['round_key'] == 'finals-wildcard_round'
+    assert metadata['round_tab_label'] == 'WC'
+    assert metadata['round_label'] == 'Before Wildcard Finals'
+    assert metadata['round_order'] == 200
+
+
 def test_resolve_finals_round_key_supports_abbreviations():
     """Finals round parser should support short forms used by some feeds."""
+    assert resolve_finals_round_key('Wildcard Finals') == 'wildcard_round'
+    assert resolve_finals_round_key('Wildcard Round') == 'wildcard_round'
+    assert resolve_finals_round_key('WC') == 'wildcard_round'
     assert resolve_finals_round_key('QF') == 'qualifying_final'
     assert resolve_finals_round_key('SF') == 'semi_final'
     assert is_finals_round('Grand Final')
@@ -190,6 +203,43 @@ def test_forced_finals_results_keep_eliminated_teams_out_of_sf_plus():
 
     assert finals_results['H']['sf_plus'] is False
     assert finals_results['G']['sf_plus'] is False
+
+
+def test_wildcard_format_uses_top10_path_from_2026():
+    """2026+ simulations should use wildcard games before elimination finals."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.base_rating = 1500
+    simulator.year = 2026
+
+    top10 = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
+    ratings = {team: 1500 for team in top10}
+    forced = {
+        ('wildcard_round', frozenset(('G', 'J'))): 'G',
+        ('wildcard_round', frozenset(('H', 'I'))): 'H',
+        ('qualifying_final', frozenset(('A', 'D'))): 'A',
+        ('qualifying_final', frozenset(('B', 'C'))): 'B',
+        ('elimination_final', frozenset(('E', 'H'))): 'E',
+        ('elimination_final', frozenset(('F', 'G'))): 'F',
+        ('semi_final', frozenset(('D', 'E'))): 'D',
+        ('semi_final', frozenset(('C', 'F'))): 'C',
+        ('preliminary_final', frozenset(('A', 'D'))): 'A',
+        ('preliminary_final', frozenset(('B', 'C'))): 'B',
+        ('grand_final', frozenset(('A', 'B'))): 'A'
+    }
+
+    finals_results = simulator.simulate_finals_series(top10, ratings, forced_results=forced)
+
+    assert finals_results['J']['wildcard'] is True
+    assert finals_results['I']['wildcard'] is True
+    assert finals_results['J']['finals_week2'] is False
+    assert finals_results['I']['finals_week2'] is False
+    assert finals_results['H']['finals_week2'] is True
+    assert finals_results['G']['finals_week2'] is True
+    assert finals_results['J']['sf_plus'] is False
+    assert finals_results['I']['sf_plus'] is False
+    assert finals_results['E']['sf_plus'] is True
+    assert finals_results['F']['sf_plus'] is True
+    assert finals_results['A']['premiership'] is True
 
 
 def test_get_final_ladder_uses_percentage_for_tiebreaks():

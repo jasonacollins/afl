@@ -178,17 +178,39 @@ async function syncGamesFromAPI(options = {}) {
         
         // Map round name
         let roundNumber = game.round.toString();
-        if (game.roundname && game.roundname === 'Opening Round') {
+        const normalizedRoundName = String(game.roundname || '').trim().toLowerCase();
+
+        if (normalizedRoundName === 'opening round') {
           roundNumber = 'OR';
-        } else if (game.is_final > 0) {
-          // Handle finals rounds based on is_final
-          switch(game.is_final) {
-            case 2: roundNumber = 'Elimination Final'; break;
-            case 3: roundNumber = 'Qualifying Final'; break;
-            case 4: roundNumber = 'Semi Final'; break;
-            case 5: roundNumber = 'Preliminary Final'; break;
-            case 6: roundNumber = 'Grand Final'; break;
-            default: roundNumber = 'Finals';
+        } else if (
+          game.is_final > 0 ||
+          normalizedRoundName.includes('wild') ||
+          normalizedRoundName.includes('final')
+        ) {
+          // Prefer explicit roundname matches when available. Fallback to
+          // Squiggle is_final values for feeds that use generic finals labels.
+          if (normalizedRoundName.includes('wild')) {
+            roundNumber = 'Wildcard Finals';
+          } else if (normalizedRoundName.includes('elimination')) {
+            roundNumber = 'Elimination Final';
+          } else if (normalizedRoundName.includes('qualifying')) {
+            roundNumber = 'Qualifying Final';
+          } else if (normalizedRoundName.includes('semi')) {
+            roundNumber = 'Semi Final';
+          } else if (normalizedRoundName.includes('preliminary')) {
+            roundNumber = 'Preliminary Final';
+          } else if (normalizedRoundName.includes('grand')) {
+            roundNumber = 'Grand Final';
+          } else {
+            switch (game.is_final) {
+              case 1: roundNumber = 'Wildcard Finals'; break;
+              case 2: roundNumber = 'Elimination Final'; break;
+              case 3: roundNumber = 'Qualifying Final'; break;
+              case 4: roundNumber = 'Semi Final'; break;
+              case 5: roundNumber = 'Preliminary Final'; break;
+              case 6: roundNumber = 'Grand Final'; break;
+              default: roundNumber = 'Finals';
+            }
           }
         }
         

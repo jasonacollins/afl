@@ -235,6 +235,8 @@
               >
                 <% if (round.round_number === 'OR') { %>
                   Opening Round
+                <% } else if (round.round_number === 'Wildcard Finals' || round.round_number === 'Wildcard Round') { %>
+                  Wildcard Finals
                 <% } else if (round.round_number === 'Elimination Final' || 
                               round.round_number === 'Qualifying Final' || 
                               round.round_number === 'Semi Final' || 

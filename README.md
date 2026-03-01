@@ -30,7 +30,8 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 - **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted logs/history
 - **Featured Predictor System**: Homepage shows one admin-selected model with performance metrics and round predictions
-- **Unified Finals Week 1 Display**: `Elimination Final` and `Qualifying Final` are grouped as `Finals Week 1` on `/elo`, `/`, `/predictions`, and `/matches/stats`
+- **Unified Finals Week 2 Display**: `Elimination Final` and `Qualifying Final` are grouped as `Finals Week 2` on `/elo`, `/`, `/predictions`, and `/matches/stats`
+- **Wildcard Finals Support (2026+)**: round selectors include `Wildcard Finals` even when no wildcard fixtures are currently assigned
 
 ## Page Structure
 
@@ -88,7 +89,9 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
 
 - The `/simulation` page supports round snapshot tabs (`Before Round X`, finals stages, and `Post`) so users can review historical “before round” states for the same season.
 - Current standings and ELO ratings seed every simulation before match outcomes are sampled.
-- Finals series are simulated using the AFL finals format with double chances for the top four.
+- Finals series are simulated using season-specific AFL finals formats:
+  - pre-2026: standard top-8
+  - 2026 onward: top-10 with `Wildcard Finals`, then `Finals Week 2`
 - Combined mode uses:
   - win probabilities and win-rating updates from win ELO model
   - margin updates from margin ELO model
@@ -343,7 +346,7 @@ The application includes an interactive ELO chart that displays team strength ra
 - **Multi-Team Selection**: Toggle multiple teams via legend or chart lines
 - **Enhanced Hover Tooltips**: Display team ratings plus game results (opponent, score, outcome)
 - **Interactive Controls**: Automatic updates and responsive design
-- **Finals Week Consolidation**: `Elimination Final` and `Qualifying Final` share one x-axis/round slot as `Finals Week 1`
+- **Finals Week Consolidation**: `Elimination Final` and `Qualifying Final` share one x-axis/round slot as `Finals Week 2`
 
 
 ### Usage

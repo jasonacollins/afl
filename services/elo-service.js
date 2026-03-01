@@ -5,6 +5,21 @@ const { logger } = require('../utils/logger');
 const { getQuery } = require('../models/db');
 
 const MIN_CHART_YEAR = 2000;
+const FINALS_WEEK_1_LABEL = 'Finals Week 2';
+const FINALS_WEEK_1_ROUNDS = new Set(['Elimination Final', 'Qualifying Final']);
+const FINALS_ORDER = {
+  'Wildcard Finals': 99,
+  'Wildcard Round': 99, // Backward compatibility
+  'Elimination Final': 100,
+  'Qualifying Final': 100,
+  'Semi Final': 101,
+  'Preliminary Final': 102,
+  'Grand Final': 103
+};
+
+function isFinalsWeek1Round(round) {
+  return FINALS_WEEK_1_ROUNDS.has(round);
+}
 
 /**
  * Service for processing and serving ELO rating data
@@ -262,7 +277,7 @@ class EloService {
     sortedYearRounds.forEach((yearRoundKey) => {
       const [year, round] = yearRoundKey.split('-', 2);
       const currentYear = parseInt(year);
-      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
+      const isFinalsWeek1 = isFinalsWeek1Round(round);
 
       // Check for season change
       if (previousYear !== null && currentYear !== previousYear) {
@@ -325,8 +340,8 @@ class EloService {
       yearPositions.set(currentYear, yearPositions.get(currentYear) + 1);
 
       // Determine display label for round
-      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
-      const roundLabel = isFinalsWeek1 ? 'Finals Week 1' : round;
+      const isFinalsWeek1 = isFinalsWeek1Round(round);
+      const roundLabel = isFinalsWeek1 ? FINALS_WEEK_1_LABEL : round;
 
       // Create "before" data point - only for teams that play in this round
       const beforePoint = {
@@ -474,20 +489,12 @@ class EloService {
     if (roundB === 'OR' && roundA !== 'OR') return 1;
     if (roundA === 'OR' && roundB === 'OR') return 0;
 
-    const finalsOrder = {
-      'Elimination Final': 100,
-      'Qualifying Final': 100, // Same as Elimination Final (Finals Week 1)
-      'Semi Final': 101,
-      'Preliminary Final': 102,
-      'Grand Final': 103
-    };
-
     // Handle finals
-    if (finalsOrder[roundA] !== undefined && finalsOrder[roundB] !== undefined) {
-      return finalsOrder[roundA] - finalsOrder[roundB];
+    if (FINALS_ORDER[roundA] !== undefined && FINALS_ORDER[roundB] !== undefined) {
+      return FINALS_ORDER[roundA] - FINALS_ORDER[roundB];
     }
-    if (finalsOrder[roundA] !== undefined) return 1;
-    if (finalsOrder[roundB] !== undefined) return -1;
+    if (FINALS_ORDER[roundA] !== undefined) return 1;
+    if (FINALS_ORDER[roundB] !== undefined) return -1;
 
     // Handle regular season rounds (numbers)
     const numA = parseInt(roundA);
@@ -563,7 +570,7 @@ class EloService {
     let previousFinalsWeek1 = false;
 
     sortedRounds.forEach((round) => {
-      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
+      const isFinalsWeek1 = isFinalsWeek1Round(round);
 
       if (isFinalsWeek1) {
         if (!previousFinalsWeek1) {
@@ -621,8 +628,8 @@ class EloService {
       const teamsInThisRound = new Set(roundMatches.map(match => match.team));
 
       // Determine display label for round
-      const isFinalsWeek1 = round === 'Elimination Final' || round === 'Qualifying Final';
-      const roundLabel = isFinalsWeek1 ? 'Finals Week 1' : round;
+      const isFinalsWeek1 = isFinalsWeek1Round(round);
+      const roundLabel = isFinalsWeek1 ? FINALS_WEEK_1_LABEL : round;
 
       // Create "before" data point - only for teams that play in this round
       const beforePoint = {
@@ -716,6 +723,9 @@ class EloService {
     switch (currentRound) {
       case 'OR':
         return '1';
+      case 'Wildcard Finals':
+      case 'Wildcard Round':
+        return 'Elimination Final';
       case 'Elimination Final':
         return 'Qualifying Final';
       case 'Qualifying Final':
@@ -737,27 +747,17 @@ class EloService {
    * @returns {Array} Sorted rounds
    */
   sortRounds(rounds) {
-    // Define the order for finals
-    const finalsOrder = {
-      'OR': 0,
-      'Elimination Final': 100,
-      'Qualifying Final': 100, // Same as Elimination Final (Finals Week 1)
-      'Semi Final': 101,
-      'Preliminary Final': 102,
-      'Grand Final': 103
-    };
-
     return rounds.sort((a, b) => {
       // Handle pre-season/opening round
       if (a === 'OR') return -1;
       if (b === 'OR') return 1;
 
       // Handle finals
-      if (finalsOrder[a] !== undefined && finalsOrder[b] !== undefined) {
-        return finalsOrder[a] - finalsOrder[b];
+      if (FINALS_ORDER[a] !== undefined && FINALS_ORDER[b] !== undefined) {
+        return FINALS_ORDER[a] - FINALS_ORDER[b];
       }
-      if (finalsOrder[a] !== undefined) return 1;
-      if (finalsOrder[b] !== undefined) return -1;
+      if (FINALS_ORDER[a] !== undefined) return 1;
+      if (FINALS_ORDER[b] !== undefined) return -1;
 
       // Handle regular season rounds (numbers)
       const numA = parseInt(a);
