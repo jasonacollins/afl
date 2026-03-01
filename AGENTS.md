@@ -57,6 +57,8 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Logged-in users see `Predictor page` (`/predictions`) in nav; admins additionally see `Admin panel` (`/admin`)
 - `/admin/scripts` is the admin-only scripts runner for operational and training jobs
 - Homepage uses one featured predictor selected in admin (no model selector on `/`).
+- Round selectors merge `Elimination Final` + `Qualifying Final` into `Finals Week 1` across `/elo`, `/`, `/predictions`, and `/matches/stats`.
+- Grouped round labels are display-only; data queries must expand `Finals Week 1` back to both source rounds.
 
 **Startup Behavior**:
 - Server startup runs `initializeDatabase()` before listening to ensure required schema and migrations exist.

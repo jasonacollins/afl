@@ -30,6 +30,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 - **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted logs/history
 - **Featured Predictor System**: Homepage shows one admin-selected model with performance metrics and round predictions
+- **Unified Finals Week 1 Display**: `Elimination Final` and `Qualifying Final` are grouped as `Finals Week 1` on `/elo`, `/`, `/predictions`, and `/matches/stats`
 
 ## Page Structure
 
@@ -342,6 +343,7 @@ The application includes an interactive ELO chart that displays team strength ra
 - **Multi-Team Selection**: Toggle multiple teams via legend or chart lines
 - **Enhanced Hover Tooltips**: Display team ratings plus game results (opponent, score, outcome)
 - **Interactive Controls**: Automatic updates and responsive design
+- **Finals Week Consolidation**: `Elimination Final` and `Qualifying Final` share one x-axis/round slot as `Finals Week 1`
 
 
 ### Usage
