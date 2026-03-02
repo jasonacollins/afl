@@ -30,7 +30,10 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
 - **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted logs/history
 - **Featured Predictor System**: Homepage shows one admin-selected model with performance metrics and round predictions
-- **Unified Finals Week 2 Display**: `Elimination Final` and `Qualifying Final` are grouped as `Finals Week 2` on `/elo`, `/`, `/predictions`, and `/matches/stats`
+- **Unified Finals Week Display**: `Elimination Final` and `Qualifying Final` are grouped into one selector slot:
+  - pre-2026 seasons: `Finals Week 1`
+  - 2026 onward: `Finals Week 2`
+  This grouped display is used on `/elo`, `/`, `/predictions`, and `/matches/stats`.
 - **Wildcard Finals Support (2026+)**: round selectors include `Wildcard Finals` even when no wildcard fixtures are currently assigned
 
 ## Page Structure
@@ -365,7 +368,9 @@ The application includes an interactive ELO chart that displays team strength ra
 - **Multi-Team Selection**: Toggle multiple teams via legend or chart lines
 - **Enhanced Hover Tooltips**: Display team ratings plus game results (opponent, score, outcome)
 - **Interactive Controls**: Automatic updates and responsive design
-- **Finals Week Consolidation**: `Elimination Final` and `Qualifying Final` share one x-axis/round slot as `Finals Week 2`
+- **Finals Week Consolidation**: `Elimination Final` and `Qualifying Final` share one x-axis/round slot:
+  - pre-2026 seasons: `Finals Week 1`
+  - 2026 onward: `Finals Week 2`
 
 
 ### Usage

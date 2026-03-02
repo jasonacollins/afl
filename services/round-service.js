@@ -3,6 +3,7 @@ const { getQuery } = require('../models/db');
 const { AppError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 
+const WILDCARD_FINALS_START_YEAR = 2026;
 const FINALS_WEEK_2_LABEL = 'Finals Week 2';
 const LEGACY_FINALS_WEEK_1_LABEL = 'Finals Week 1';
 const FINALS_WEEK_2_ROUNDS = ['Elimination Final', 'Qualifying Final'];
@@ -39,6 +40,37 @@ const ROUND_ORDER_SQL = `
     ELSE ${ROUND_ORDER.default_final}
   END
 `;
+
+function getFinalsWeekDisplayLabel(options = {}) {
+  const { year = null, rounds = null, requestedRound = null } = options;
+  const parsedYear = parseYear(year);
+  if (parsedYear !== null) {
+    return parsedYear >= WILDCARD_FINALS_START_YEAR
+      ? FINALS_WEEK_2_LABEL
+      : LEGACY_FINALS_WEEK_1_LABEL;
+  }
+
+  if (Array.isArray(rounds) && rounds.length > 0) {
+    const hasWildcardRound = rounds.some((roundObj) => {
+      const roundNumber = typeof roundObj === 'string'
+        ? roundObj
+        : roundObj?.round_number;
+      return WILDCARD_FINALS_SOURCE_ROUNDS.includes(roundNumber);
+    });
+
+    if (hasWildcardRound) {
+      return FINALS_WEEK_2_LABEL;
+    }
+
+    return LEGACY_FINALS_WEEK_1_LABEL;
+  }
+
+  if (requestedRound === LEGACY_FINALS_WEEK_1_LABEL) {
+    return LEGACY_FINALS_WEEK_1_LABEL;
+  }
+
+  return FINALS_WEEK_2_LABEL;
+}
 
 // Get all rounds for a specific year
 async function getRoundsForYear(year) {
@@ -140,13 +172,13 @@ async function resolveYear(requestedYear, options = {}) {
 }
 
 // Get round display name
-function getRoundDisplayName(roundNumber) {
+function getRoundDisplayName(roundNumber, year = null) {
   if (roundNumber === 'OR') {
     return 'Opening Round';
   } else if (WILDCARD_FINALS_SOURCE_ROUNDS.includes(roundNumber)) {
     return WILDCARD_FINALS_LABEL;
   } else if (roundNumber === FINALS_WEEK_2_LABEL || roundNumber === LEGACY_FINALS_WEEK_1_LABEL) {
-    return FINALS_WEEK_2_LABEL;
+    return getFinalsWeekDisplayLabel({ year, requestedRound: roundNumber });
   } else if (ROUND_ORDER[roundNumber]) {
     return roundNumber;
   } else {
@@ -158,7 +190,7 @@ function isFinalsWeek1Round(roundNumber) {
   return FINALS_WEEK_2_ROUNDS.includes(roundNumber);
 }
 
-function normalizeRoundForDisplay(roundNumber) {
+function normalizeRoundForDisplay(roundNumber, year = null) {
   if (!roundNumber) {
     return roundNumber;
   }
@@ -172,7 +204,7 @@ function normalizeRoundForDisplay(roundNumber) {
     roundNumber === LEGACY_FINALS_WEEK_1_LABEL ||
     isFinalsWeek1Round(roundNumber)
   ) {
-    return FINALS_WEEK_2_LABEL;
+    return getFinalsWeekDisplayLabel({ year, requestedRound: roundNumber });
   }
 
   return roundNumber;
@@ -214,11 +246,12 @@ function expandRoundSelection(roundSelection, availableRounds = null) {
   return [roundSelection];
 }
 
-function combineRoundsForDisplay(rounds) {
+function combineRoundsForDisplay(rounds, year = null) {
   if (!Array.isArray(rounds) || rounds.length === 0) {
     return [];
   }
 
+  const finalsWeekDisplayLabel = getFinalsWeekDisplayLabel({ year, rounds });
   const finalsWeek1Rows = rounds.filter(roundObj => isFinalsWeek1Round(roundObj.round_number));
   const finalsWeek1RoundNumbers = finalsWeek1Rows.map(roundObj => roundObj.round_number);
   let finalsWeek1Added = false;
@@ -241,7 +274,7 @@ function combineRoundsForDisplay(rounds) {
     }
 
     if (!isFinalsWeek1Round(roundObj.round_number)) {
-      const displayRound = normalizeRoundForDisplay(roundObj.round_number);
+      const displayRound = normalizeRoundForDisplay(roundObj.round_number, year);
       if (emittedDisplayRounds.has(displayRound)) {
         return accumulator;
       }
@@ -263,7 +296,7 @@ function combineRoundsForDisplay(rounds) {
 
     const combinedRound = {
       ...roundObj,
-      round_number: FINALS_WEEK_2_LABEL,
+      round_number: finalsWeekDisplayLabel,
       source_round_numbers: finalsWeek1RoundNumbers.length > 0
         ? finalsWeek1RoundNumbers
         : [...FINALS_WEEK_2_ROUNDS]
@@ -279,7 +312,7 @@ function combineRoundsForDisplay(rounds) {
 }
 
 module.exports = {
-  FINALS_WEEK_1_LABEL: FINALS_WEEK_2_LABEL, // Backward compatibility export
+  FINALS_WEEK_1_LABEL: LEGACY_FINALS_WEEK_1_LABEL,
   FINALS_WEEK_1_ROUNDS: FINALS_WEEK_2_ROUNDS, // Backward compatibility export
   FINALS_WEEK_2_LABEL,
   FINALS_WEEK_2_ROUNDS,

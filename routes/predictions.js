@@ -65,13 +65,13 @@ router.get('/', catchAsync(async (req, res) => {
     };
   });
 
-  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus);
+  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus, selectedYear);
   const currentRoundObj = rounds.find(round => !round.isCompleted);
   const currentRound = currentRoundObj ? currentRoundObj.round_number : null;
   
   // Resolve default selected round based on fixture dates/results rather than the `complete` flag.
   // This is more reliable when new-season fixtures are imported before Squiggle updates completion values.
-  let selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null);
+  let selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null, selectedYear);
   if (!selectedRound) {
     const currentDate = new Date();
     let nextUpcomingMatch = null;
@@ -100,7 +100,7 @@ router.get('/', catchAsync(async (req, res) => {
     }
 
     if (nextUpcomingMatch) {
-      selectedRound = roundService.normalizeRoundForDisplay(nextUpcomingMatch.round_number);
+      selectedRound = roundService.normalizeRoundForDisplay(nextUpcomingMatch.round_number, selectedYear);
     } else {
       // Second priority: most recently completed round.
       let mostRecentCompletedMatch = null;
@@ -124,7 +124,7 @@ router.get('/', catchAsync(async (req, res) => {
       }
 
       if (mostRecentCompletedMatch) {
-        selectedRound = roundService.normalizeRoundForDisplay(mostRecentCompletedMatch.round_number);
+        selectedRound = roundService.normalizeRoundForDisplay(mostRecentCompletedMatch.round_number, selectedYear);
       }
     }
   }
@@ -169,8 +169,8 @@ router.get('/', catchAsync(async (req, res) => {
 
 // Get matches for a specific round (AJAX)
 router.get('/round/:round', catchAsync(async (req, res) => {
-  const round = roundService.normalizeRoundForDisplay(req.params.round);
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
+  const round = roundService.normalizeRoundForDisplay(req.params.round, year);
   
   const matches = await matchService.getMatchesByRoundSelectionAndYear(round, year);
   const processedMatches = matchService.processMatchLockStatus(matches);

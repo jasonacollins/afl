@@ -90,8 +90,8 @@ const ensureDefaultPredictions = catchAsync(async (selectedYear) => {
 
 // Get all matches
 router.get('/round/:round', catchAsync(async (req, res) => {
-  const round = roundService.normalizeRoundForDisplay(req.params.round);
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
+  const round = roundService.normalizeRoundForDisplay(req.params.round, year);
   
   logger.debug(`Fetching matches for round ${round}, year ${year}`);
   
@@ -121,7 +121,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   });
   
   // Get round parameter for round-by-round stats
-  const selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null);
+  const selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null, selectedYear);
   
   logger.info(`Stats page accessed by user ${req.session.user.id} for year ${selectedYear}${selectedRound ? `, round ${selectedRound}` : ''}`);
   
@@ -165,12 +165,12 @@ router.get('/stats', catchAsync(async (req, res) => {
       isCompleted: allMatchesCompleted
     };
   });
-  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus);
+  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus, selectedYear);
   
   // Get the most recent round with results for default selection
   const mostRecentRound = await matchService.getMostRecentRoundWithResults();
   const defaultRound = mostRecentRound && mostRecentRound.year === selectedYear
-    ? roundService.normalizeRoundForDisplay(mostRecentRound.round)
+    ? roundService.normalizeRoundForDisplay(mostRecentRound.round, selectedYear)
     : null;
   
   // Ensure all predictors have predictions for completed matches
@@ -436,11 +436,11 @@ router.get('/stats', catchAsync(async (req, res) => {
 // AJAX route for round statistics
 router.get('/stats/round/:round', catchAsync(async (req, res) => {
   const startTime = Date.now();
-  const roundNumber = roundService.normalizeRoundForDisplay(req.params.round);
   
   const { selectedYear } = await roundService.resolveYear(req.query.year, {
     minYear: 2022
   });
+  const roundNumber = roundService.normalizeRoundForDisplay(req.params.round, selectedYear);
   
   logger.info(`AJAX round stats requested by user ${req.session.user.id} for year ${selectedYear}, round ${roundNumber}`);
   

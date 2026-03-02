@@ -5,7 +5,9 @@ const { logger } = require('../utils/logger');
 const { getQuery } = require('../models/db');
 
 const MIN_CHART_YEAR = 2000;
-const FINALS_WEEK_1_LABEL = 'Finals Week 2';
+const WILDCARD_FINALS_START_YEAR = 2026;
+const FINALS_WEEK_2_LABEL = 'Finals Week 2';
+const LEGACY_FINALS_WEEK_1_LABEL = 'Finals Week 1';
 const FINALS_WEEK_1_ROUNDS = new Set(['Elimination Final', 'Qualifying Final']);
 const FINALS_ORDER = {
   'Wildcard Finals': 99,
@@ -19,6 +21,15 @@ const FINALS_ORDER = {
 
 function isFinalsWeek1Round(round) {
   return FINALS_WEEK_1_ROUNDS.has(round);
+}
+
+function getFinalsWeekDisplayLabel(year) {
+  const parsedYear = parseInt(year, 10);
+  if (!Number.isNaN(parsedYear) && parsedYear >= WILDCARD_FINALS_START_YEAR) {
+    return FINALS_WEEK_2_LABEL;
+  }
+
+  return LEGACY_FINALS_WEEK_1_LABEL;
 }
 
 /**
@@ -341,7 +352,7 @@ class EloService {
 
       // Determine display label for round
       const isFinalsWeek1 = isFinalsWeek1Round(round);
-      const roundLabel = isFinalsWeek1 ? FINALS_WEEK_1_LABEL : round;
+      const roundLabel = isFinalsWeek1 ? getFinalsWeekDisplayLabel(currentYear) : round;
 
       // Create "before" data point - only for teams that play in this round
       const beforePoint = {
@@ -629,7 +640,7 @@ class EloService {
 
       // Determine display label for round
       const isFinalsWeek1 = isFinalsWeek1Round(round);
-      const roundLabel = isFinalsWeek1 ? FINALS_WEEK_1_LABEL : round;
+      const roundLabel = isFinalsWeek1 ? getFinalsWeekDisplayLabel(year) : round;
 
       // Create "before" data point - only for teams that play in this round
       const beforePoint = {

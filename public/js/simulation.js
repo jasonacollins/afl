@@ -26,6 +26,7 @@
     const roundSnapshotNav = document.getElementById('round-snapshot-nav');
     const roundTabsContainer = document.getElementById('round-tabs');
     const roundSnapshotContext = document.getElementById('round-snapshot-context');
+    const finalsWeekHeader = document.getElementById('finals-week-header');
 
     // Color palette for probability visualization (low → high)
     const PROBABILITY_COLOR_STOPS = [
@@ -163,6 +164,7 @@
         // Update page title
         document.getElementById('simulation-title').textContent =
             `${simulationData.year} AFL Season Simulation`;
+        updateFinalsWeekColumnLabel(simulationData.year);
 
         initializeRoundSnapshots();
         renderRoundTabs();
@@ -173,6 +175,16 @@
         }
 
         displayActiveSnapshot();
+    }
+
+    function updateFinalsWeekColumnLabel(year) {
+        if (!finalsWeekHeader) {
+            return;
+        }
+
+        finalsWeekHeader.textContent = Number(year) >= 2026
+            ? 'Finals Week 2'
+            : 'Finals Week 1';
     }
 
     function initializeRoundSnapshots() {

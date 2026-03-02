@@ -80,8 +80,9 @@ router.get('/', catchAsync(async (req, res) => {
   // Get all predictors
   const predictors = await predictorService.getAllPredictors();
   
-  // Get all rounds for the selected year
-  const rounds = await roundService.getRoundsForYear(selectedYear);
+  // Get all rounds for the selected year with grouped finals display labels
+  const rawRounds = await roundService.getRoundsForYear(selectedYear);
+  const rounds = roundService.combineRoundsForDisplay(rawRounds, selectedYear);
   
   // Get featured predictor ID
   const featuredPredictionsService = require('../services/featured-predictions');

@@ -57,9 +57,10 @@ describe('Round Service', () => {
       expect(getRoundDisplayName('Wildcard Round')).toBe('Wildcard Finals');
     });
 
-    test('should return Finals Week 2 label for grouped finals round', () => {
-      expect(getRoundDisplayName(FINALS_WEEK_1_LABEL)).toBe(FINALS_WEEK_1_LABEL);
-      expect(FINALS_WEEK_1_LABEL).toBe('Finals Week 2');
+    test('should return year-aware label for grouped finals round', () => {
+      expect(getRoundDisplayName('Finals Week 1', 2025)).toBe('Finals Week 1');
+      expect(getRoundDisplayName('Finals Week 2', 2026)).toBe('Finals Week 2');
+      expect(getRoundDisplayName('Finals Week 2', 2025)).toBe('Finals Week 1');
     });
 
     test('should return "Round X" for a numeric round number', () => {
@@ -127,7 +128,7 @@ describe('Round Service', () => {
     });
 
     test('Finals week and wildcard constants should be exported correctly', () => {
-      expect(FINALS_WEEK_1_LABEL).toBe('Finals Week 2');
+      expect(FINALS_WEEK_1_LABEL).toBe('Finals Week 1');
       expect(FINALS_WEEK_2_LABEL).toBe('Finals Week 2');
       expect(FINALS_WEEK_1_ROUNDS).toEqual(['Elimination Final', 'Qualifying Final']);
       expect(FINALS_WEEK_2_ROUNDS).toEqual(['Elimination Final', 'Qualifying Final']);
@@ -143,10 +144,12 @@ describe('Round Service', () => {
   });
 
   describe('finals week round helpers', () => {
-    test('normalizeRoundForDisplay should map finals week rounds to Finals Week 2', () => {
-      expect(normalizeRoundForDisplay('Elimination Final')).toBe(FINALS_WEEK_1_LABEL);
-      expect(normalizeRoundForDisplay('Qualifying Final')).toBe(FINALS_WEEK_1_LABEL);
-      expect(normalizeRoundForDisplay('Finals Week 1')).toBe(FINALS_WEEK_1_LABEL);
+    test('normalizeRoundForDisplay should map finals week rounds using season year', () => {
+      expect(normalizeRoundForDisplay('Elimination Final', 2025)).toBe('Finals Week 1');
+      expect(normalizeRoundForDisplay('Qualifying Final', 2025)).toBe('Finals Week 1');
+      expect(normalizeRoundForDisplay('Elimination Final', 2026)).toBe('Finals Week 2');
+      expect(normalizeRoundForDisplay('Qualifying Final', 2026)).toBe('Finals Week 2');
+      expect(normalizeRoundForDisplay('Finals Week 2', 2025)).toBe('Finals Week 1');
       expect(normalizeRoundForDisplay('Wildcard Round')).toBe('Wildcard Finals');
       expect(normalizeRoundForDisplay('Wildcard Finals')).toBe('Wildcard Finals');
       expect(normalizeRoundForDisplay('Semi Final')).toBe('Semi Final');
@@ -161,7 +164,7 @@ describe('Round Service', () => {
       expect(expandRoundSelection('Semi Final')).toEqual(['Semi Final']);
     });
 
-    test('combineRoundsForDisplay should merge elimination and qualifying finals', () => {
+    test('combineRoundsForDisplay should merge elimination and qualifying finals for 2026+', () => {
       const rounds = [
         { round_number: '24', isCompleted: true },
         { round_number: 'Wildcard Finals', isCompleted: true },
@@ -170,11 +173,32 @@ describe('Round Service', () => {
         { round_number: 'Semi Final', isCompleted: false }
       ];
 
-      const result = combineRoundsForDisplay(rounds);
+      const result = combineRoundsForDisplay(rounds, 2026);
 
       expect(result).toEqual([
         { round_number: '24', isCompleted: true, source_round_numbers: ['24'] },
         { round_number: 'Wildcard Finals', isCompleted: true, source_round_numbers: ['Wildcard Finals', 'Wildcard Round'], isSynthetic: false },
+        {
+          round_number: FINALS_WEEK_2_LABEL,
+          isCompleted: false,
+          source_round_numbers: FINALS_WEEK_1_ROUNDS
+        },
+        { round_number: 'Semi Final', isCompleted: false, source_round_numbers: ['Semi Final'] }
+      ]);
+    });
+
+    test('combineRoundsForDisplay should use Finals Week 1 before wildcard era', () => {
+      const rounds = [
+        { round_number: '24', isCompleted: true },
+        { round_number: 'Elimination Final', isCompleted: true },
+        { round_number: 'Qualifying Final', isCompleted: false },
+        { round_number: 'Semi Final', isCompleted: false }
+      ];
+
+      const result = combineRoundsForDisplay(rounds, 2025);
+
+      expect(result).toEqual([
+        { round_number: '24', isCompleted: true, source_round_numbers: ['24'] },
         {
           round_number: FINALS_WEEK_1_LABEL,
           isCompleted: false,
