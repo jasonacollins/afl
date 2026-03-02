@@ -33,6 +33,11 @@ document.addEventListener('DOMContentLoaded', function() {
   updateRoundButtonStates();
 });
 
+function getCsrfToken() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  return meta ? meta.getAttribute('content') : '';
+}
+
 // Update match list for selected round via AJAX
 function fetchMatchesForRound(round) {
   // Get the current year from the URL or use the selected year
@@ -556,12 +561,20 @@ function savePrediction(matchId, probability, button) {
   const originalButtonText = button.textContent; // Store current text before "Saving..."
   button.textContent = isDeleting ? 'Clearing...' : 'Saving...';
   button.disabled = true;
+
+  const csrfToken = getCsrfToken();
+  if (!csrfToken) {
+    alert('Security token missing. Please refresh the page and try again.');
+    button.textContent = originalButtonText;
+    button.disabled = false;
+    return;
+  }
   
   fetch('/predictions/save', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-CSRF-Token': window.csrfToken
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({
       matchId: matchId,
