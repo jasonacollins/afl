@@ -106,7 +106,7 @@ describe('Featured Predictions Service', () => {
       ];
 
       predictorService.getPredictorById.mockResolvedValue(mockPredictor);
-      matchService.getMatchesByRoundAndYear.mockResolvedValue(mockMatches);
+      matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue(mockMatches);
       predictionService.getPredictionsForUser.mockResolvedValue(mockPredictions);
       
       // Mock scoring calculations

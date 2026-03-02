@@ -1,4 +1,5 @@
-const fetch = require('node-fetch');
+// node-fetch v3 is ESM-only; use dynamic import for CommonJS scripts.
+const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 const { getQuery, getOne, runQuery, initializeDatabase } = require('../../models/db');
 const fs = require('fs');
 const path = require('path');
