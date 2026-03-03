@@ -7,7 +7,7 @@ const roundService = require('../services/round-service');
 const matchService = require('../services/match-service');
 const predictionService = require('../services/prediction-service');
 const predictorService = require('../services/predictor-service');
-const { catchAsync, createValidationError, createNotFoundError } = require('../utils/error-handler');
+const { catchAsync } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 
 // Require authentication for all matches routes

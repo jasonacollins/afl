@@ -1,15 +1,12 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
 const router = express.Router();
 const { getQuery, getOne, runQuery } = require('../models/db');
 const { isAuthenticated, isAdmin } = require('./auth');
-const sqlite3 = require('sqlite3').verbose();
 const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');
-const matchService = require('../services/match-service');
 const predictionService = require('../services/prediction-service');
 const predictorService = require('../services/predictor-service');
-const passwordService = require('../services/password-service'); // ADD THIS LINE
+const passwordService = require('../services/password-service');
 const { catchAsync, createValidationError, createNotFoundError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const multer = require('multer');

@@ -1,5 +1,5 @@
 // services/match-service.js
-const { getQuery, getOne, runQuery } = require('../models/db');
+const { getQuery, getOne } = require('../models/db');
 const { AppError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const roundService = require('./round-service');
@@ -33,27 +33,6 @@ async function getMatchesWithTeams(whereClause = '', params = []) {
       params
     });
     throw new AppError('Failed to fetch matches', 500, 'DATABASE_ERROR');
-  }
-}
-
-// Get matches for specific round and year
-async function getMatchesByRoundAndYear(round, year) {
-  try {
-    logger.debug(`Fetching matches for round ${round}, year ${year}`);
-    
-    const matches = await getMatchesWithTeams(
-      'WHERE m.round_number = ? AND m.year = ? ORDER BY m.match_date',
-      [round, year]
-    );
-    
-    return matches;
-  } catch (error) {
-    logger.error('Error fetching matches by round and year', { 
-      error: error.message,
-      round,
-      year
-    });
-    throw error; // Re-throw the error from getMatchesWithTeams
   }
 }
 
@@ -154,29 +133,6 @@ function processMatchLockStatus(matches) {
   return processedMatches;
 }
 
-// Get completed matches for a specific round and year
-async function getCompletedMatchesForRound(year, round) {
-  try {
-    logger.debug(`Fetching completed matches for year ${year}, round ${round}`);
-    
-    const matches = await getMatchesWithTeams(
-      'WHERE m.hscore IS NOT NULL AND m.ascore IS NOT NULL AND m.year = ? AND m.round_number = ? ORDER BY m.match_date DESC',
-      [year, round]
-    );
-    
-    logger.info(`Found ${matches.length} completed matches for year ${year}, round ${round}`);
-    
-    return matches;
-  } catch (error) {
-    logger.error('Error fetching completed matches for round', { 
-      error: error.message,
-      year,
-      round
-    });
-    throw error;
-  }
-}
-
 // Get completed matches for a display round selection and year.
 // Supports grouped selections like "Finals Week 1".
 async function getCompletedMatchesForRoundSelection(year, roundSelection) {
@@ -246,10 +202,8 @@ async function getMostRecentRoundWithResults() {
 
 module.exports = {
   getMatchesWithTeams,
-  getMatchesByRoundAndYear,
   getMatchesByRoundSelectionAndYear,
   getCompletedMatchesForYear,
-  getCompletedMatchesForRound,
   getCompletedMatchesForRoundSelection,
   getMostRecentRoundWithResults,
   processMatchLockStatus

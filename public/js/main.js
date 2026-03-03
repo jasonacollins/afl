@@ -630,17 +630,6 @@ function savePrediction(matchId, probability, button) {
   });
 }
 
-// Helper to get prediction value from page data
-function getPredictionValue(matchId) {
-  if (window.userPredictions && window.userPredictions[matchId] !== undefined) {
-    if (typeof window.userPredictions[matchId] === 'object') {
-      return window.userPredictions[matchId].probability || '';
-    }
-    return window.userPredictions[matchId];
-  }
-  return '';
-}
-
 // Update stored prediction
 function updateStoredPrediction(matchId, value, tippedTeam) {
   if (!window.userPredictions) {

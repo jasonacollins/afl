@@ -20,7 +20,6 @@ const csrfProtection = require('./middleware/csrf');
 
 // Import services
 const roundService = require('./services/round-service');
-const matchService = require('./services/match-service');
 const adminScriptRunner = require('./services/admin-script-runner');
 
 // Import routes
@@ -441,31 +440,6 @@ app.get('/api/predictor-stats', catchAsync(async (req, res) => {
   };
   
   res.json({ success: true, stats: stats });
-}));
-
-// Featured predictions route for AJAX updates
-app.get('/featured-predictions/:round', catchAsync(async (req, res) => {
-  const round = req.params.round;
-  const { selectedYear: year } = await roundService.resolveYear(req.query.year);
-  const predictorId = req.query.predictorId;
-  
-  const featuredPredictionsService = require('./services/featured-predictions');
-  
-  // If no predictor ID is provided, use the default featured predictor
-  let targetPredictorId = predictorId;
-  if (!targetPredictorId) {
-    const defaultFeaturedPredictor = await featuredPredictionsService.getDefaultFeaturedPredictor();
-    targetPredictorId = defaultFeaturedPredictor?.predictor_id;
-  }
-  
-  const { predictor, matches, predictions } = 
-    await featuredPredictionsService.getPredictionsForRound(targetPredictorId, round, year);
-  
-  res.json({
-    predictor,
-    matches,
-    predictions
-  });
 }));
 
 // Season simulation page route

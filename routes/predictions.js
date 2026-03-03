@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getQuery, getOne, runQuery } = require('../models/db');
+const { getQuery, getOne } = require('../models/db');
 const { isAuthenticated } = require('./auth');
 const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');

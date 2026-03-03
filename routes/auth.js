@@ -1,11 +1,9 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const router = express.Router();
-const { getOne, runQuery } = require('../models/db');
 const predictorService = require('../services/predictor-service');
 const roundService = require('../services/round-service');
-const matchService = require('../services/match-service');
-const { catchAsync, createValidationError, createUnauthorizedError } = require('../utils/error-handler');
+const { catchAsync } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 
 // Add rate limiting

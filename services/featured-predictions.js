@@ -1,9 +1,8 @@
 // services/featured-predictions.js
-const { getQuery, getOne, runQuery } = require('../models/db');
+const { getQuery, getOne } = require('../models/db');
 const { AppError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const matchService = require('./match-service');
-const roundService = require('./round-service');
 const predictionService = require('./prediction-service');
 const predictorService = require('./predictor-service');
 const scoringService = require('../services/scoring-service');
