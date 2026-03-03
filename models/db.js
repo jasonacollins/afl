@@ -1,3 +1,4 @@
+const fs = require('fs').promises;
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcrypt');
@@ -5,6 +6,8 @@ const { logger } = require('../utils/logger');
 
 // Database path
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database/afl_predictions.db');
+const projectRoot = path.join(__dirname, '..');
+const adminScriptLogsArchiveDir = path.join(projectRoot, 'logs', 'admin-scripts', 'archive');
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     logger.error('Error connecting to database', { error: err.message, path: dbPath });
@@ -112,6 +115,181 @@ async function initializeDatabase() {
       }
     };
 
+    const getPragmaNumber = async (pragmaName) => {
+      const row = await getOne(`PRAGMA ${pragmaName}`);
+      if (!row) {
+        return null;
+      }
+
+      const values = Object.values(row);
+      if (values.length === 0) {
+        return null;
+      }
+
+      const parsed = Number(values[0]);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const buildBackupPath = (tag) => {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      return path.join(path.dirname(dbPath), 'backups', `${tag}_${timestamp}.db`);
+    };
+
+    const exportAdminScriptRunLogsArchive = async () => {
+      if (!(await tableExists('admin_script_run_logs'))) {
+        return { filesWritten: 0, rowsArchived: 0 };
+      }
+
+      const rows = await getQuery(
+        `SELECT run_id, seq, stream, message, created_at
+         FROM admin_script_run_logs
+         ORDER BY run_id ASC, seq ASC`
+      );
+
+      if (rows.length === 0) {
+        return { filesWritten: 0, rowsArchived: 0 };
+      }
+
+      await fs.mkdir(adminScriptLogsArchiveDir, { recursive: true });
+
+      const groupedByRun = new Map();
+      for (const row of rows) {
+        if (!groupedByRun.has(row.run_id)) {
+          groupedByRun.set(row.run_id, []);
+        }
+        groupedByRun.get(row.run_id).push(row);
+      }
+
+      let filesWritten = 0;
+      for (const [runId, runRows] of groupedByRun.entries()) {
+        const archivePath = path.join(adminScriptLogsArchiveDir, `run-${runId}.ndjson`);
+        const payload = runRows
+          .map((entry) => JSON.stringify({
+            seq: entry.seq,
+            stream: entry.stream,
+            message: entry.message,
+            created_at: entry.created_at
+          }))
+          .join('\n');
+
+        await fs.writeFile(archivePath, `${payload}\n`, 'utf8');
+        filesWritten += 1;
+      }
+
+      return {
+        filesWritten,
+        rowsArchived: rows.length
+      };
+    };
+
+    const migrateAdminScriptLoggingIfNeeded = async () => {
+      const hasAdminRunsTable = await tableExists('admin_script_runs');
+      const hasRunLogsTable = await tableExists('admin_script_run_logs');
+
+      if (!hasAdminRunsTable && !hasRunLogsTable) {
+        return;
+      }
+
+      const hasParamsJson = await columnExists('admin_script_runs', 'params_json');
+      const hasCommandJson = await columnExists('admin_script_runs', 'command_json');
+      const hasLogPath = await columnExists('admin_script_runs', 'log_path');
+      const needsMigration = hasRunLogsTable || hasParamsJson || hasCommandJson || !hasLogPath;
+
+      if (!needsMigration) {
+        return;
+      }
+
+      const backupPath = buildBackupPath('admin_logging_migration_backup');
+      await fs.mkdir(path.dirname(backupPath), { recursive: true });
+      await fs.copyFile(dbPath, backupPath);
+      logger.info('Created database backup before admin logging migration', { backupPath });
+
+      const archiveResult = await exportAdminScriptRunLogsArchive();
+      logger.info('Archived admin script DB logs before migration', archiveResult);
+
+      const sourceHasLogPath = await columnExists('admin_script_runs', 'log_path');
+      const logPathSelect = sourceHasLogPath ? 'log_path' : 'NULL';
+
+      await runQuery('PRAGMA foreign_keys = OFF');
+      await runQuery('BEGIN TRANSACTION');
+      try {
+        await runQuery(`
+          CREATE TABLE admin_script_runs_new (
+            run_id INTEGER PRIMARY KEY,
+            script_key TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_by_predictor_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            started_at TEXT,
+            finished_at TEXT,
+            exit_code INTEGER,
+            error_message TEXT,
+            log_path TEXT,
+            FOREIGN KEY (created_by_predictor_id) REFERENCES predictors (predictor_id)
+          )
+        `);
+
+        if (hasAdminRunsTable) {
+          await runQuery(
+            `INSERT INTO admin_script_runs_new (
+              run_id,
+              script_key,
+              status,
+              created_by_predictor_id,
+              created_at,
+              started_at,
+              finished_at,
+              exit_code,
+              error_message,
+              log_path
+            )
+            SELECT
+              run_id,
+              script_key,
+              status,
+              created_by_predictor_id,
+              created_at,
+              started_at,
+              finished_at,
+              exit_code,
+              error_message,
+              ${logPathSelect}
+            FROM admin_script_runs`
+          );
+        }
+
+        await runQuery('DROP TABLE IF EXISTS admin_script_run_logs');
+        await runQuery('DROP TABLE IF EXISTS admin_script_runs');
+        await runQuery('ALTER TABLE admin_script_runs_new RENAME TO admin_script_runs');
+        await runQuery(
+          'CREATE INDEX IF NOT EXISTS idx_admin_script_runs_status_created ON admin_script_runs(status, created_at)'
+        );
+        await runQuery('COMMIT');
+      } catch (error) {
+        await runQuery('ROLLBACK');
+        throw error;
+      } finally {
+        await runQuery('PRAGMA foreign_keys = ON');
+      }
+
+      // Apply incremental auto-vacuum mode and reclaim dropped table pages immediately.
+      await runQuery('PRAGMA auto_vacuum = INCREMENTAL');
+      await runQuery('VACUUM');
+
+      logger.info('Completed admin script logging schema migration');
+    };
+
+    const ensureIncrementalAutoVacuum = async () => {
+      const autoVacuumMode = await getPragmaNumber('auto_vacuum');
+      if (autoVacuumMode === 2) {
+        return;
+      }
+
+      logger.info('Enabling SQLite incremental auto-vacuum mode');
+      await runQuery('PRAGMA auto_vacuum = INCREMENTAL');
+      await runQuery('VACUUM');
+    };
+
     // Core tables
     await runQuery(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -189,27 +367,14 @@ async function initializeDatabase() {
         run_id INTEGER PRIMARY KEY,
         script_key TEXT NOT NULL,
         status TEXT NOT NULL,
-        params_json TEXT NOT NULL,
-        command_json TEXT NOT NULL,
         created_by_predictor_id INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         started_at TEXT,
         finished_at TEXT,
         exit_code INTEGER,
         error_message TEXT,
+        log_path TEXT,
         FOREIGN KEY (created_by_predictor_id) REFERENCES predictors (predictor_id)
-      )
-    `);
-
-    await runQuery(`
-      CREATE TABLE IF NOT EXISTS admin_script_run_logs (
-        log_id INTEGER PRIMARY KEY,
-        run_id INTEGER NOT NULL,
-        seq INTEGER NOT NULL,
-        stream TEXT NOT NULL,
-        message TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (run_id) REFERENCES admin_script_runs (run_id)
       )
     `);
 
@@ -239,7 +404,8 @@ async function initializeDatabase() {
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_name ON venue_aliases(alias_name)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venues_state ON venues(state)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_admin_script_runs_status_created ON admin_script_runs(status, created_at)');
-    await runQuery('CREATE INDEX IF NOT EXISTS idx_admin_script_run_logs_run_seq ON admin_script_run_logs(run_id, seq)');
+
+    await migrateAdminScriptLoggingIfNeeded();
 
     // Legacy schema migrations for older databases
     await addColumnIfMissing('teams', 'colour_hex', 'TEXT');
@@ -275,6 +441,8 @@ async function initializeDatabase() {
     if (await tableExists('matches')) {
       await runQuery('UPDATE matches SET complete = 0 WHERE complete IS NULL');
     }
+
+    await ensureIncrementalAutoVacuum();
 
     logger.info('Database schema check completed');
   } catch (error) {

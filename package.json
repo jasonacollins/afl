@@ -9,6 +9,7 @@
     "import": "node scripts/automation/import-data.js",
     "sync-games": "node scripts/automation/sync-games.js",
     "daily-sync": "node scripts/automation/daily-sync.js",
+    "db-maintenance": "node scripts/automation/db-maintenance.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

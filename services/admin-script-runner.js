@@ -247,6 +247,33 @@ async function getScriptMetadata() {
   };
 }
 
+function toPosixRelativePath(filePath) {
+  return filePath.split(path.sep).join('/');
+}
+
+function buildRunLogRelativePath(runId, timestampIso) {
+  const timestamp = new Date(timestampIso);
+  const year = String(timestamp.getUTCFullYear());
+  const month = String(timestamp.getUTCMonth() + 1).padStart(2, '0');
+
+  return path.posix.join('logs', 'admin-scripts', year, month, `run-${runId}.log`);
+}
+
+function resolveRunLogAbsolutePath(logPath) {
+  const absolutePath = path.resolve(PROJECT_ROOT, logPath);
+  if (!ensureInsideProject(absolutePath)) {
+    throw new Error('Run log path resolves outside project root');
+  }
+  return absolutePath;
+}
+
+async function ensureRunLogFile(logPath) {
+  const absolutePath = resolveRunLogAbsolutePath(logPath);
+  await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+  await fs.appendFile(absolutePath, '');
+  return absolutePath;
+}
+
 function sanitizeLogMessage(message) {
   if (message === undefined || message === null) {
     return '';
@@ -264,19 +291,18 @@ function sanitizeLogMessage(message) {
   return `${text.slice(0, MAX_LOG_MESSAGE_LENGTH)}...`;
 }
 
-async function appendLog(runId, seqState, stream, message) {
+async function appendLog(logAbsolutePath, stream, message) {
   const sanitizedMessage = sanitizeLogMessage(message);
   if (!sanitizedMessage) {
     return;
   }
 
-  await runQuery(
-    `INSERT INTO admin_script_run_logs (run_id, seq, stream, message, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [runId, seqState.next, stream, sanitizedMessage, nowIso()]
-  );
-
-  seqState.next += 1;
+  const entry = {
+    created_at: nowIso(),
+    stream,
+    message: sanitizedMessage
+  };
+  await fs.appendFile(logAbsolutePath, `${JSON.stringify(entry)}\n`, 'utf8');
 }
 
 function splitOutputLines(outputChunk) {
@@ -305,6 +331,31 @@ async function getExistingActiveRun() {
 
 function getCommandString(command, args) {
   return [command, ...args].join(' ');
+}
+
+function parseLogLine(rawLine, runId, seq) {
+  const fallbackTimestamp = nowIso();
+
+  try {
+    const parsed = JSON.parse(rawLine);
+    return {
+      log_id: null,
+      run_id: runId,
+      seq,
+      stream: trimToNull(parsed.stream) || 'system',
+      message: trimToNull(parsed.message) || '',
+      created_at: trimToNull(parsed.created_at) || fallbackTimestamp
+    };
+  } catch (error) {
+    return {
+      log_id: null,
+      run_id: runId,
+      seq,
+      stream: 'system',
+      message: rawLine,
+      created_at: fallbackTimestamp
+    };
+  }
 }
 
 async function buildScriptCommand(scriptKey, params = {}) {
@@ -762,27 +813,18 @@ async function startScriptRun(scriptKey, params, adminUserId) {
   }
 
   const commandSpec = await buildScriptCommand(scriptKey, params || {});
-  const commandPayload = {
-    command: commandSpec.command,
-    args: commandSpec.args,
-    cwd: PROJECT_ROOT
-  };
 
   const createdAt = nowIso();
   const insertResult = await runQuery(
     `INSERT INTO admin_script_runs (
       script_key,
       status,
-      params_json,
-      command_json,
       created_by_predictor_id,
       created_at
-    ) VALUES (?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?)`,
     [
       scriptKey,
       RUN_STATUS.QUEUED,
-      JSON.stringify(commandSpec.normalizedParams),
-      JSON.stringify(commandPayload),
       adminUserId,
       createdAt
     ]
@@ -790,29 +832,55 @@ async function startScriptRun(scriptKey, params, adminUserId) {
 
   const runId = insertResult.lastID;
   const startedAt = nowIso();
+  const runLogPath = buildRunLogRelativePath(runId, startedAt);
+  let runLogAbsolutePath;
+
+  try {
+    runLogAbsolutePath = await ensureRunLogFile(runLogPath);
+  } catch (error) {
+    const message = `Failed to initialise run log file: ${error.message}`;
+    await runQuery(
+      `UPDATE admin_script_runs
+       SET status = ?, started_at = ?, finished_at = ?, error_message = ?, log_path = ?
+       WHERE run_id = ?`,
+      [RUN_STATUS.FAILED, startedAt, nowIso(), message, runLogPath, runId]
+    );
+    throw new Error(message);
+  }
 
   await runQuery(
     `UPDATE admin_script_runs
-     SET status = ?, started_at = ?
+     SET status = ?, started_at = ?, log_path = ?
      WHERE run_id = ?`,
-    [RUN_STATUS.RUNNING, startedAt, runId]
+    [RUN_STATUS.RUNNING, startedAt, runLogPath, runId]
   );
 
-  const sequenceState = { next: 1 };
   let logQueue = Promise.resolve();
+  let logWriteFailureMessage = null;
+  let child = null;
+  let finalized = false;
 
   const queueLog = (stream, message) => {
+    if (logWriteFailureMessage) {
+      return;
+    }
+
     logQueue = logQueue
-      .then(() => appendLog(runId, sequenceState, stream, message))
+      .then(() => appendLog(runLogAbsolutePath, stream, message))
       .catch((error) => {
-        logger.error('Failed to persist run log', {
+        logWriteFailureMessage = `Failed to write run log: ${error.message}`;
+        logger.error('Failed to write admin script run log file', {
           runId,
           error: error.message
         });
+
+        if (child && !child.killed) {
+          child.kill('SIGTERM');
+        }
       });
   };
 
-  const child = spawn(commandSpec.command, commandSpec.args, {
+  child = spawn(commandSpec.command, commandSpec.args, {
     cwd: PROJECT_ROOT,
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -826,8 +894,6 @@ async function startScriptRun(scriptKey, params, adminUserId) {
   };
 
   queueLog('system', `Starting command: ${getCommandString(commandSpec.command, commandSpec.args)}`);
-
-  let finalized = false;
 
   const finalizeRun = async (status, exitCode, errorMessage) => {
     if (finalized) {
@@ -881,6 +947,17 @@ async function startScriptRun(scriptKey, params, adminUserId) {
 
   child.on('close', (code) => {
     const exitCode = Number.isInteger(code) ? code : null;
+    const effectiveError = logWriteFailureMessage;
+
+    if (effectiveError) {
+      finalizeRun(RUN_STATUS.FAILED, exitCode, effectiveError).catch((error) => {
+        logger.error('Failed finalizing log-write-failed run', {
+          runId,
+          error: error.message
+        });
+      });
+      return;
+    }
 
     if (exitCode === 0) {
       finalizeRun(RUN_STATUS.SUCCEEDED, exitCode, null).catch((error) => {
@@ -905,6 +982,7 @@ async function startScriptRun(scriptKey, params, adminUserId) {
     runId,
     scriptKey,
     adminUserId,
+    logPath: toPosixRelativePath(path.relative(PROJECT_ROOT, runLogAbsolutePath)),
     command: commandSpec.command,
     args: commandSpec.args
   });
@@ -925,14 +1003,13 @@ async function listRuns(limit = 20) {
       r.run_id,
       r.script_key,
       r.status,
-      r.params_json,
-      r.command_json,
       r.created_by_predictor_id,
       r.created_at,
       r.started_at,
       r.finished_at,
       r.exit_code,
       r.error_message,
+      r.log_path,
       COALESCE(p.display_name, p.name) AS created_by_name
      FROM admin_script_runs r
      LEFT JOIN predictors p ON p.predictor_id = r.created_by_predictor_id
@@ -945,15 +1022,14 @@ async function listRuns(limit = 20) {
     run_id: row.run_id,
     script_key: row.script_key,
     status: row.status,
-    params: safeJsonParse(row.params_json, {}),
-    command: safeJsonParse(row.command_json, {}),
     created_by_predictor_id: row.created_by_predictor_id,
     created_by_name: row.created_by_name,
     created_at: row.created_at,
     started_at: row.started_at,
     finished_at: row.finished_at,
     exit_code: row.exit_code,
-    error_message: row.error_message
+    error_message: row.error_message,
+    log_path: row.log_path
   }));
 }
 
@@ -963,14 +1039,13 @@ async function getRunById(runId) {
       r.run_id,
       r.script_key,
       r.status,
-      r.params_json,
-      r.command_json,
       r.created_by_predictor_id,
       r.created_at,
       r.started_at,
       r.finished_at,
       r.exit_code,
       r.error_message,
+      r.log_path,
       COALESCE(p.display_name, p.name) AS created_by_name
      FROM admin_script_runs r
      LEFT JOIN predictors p ON p.predictor_id = r.created_by_predictor_id
@@ -986,42 +1061,89 @@ async function getRunById(runId) {
     run_id: row.run_id,
     script_key: row.script_key,
     status: row.status,
-    params: safeJsonParse(row.params_json, {}),
-    command: safeJsonParse(row.command_json, {}),
     created_by_predictor_id: row.created_by_predictor_id,
     created_by_name: row.created_by_name,
     created_at: row.created_at,
     started_at: row.started_at,
     finished_at: row.finished_at,
     exit_code: row.exit_code,
-    error_message: row.error_message
+    error_message: row.error_message,
+    log_path: row.log_path
   };
 }
 
 async function getRunLogs(runId, afterSeq = 0, limit = 300) {
   const safeAfterSeq = Number.isInteger(afterSeq) ? Math.max(0, afterSeq) : 0;
   const safeLimit = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 2000)) : 300;
-
-  return getQuery(
-    `SELECT log_id, run_id, seq, stream, message, created_at
-     FROM admin_script_run_logs
-     WHERE run_id = ? AND seq > ?
-     ORDER BY seq ASC
-     LIMIT ?`,
-    [runId, safeAfterSeq, safeLimit]
+  const run = await getOne(
+    'SELECT run_id, log_path FROM admin_script_runs WHERE run_id = ?',
+    [runId]
   );
-}
 
-function safeJsonParse(value, fallback) {
-  if (typeof value !== 'string') {
-    return fallback;
+  if (!run || !run.log_path) {
+    return safeAfterSeq >= 1
+      ? []
+      : [{
+        log_id: null,
+        run_id: runId,
+        seq: 1,
+        stream: 'system',
+        message: 'No log file is available for this run.',
+        created_at: nowIso()
+      }];
   }
 
+  let logAbsolutePath;
   try {
-    return JSON.parse(value);
+    logAbsolutePath = resolveRunLogAbsolutePath(run.log_path);
   } catch (error) {
-    return fallback;
+    logger.error('Invalid run log path', { runId, logPath: run.log_path, error: error.message });
+    return safeAfterSeq >= 1
+      ? []
+      : [{
+        log_id: null,
+        run_id: runId,
+        seq: 1,
+        stream: 'system',
+        message: 'Run log path is invalid.',
+        created_at: nowIso()
+      }];
   }
+
+  let fileContents;
+  try {
+    fileContents = await fs.readFile(logAbsolutePath, 'utf8');
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return safeAfterSeq >= 1
+        ? []
+        : [{
+          log_id: null,
+          run_id: runId,
+          seq: 1,
+          stream: 'system',
+          message: 'Log file is unavailable for this run.',
+          created_at: nowIso()
+        }];
+    }
+
+    throw error;
+  }
+
+  const allLines = fileContents
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  const output = [];
+  for (let index = safeAfterSeq; index < allLines.length; index += 1) {
+    output.push(parseLogLine(allLines[index], runId, index + 1));
+    if (output.length >= safeLimit) {
+      break;
+    }
+  }
+
+  return output;
 }
 
 async function recoverInterruptedRuns() {

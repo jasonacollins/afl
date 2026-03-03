@@ -28,7 +28,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Dedicated ELO Model Page**: ELO chart and filters are available on `/elo`
 - **Dedicated Simulation Page**: Monte Carlo season outcomes are available on `/simulation`
 - **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
-- **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted logs/history
+- **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted run history and file-backed logs
 - **Featured Predictor System**: Homepage shows one admin-selected model with performance metrics and round predictions
 - **Unified Finals Week Display**: `Elimination Final` and `Qualifying Final` are grouped into one selector slot:
   - pre-2026 seasons: `Finals Week 1`
@@ -64,9 +64,9 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 ### Operational Behavior
 - Jobs run asynchronously in the background.
 - Only one job can be active at a time.
-- Run metadata and stdout/stderr logs are persisted in SQLite:
-  - `admin_script_runs`
-  - `admin_script_run_logs`
+- Run metadata is persisted in SQLite (`admin_script_runs`), including `log_path` for each run.
+- Stdout/stderr/system logs are persisted to per-run files under `logs/admin-scripts/YYYY/MM/run-<run_id>.log`.
+- Legacy DB log rows are archived to `logs/admin-scripts/archive/` and migrated away at startup.
 - Restart recovery marks in-flight jobs as `interrupted`.
 - `sync-games` is the fixture bootstrap step for a new season (inserts new `matches` rows when they do not exist yet).
 - `sync-games` normalizes missing/invalid Squiggle `complete` values to `0` so inserts satisfy `matches.complete` (`NOT NULL`).
@@ -85,6 +85,12 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - Only an allowlisted script catalog can be executed.
 - Path parameters are restricted to approved repo subdirectories under `data/`.
 - Prediction-writing jobs require an active predictor selection from the UI.
+
+### Storage Hygiene
+- Database and log cleanup is automated by `npm run db-maintenance`.
+- Default retention is 30 days for completed `admin_script_runs` rows and run log files.
+- Cleanup mode also runs `PRAGMA incremental_vacuum`.
+- A scheduled full `VACUUM` runs monthly in the low-traffic maintenance window.
 
 ## Season Simulation
 
@@ -118,6 +124,11 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 
 Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and incremental ELO history updates when new completed results arrive.
+
+Maintenance cron (Sydney local time) is configured as:
+- `03:05` daily: `npm run db-maintenance -- --mode=cleanup`
+- `03:25` first Sunday monthly: `npm run db-maintenance -- --mode=vacuum`
+- `05:00` daily: `npm run daily-sync`
 
 ## Architecture
 
@@ -177,7 +188,8 @@ The AFL Predictions application follows a layered architecture pattern built on 
 ### Data Flow
 
 **User Predictions**: Authentication → Prediction submission → Validation → Storage → Real-time scoring
-**Data Sync**: Daily cron job → Squiggle API → Database updates → ELO predictions → Score recalculation
+**Data Sync**: Daily cron job → Squiggle API → Database updates → ELO predictions → Score recalculation  
+**Maintenance**: Daily DB/log retention cleanup + incremental vacuum, plus monthly full SQLite vacuum
 **Admin Functions**: Role-based access to user management, database operations, and system monitoring
 
 ### Directory Structure
@@ -347,6 +359,8 @@ The application includes an advanced ELO-based prediction system using a dual-mo
 
 ### Quick ELO Commands
 - `npm run daily-sync` - Complete daily synchronization (fixture sync + API refresh + ELO predictions + conditional simulation snapshot regeneration + incremental ELO history update)
+- `npm run db-maintenance -- --mode=cleanup` - Delete old admin script run metadata/logs and run incremental vacuum
+- `npm run db-maintenance -- --mode=vacuum` - Run full SQLite vacuum (best in low-traffic window)
 - `npm run import` - Initialize database with team data
 - `npm run sync-games` - Sync match data from Squiggle API (defaults to current year when no options are provided)
 

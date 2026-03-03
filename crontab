@@ -1,1 +1,4 @@
-0 18 * * * cd /app && npm run daily-sync
+CRON_TZ=Australia/Sydney
+5 3 * * * cd /app && npm run db-maintenance -- --mode=cleanup
+25 3 * * 0 [ "$(date +\%d)" -le 7 ] && cd /app && npm run db-maintenance -- --mode=vacuum
+0 5 * * * cd /app && npm run daily-sync

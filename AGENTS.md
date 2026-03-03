@@ -19,6 +19,8 @@ For comprehensive project information including architecture, features, and setu
 - `npm run import` - Initialize database with team data (`scripts/automation/import-data.js`)
 - `npm run sync-games` - Sync match data from Squiggle API (`scripts/automation/sync-games.js`). With no args, syncs the current year by default.
 - `npm run daily-sync` - Run comprehensive daily synchronization: fixture sync, API refresh, ELO predictions, conditional current-season simulation regeneration, and historical data regeneration (`scripts/automation/daily-sync.js`)
+- `npm run db-maintenance -- --mode=cleanup` - Delete old admin script run metadata/log files and run incremental vacuum
+- `npm run db-maintenance -- --mode=vacuum` - Run full SQLite `VACUUM` in low-traffic windows
 
 ### ELO Model Scripts
 For detailed documentation on ELO model training, optimization, and prediction workflows, see **[scripts/README.md](scripts/README.md)**. This includes complete workflow instructions, script parameters, and troubleshooting guides.
@@ -76,10 +78,18 @@ For detailed documentation on ELO model training, optimization, and prediction w
 **Startup Behavior**:
 - Server startup runs `initializeDatabase()` before listening to ensure required schema and migrations exist.
 - Startup also calls admin script-run recovery to mark stale queued/running jobs as `interrupted`.
+- Startup schema migration archives legacy admin script DB logs to `logs/admin-scripts/archive/`, then drops the legacy DB log table.
+- Startup ensures SQLite incremental auto-vacuum mode (`PRAGMA auto_vacuum = INCREMENTAL`) is enabled.
+
+**Scheduled Maintenance (Sydney Time)**:
+- Cron runs with `CRON_TZ=Australia/Sydney`.
+- `03:05` daily: `npm run db-maintenance -- --mode=cleanup`
+- `03:25` first Sunday monthly: `npm run db-maintenance -- --mode=vacuum`
+- `05:00` daily: `npm run daily-sync`
 
 **Admin Scripts Runner Architecture**:
 - Service definitions are centralized in `services/admin-script-definitions.js` (allowlist + field metadata).
-- Job orchestration is handled in `services/admin-script-runner.js` (validation, spawn, status transitions, log persistence).
+- Job orchestration is handled in `services/admin-script-runner.js` (validation, spawn, status transitions, file-backed log persistence).
 - Routes are exposed under `routes/admin.js`:
   - `GET /admin/scripts`
   - `GET /admin/api/script-metadata`
@@ -87,9 +97,11 @@ For detailed documentation on ELO model training, optimization, and prediction w
   - `GET /admin/api/script-runs`
   - `GET /admin/api/script-runs/:runId`
   - `GET /admin/api/script-runs/:runId/logs`
-- Persistence tables:
+- Persistence table:
   - `admin_script_runs`
-  - `admin_script_run_logs`
+- Admin script logs are stored as per-run files under `logs/admin-scripts/YYYY/MM/run-<run_id>.log`.
+- `admin_script_runs.log_path` stores the relative log file path used by the logs API.
+- Legacy `admin_script_run_logs` rows are archived to `logs/admin-scripts/archive/` during migration and the table is removed.
 - Concurrency rule: only one active script run (`queued` or `running`) at a time.
 - `sync-games` is the fixture bootstrap step for new seasons (inserts missing `matches` rows).
 - `sync-games` must treat missing/invalid Squiggle `complete` values as `0` because `matches.complete` is `NOT NULL`.

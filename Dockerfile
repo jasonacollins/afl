@@ -2,9 +2,13 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+ENV TZ=Australia/Sydney
+
 # Install cron, Python, and build dependencies
-RUN apk add --no-cache dcron python3 py3-pip py3-pandas py3-numpy py3-scipy \
-    build-base python3-dev py3-scikit-learn
+RUN apk add --no-cache dcron tzdata python3 py3-pip py3-pandas py3-numpy py3-scipy \
+    build-base python3-dev py3-scikit-learn && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
 # Install scikit-optimize via pip with system packages override
 RUN pip install --no-cache-dir --break-system-packages scikit-optimize
