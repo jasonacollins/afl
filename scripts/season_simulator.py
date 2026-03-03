@@ -1439,6 +1439,33 @@ class SeasonSimulator:
 
         return results
 
+    def get_total_finals_match_count(self):
+        """Return the fixed finals match count for the selected season format."""
+        return 11 if self.year >= 2026 else 9
+
+    def get_remaining_finals_match_count(self):
+        """
+        Remaining finals matches for display purposes.
+        Uses completed finals count so the summary decreases as finals progress.
+        """
+        total_finals_matches = self.get_total_finals_match_count()
+        completed_finals_matches = len(getattr(self, 'completed_finals_matches', []))
+        return max(0, total_finals_matches - completed_finals_matches)
+
+    def get_remaining_match_counts(self):
+        """
+        Build the simulation summary match counts shown in the UI.
+        remaining_matches includes regular season + finals.
+        """
+        remaining_regular_matches = len(getattr(self, 'upcoming_regular_matches', []))
+        remaining_finals_matches = self.get_remaining_finals_match_count()
+
+        return {
+            'remaining_regular_matches': remaining_regular_matches,
+            'remaining_finals_matches': remaining_finals_matches,
+            'remaining_matches': remaining_regular_matches + remaining_finals_matches
+        }
+
     def save_results(self, results, output_path):
         """Save simulation results to JSON file"""
         # Get absolute path for clarity
@@ -1451,6 +1478,7 @@ class SeasonSimulator:
             os.makedirs(output_dir, exist_ok=True)
 
         snapshot_timestamp = datetime.now().isoformat()
+        remaining_counts = self.get_remaining_match_counts()
         snapshot_data = {
             'round_key': self.snapshot_round_metadata['round_key'],
             'round_label': self.snapshot_round_metadata['round_label'],
@@ -1462,7 +1490,9 @@ class SeasonSimulator:
             'margin_model_path': self.margin_model_path,
             'num_simulations': self.num_simulations,
             'completed_matches': len(self.completed_matches),
-            'remaining_matches': len(self.upcoming_matches),
+            'remaining_regular_matches': remaining_counts['remaining_regular_matches'],
+            'remaining_finals_matches': remaining_counts['remaining_finals_matches'],
+            'remaining_matches': remaining_counts['remaining_matches'],
             'last_updated': snapshot_timestamp,
             'from_scratch': self.from_scratch,
             'results': results
@@ -1486,6 +1516,8 @@ class SeasonSimulator:
             'year': self.year,
             'num_simulations': self.num_simulations,
             'completed_matches': snapshot_data['completed_matches'],
+            'remaining_regular_matches': snapshot_data['remaining_regular_matches'],
+            'remaining_finals_matches': snapshot_data['remaining_finals_matches'],
             'remaining_matches': snapshot_data['remaining_matches'],
             'last_updated': snapshot_timestamp,
             'model_mode': self.model_mode,

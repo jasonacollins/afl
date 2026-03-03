@@ -343,3 +343,40 @@ def test_resolve_premiership_from_confirmed_grand_finalists():
     winners = [team for team, result in updated.items() if result['premiership']]
     assert len(winners) == 1
     assert winners[0] in {'Team A', 'Team B'}
+
+
+def test_remaining_match_counts_include_wildcard_era_finals_slots():
+    """2026+ remaining count should include regular + remaining finals slots."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.year = 2026
+    simulator.upcoming_regular_matches = pd.DataFrame({'match_id': range(207)})
+    simulator.completed_finals_matches = pd.DataFrame({
+        'round_number': ['Wildcard Finals', 'Wildcard Finals']
+    })
+
+    counts = simulator.get_remaining_match_counts()
+
+    assert counts['remaining_regular_matches'] == 207
+    assert counts['remaining_finals_matches'] == 9
+    assert counts['remaining_matches'] == 216
+
+
+def test_remaining_match_counts_pre_2026_use_top8_finals_total():
+    """Pre-2026 seasons should use 9 finals matches for summary totals."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.year = 2025
+    simulator.upcoming_regular_matches = pd.DataFrame({'match_id': range(0)})
+    simulator.completed_finals_matches = pd.DataFrame({
+        'round_number': [
+            'Qualifying Final',
+            'Qualifying Final',
+            'Elimination Final',
+            'Elimination Final'
+        ]
+    })
+
+    counts = simulator.get_remaining_match_counts()
+
+    assert counts['remaining_regular_matches'] == 0
+    assert counts['remaining_finals_matches'] == 5
+    assert counts['remaining_matches'] == 5

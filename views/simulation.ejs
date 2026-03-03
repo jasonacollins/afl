@@ -77,18 +77,30 @@
                             data-sort="top10"
                             style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         >Top 10</th>
-                        <th class="sortable probability-col" data-sort="wildcard">Wildcard</th>
+                        <th
+                            id="wildcard-header"
+                            class="sortable probability-col"
+                            data-sort="wildcard"
+                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
+                        >Wildcard</th>
                         <th
                             id="top6-header"
                             class="sortable probability-col"
                             data-sort="top6"
                             style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         >Top 6</th>
+                        <th
+                            id="top8-header"
+                            class="sortable probability-col"
+                            data-sort="top8"
+                            style="<%= Number(selectedYear) >= 2026 ? 'display: none;' : '' %>"
+                        >Top 8</th>
                         <th class="sortable probability-col" data-sort="top4">Top 4</th>
                         <th
                             id="finals-week-header"
                             class="sortable probability-col"
                             data-sort="finals-week-2"
+                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         ><%= Number(selectedYear) >= 2026 ? 'Finals Week 2' : 'Finals Week 1' %></th>
                         <th class="sortable probability-col" data-sort="prelim">Prelim</th>
                         <th class="sortable probability-col" data-sort="grand-final">Grand Final</th>

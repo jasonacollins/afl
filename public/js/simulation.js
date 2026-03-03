@@ -28,6 +28,8 @@
     const roundSnapshotContext = document.getElementById('round-snapshot-context');
     const top10Header = document.getElementById('top10-header');
     const top6Header = document.getElementById('top6-header');
+    const top8Header = document.getElementById('top8-header');
+    const wildcardHeader = document.getElementById('wildcard-header');
     const finalsWeekHeader = document.getElementById('finals-week-header');
 
     // Color palette for probability visualization (low → high)
@@ -191,19 +193,42 @@
     }
 
     function updateProbabilityColumnsForYear(year) {
-        if (!top10Header && !top6Header) {
+        if (!top10Header && !top6Header && !top8Header && !wildcardHeader && !finalsWeekHeader) {
             return;
         }
 
         const showExpandedFinalsColumns = Number(year) >= 2026;
+        const showTop8Column = !showExpandedFinalsColumns;
         if (top10Header) {
             top10Header.style.display = showExpandedFinalsColumns ? '' : 'none';
         }
         if (top6Header) {
             top6Header.style.display = showExpandedFinalsColumns ? '' : 'none';
         }
+        if (top8Header) {
+            top8Header.style.display = showTop8Column ? '' : 'none';
+        }
+        if (wildcardHeader) {
+            wildcardHeader.style.display = showExpandedFinalsColumns ? '' : 'none';
+        }
+        if (finalsWeekHeader) {
+            finalsWeekHeader.style.display = showExpandedFinalsColumns ? '' : 'none';
+        }
 
-        if (!showExpandedFinalsColumns && (currentSort.column === 'top10' || currentSort.column === 'top6')) {
+        if (
+            !showExpandedFinalsColumns &&
+            (
+                currentSort.column === 'top10' ||
+                currentSort.column === 'top6' ||
+                currentSort.column === 'wildcard' ||
+                currentSort.column === 'finals-week-2'
+            )
+        ) {
+            currentSort = { column: 'premiership', direction: 'desc' };
+            updateSortIndicators();
+        }
+
+        if (showExpandedFinalsColumns && currentSort.column === 'top8') {
             currentSort = { column: 'premiership', direction: 'desc' };
             updateSortIndicators();
         }
@@ -433,7 +458,7 @@
         // Create table rows
         sortedResults.forEach((team, index) => {
             const row = document.createElement('tr');
-            const showTop10 = Number(simulationData?.year) >= 2026;
+            const showExpandedFinalsColumns = Number(simulationData?.year) >= 2026;
 
             // Position
             const position = index + 1;
@@ -460,11 +485,12 @@
                     <span class="projected-estimate">${team.projected_wins.toFixed(1)}</span>
                     <span class="projected">(${team.wins_10th_percentile.toFixed(1)}-${team.wins_90th_percentile.toFixed(1)})</span>
                 </td>
-                ${showTop10 ? createProbabilityCell(team.finals_probability ?? 0) : ''}
-                ${createProbabilityCell(team.wildcard_probability ?? 0)}
-                ${showTop10 ? createProbabilityCell(getTop6Probability(team)) : ''}
+                ${showExpandedFinalsColumns ? createProbabilityCell(team.finals_probability ?? 0) : ''}
+                ${showExpandedFinalsColumns ? createProbabilityCell(team.wildcard_probability ?? 0) : ''}
+                ${showExpandedFinalsColumns ? createProbabilityCell(getTop6Probability(team)) : ''}
+                ${!showExpandedFinalsColumns ? createProbabilityCell(team.finals_probability ?? 0) : ''}
                 ${createProbabilityCell(team.top4_probability)}
-                ${createProbabilityCell(team.finals_week2_probability ?? team.finals_probability)}
+                ${showExpandedFinalsColumns ? createProbabilityCell(team.finals_week2_probability ?? team.finals_probability) : ''}
                 ${createProbabilityCell(team.prelim_probability)}
                 ${createProbabilityCell(team.grand_final_probability)}
                 ${createProbabilityCell(team.premiership_probability)}
@@ -628,6 +654,10 @@
                 case 'top6':
                     aVal = getTop6Probability(a);
                     bVal = getTop6Probability(b);
+                    break;
+                case 'top8':
+                    aVal = a.finals_probability ?? 0;
+                    bVal = b.finals_probability ?? 0;
                     break;
                 case 'finals-week-2':
                     aVal = a.finals_week2_probability ?? a.finals_probability;
