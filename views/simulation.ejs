@@ -71,16 +71,28 @@
                         <th class="sortable" data-sort="elo">Current ELO</th>
                         <th class="sortable" data-sort="record">Record</th>
                         <th class="sortable" data-sort="projected-wins">Projected Wins</th>
-                        <th class="sortable" data-sort="wildcard">Wildcard Finals</th>
-                        <th class="sortable" data-sort="top4">Top 4</th>
+                        <th
+                            id="top10-header"
+                            class="sortable probability-col"
+                            data-sort="top10"
+                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
+                        >Top 10</th>
+                        <th class="sortable probability-col" data-sort="wildcard">Wildcard</th>
+                        <th
+                            id="top6-header"
+                            class="sortable probability-col"
+                            data-sort="top6"
+                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
+                        >Top 6</th>
+                        <th class="sortable probability-col" data-sort="top4">Top 4</th>
                         <th
                             id="finals-week-header"
-                            class="sortable"
+                            class="sortable probability-col"
                             data-sort="finals-week-2"
                         ><%= Number(selectedYear) >= 2026 ? 'Finals Week 2' : 'Finals Week 1' %></th>
-                        <th class="sortable" data-sort="prelim">Prelim</th>
-                        <th class="sortable" data-sort="grand-final">Grand Final</th>
-                        <th class="sortable" data-sort="premiership">Premiership</th>
+                        <th class="sortable probability-col" data-sort="prelim">Prelim</th>
+                        <th class="sortable probability-col" data-sort="grand-final">Grand Final</th>
+                        <th class="sortable probability-col" data-sort="premiership">Premier</th>
                     </tr>
                 </thead>
                 <tbody id="simulation-tbody">

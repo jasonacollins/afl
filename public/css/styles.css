@@ -1570,6 +1570,14 @@ textarea {
   user-select: none;
 }
 
+#simulation-table th.probability-col {
+  width: 5.25rem;
+  min-width: 5.25rem;
+  white-space: normal;
+  line-height: 1.2;
+  text-align: center;
+}
+
 #simulation-table th:hover {
   background-color: #e8e8e8;
 }
@@ -1644,12 +1652,21 @@ textarea {
   font-weight: 600;
 }
 
+.projected-estimate {
+  display: block;
+  font-weight: 700;
+}
+
 .projected {
+  display: block;
+  margin-top: 0.15rem;
   color: var(--light-text);
   font-size: 0.85rem;
 }
 
 .prob-cell {
+  width: 5.25rem;
+  min-width: 5.25rem;
   text-align: center;
   font-weight: 600;
   transition: background-color 0.3s ease, color 0.3s ease;

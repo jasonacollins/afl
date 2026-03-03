@@ -26,6 +26,8 @@
     const roundSnapshotNav = document.getElementById('round-snapshot-nav');
     const roundTabsContainer = document.getElementById('round-tabs');
     const roundSnapshotContext = document.getElementById('round-snapshot-context');
+    const top10Header = document.getElementById('top10-header');
+    const top6Header = document.getElementById('top6-header');
     const finalsWeekHeader = document.getElementById('finals-week-header');
 
     // Color palette for probability visualization (low → high)
@@ -165,6 +167,7 @@
         document.getElementById('simulation-title').textContent =
             `${simulationData.year} AFL Season Simulation`;
         updateFinalsWeekColumnLabel(simulationData.year);
+        updateProbabilityColumnsForYear(simulationData.year);
 
         initializeRoundSnapshots();
         renderRoundTabs();
@@ -185,6 +188,43 @@
         finalsWeekHeader.textContent = Number(year) >= 2026
             ? 'Finals Week 2'
             : 'Finals Week 1';
+    }
+
+    function updateProbabilityColumnsForYear(year) {
+        if (!top10Header && !top6Header) {
+            return;
+        }
+
+        const showExpandedFinalsColumns = Number(year) >= 2026;
+        if (top10Header) {
+            top10Header.style.display = showExpandedFinalsColumns ? '' : 'none';
+        }
+        if (top6Header) {
+            top6Header.style.display = showExpandedFinalsColumns ? '' : 'none';
+        }
+
+        if (!showExpandedFinalsColumns && (currentSort.column === 'top10' || currentSort.column === 'top6')) {
+            currentSort = { column: 'premiership', direction: 'desc' };
+            updateSortIndicators();
+        }
+    }
+
+    function getTop6Probability(team) {
+        if (Number.isFinite(Number(team.top6_probability))) {
+            return Number(team.top6_probability);
+        }
+
+        if (team.ladder_position_probabilities) {
+            let probability = 0;
+            for (let position = 1; position <= 6; position++) {
+                probability += Number(team.ladder_position_probabilities[String(position)] || 0);
+            }
+            return Math.max(0, Math.min(1, probability));
+        }
+
+        const finalsProbability = Number(team.finals_probability || 0);
+        const wildcardProbability = Number(team.wildcard_probability || 0);
+        return Math.max(0, Math.min(1, finalsProbability - wildcardProbability));
     }
 
     function initializeRoundSnapshots() {
@@ -393,6 +433,7 @@
         // Create table rows
         sortedResults.forEach((team, index) => {
             const row = document.createElement('tr');
+            const showTop10 = Number(simulationData?.year) >= 2026;
 
             // Position
             const position = index + 1;
@@ -416,10 +457,12 @@
                 <td><strong>${Math.round(team.current_elo)}</strong></td>
                 <td><span class="record">${record}</span></td>
                 <td>
-                    <strong>${team.projected_wins.toFixed(1)}</strong>
+                    <span class="projected-estimate">${team.projected_wins.toFixed(1)}</span>
                     <span class="projected">(${team.wins_10th_percentile.toFixed(1)}-${team.wins_90th_percentile.toFixed(1)})</span>
                 </td>
+                ${showTop10 ? createProbabilityCell(team.finals_probability ?? 0) : ''}
                 ${createProbabilityCell(team.wildcard_probability ?? 0)}
+                ${showTop10 ? createProbabilityCell(getTop6Probability(team)) : ''}
                 ${createProbabilityCell(team.top4_probability)}
                 ${createProbabilityCell(team.finals_week2_probability ?? team.finals_probability)}
                 ${createProbabilityCell(team.prelim_probability)}
@@ -578,6 +621,14 @@
                     aVal = a.wildcard_probability ?? 0;
                     bVal = b.wildcard_probability ?? 0;
                     break;
+                case 'top10':
+                    aVal = a.finals_probability ?? 0;
+                    bVal = b.finals_probability ?? 0;
+                    break;
+                case 'top6':
+                    aVal = getTop6Probability(a);
+                    bVal = getTop6Probability(b);
+                    break;
                 case 'finals-week-2':
                     aVal = a.finals_week2_probability ?? a.finals_probability;
                     bVal = b.finals_week2_probability ?? b.finals_probability;
@@ -634,22 +685,25 @@
                     currentSort.direction = 'desc';
                 }
 
-                // Update header classes
-                headers.forEach(h => {
-                    h.classList.remove('sorted-asc', 'sorted-desc');
-                });
-
-                header.classList.add(`sorted-${currentSort.direction}`);
+                updateSortIndicators();
 
                 // Re-populate table with new sort
                 populateTable();
             });
         });
 
-        // Set initial sort indicator
-        const defaultHeader = document.querySelector('[data-sort="premiership"]');
-        if (defaultHeader) {
-            defaultHeader.classList.add('sorted-desc');
+        updateSortIndicators();
+    }
+
+    function updateSortIndicators() {
+        const headers = document.querySelectorAll('#simulation-table th.sortable');
+        headers.forEach(h => {
+            h.classList.remove('sorted-asc', 'sorted-desc');
+        });
+
+        const currentHeader = document.querySelector(`#simulation-table th.sortable[data-sort="${currentSort.column}"]`);
+        if (currentHeader) {
+            currentHeader.classList.add(`sorted-${currentSort.direction}`);
         }
     }
 
