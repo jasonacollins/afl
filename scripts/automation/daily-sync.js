@@ -144,8 +144,16 @@ function hasMatchDataChanges(fixtureSyncResults, apiResults) {
   );
 }
 
-function hasCompletedResultChanges(apiResults) {
-  return Number(apiResults?.scoresUpdated || 0) > 0;
+function hasCompletedResultChanges(apiResults, fixtureSyncResults = {}) {
+  const apiScoreUpdates = Number(apiResults?.scoresUpdated || 0);
+  const completedFixtureInserts = Number(fixtureSyncResults?.completedInsertCount || 0);
+  const newlyCompletedFixtureUpdates = Number(fixtureSyncResults?.completedUpdateCount || 0);
+
+  return (
+    apiScoreUpdates > 0 ||
+    completedFixtureInserts > 0 ||
+    newlyCompletedFixtureUpdates > 0
+  );
 }
 
 function normalizeRoundText(roundNumber) {
@@ -478,6 +486,8 @@ async function dailySync() {
       matchDataChanged,
       fixtureSyncInserts: Number(fixtureSyncResults?.insertCount || 0),
       fixtureSyncUpdates,
+      fixtureSyncCompletedInserts: Number(fixtureSyncResults?.completedInsertCount || 0),
+      fixtureSyncCompletedUpdates: Number(fixtureSyncResults?.completedUpdateCount || 0),
       apiRefreshInserts: Number(apiResults?.insertCount || 0),
       apiRefreshFixtureUpdates: Number(apiResults?.updateCount || 0),
       apiRefreshScoreUpdates: Number(apiResults?.scoresUpdated || 0),
@@ -520,7 +530,7 @@ async function dailySync() {
     // Step 5: Update ELO history only when results complete (or when bootstrap file is missing)
     const historyCsvPath = path.join(projectRoot, 'data/historical/afl_elo_complete_history.csv');
     const hasHistoryFile = fs.existsSync(historyCsvPath);
-    const resultChangesDetected = hasCompletedResultChanges(apiResults);
+    const resultChangesDetected = hasCompletedResultChanges(apiResults, fixtureSyncResults);
     const shouldUpdateHistory = resultChangesDetected || !hasHistoryFile;
 
     if (shouldUpdateHistory) {

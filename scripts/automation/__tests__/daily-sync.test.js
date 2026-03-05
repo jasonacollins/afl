@@ -29,7 +29,8 @@ const {
   buildRoundSnapshotMetadata,
   buildCurrentRoundSnapshotMetadata,
   determineCurrentRoundSnapshotMetadata,
-  buildPostSeasonSnapshotMetadata
+  buildPostSeasonSnapshotMetadata,
+  hasCompletedResultChanges
 } = require('../daily-sync');
 
 describe('daily-sync round snapshot metadata', () => {
@@ -190,5 +191,38 @@ describe('daily-sync round snapshot metadata', () => {
     const metadata = await determineCurrentRoundSnapshotMetadata(2026);
 
     expect(metadata).toEqual(buildPostSeasonSnapshotMetadata());
+  });
+});
+
+describe('daily-sync completed result detection', () => {
+  test('returns true when api-refresh reports score updates', () => {
+    expect(hasCompletedResultChanges({ scoresUpdated: 2 }, {})).toBe(true);
+  });
+
+  test('returns true when sync-games inserts completed matches', () => {
+    expect(
+      hasCompletedResultChanges(
+        { scoresUpdated: 0 },
+        { completedInsertCount: 3, completedUpdateCount: 0 }
+      )
+    ).toBe(true);
+  });
+
+  test('returns true when sync-games marks existing matches complete', () => {
+    expect(
+      hasCompletedResultChanges(
+        { scoresUpdated: 0 },
+        { completedInsertCount: 0, completedUpdateCount: 1 }
+      )
+    ).toBe(true);
+  });
+
+  test('returns false when there are no completed-result changes', () => {
+    expect(
+      hasCompletedResultChanges(
+        { scoresUpdated: 0 },
+        { completedInsertCount: 0, completedUpdateCount: 0 }
+      )
+    ).toBe(false);
   });
 });

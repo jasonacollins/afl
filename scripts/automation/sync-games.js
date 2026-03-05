@@ -143,7 +143,13 @@ async function syncGamesFromAPI(options = {}) {
     
     if (!data || !data.games || !Array.isArray(data.games)) {
       logger.error('Invalid data received from API');
-      return { insertCount: 0, updateCount: 0, skipCount: 0 };
+      return {
+        insertCount: 0,
+        updateCount: 0,
+        skipCount: 0,
+        completedInsertCount: 0,
+        completedUpdateCount: 0
+      };
     }
     
     logger.info(`Processing ${data.games.length} games from API`);
@@ -152,6 +158,8 @@ async function syncGamesFromAPI(options = {}) {
     let insertCount = 0;
     let updateCount = 0;
     let skipCount = 0;
+    let completedInsertCount = 0;
+    let completedUpdateCount = 0;
     
     for (const game of data.games) {
       try {
@@ -259,11 +267,19 @@ async function syncGamesFromAPI(options = {}) {
         
         // Check if match already exists in database with the Squiggle ID
         const existingMatch = await getOne(
-          'SELECT match_id FROM matches WHERE match_number = ?',
+          'SELECT match_id, complete, hscore, ascore FROM matches WHERE match_number = ?',
           [game.id]
         );
+
+        const hasCompletedScores = completion === 100 &&
+          homeScore !== null &&
+          awayScore !== null;
         
         if (existingMatch) {
+          const wasCompleted = Number(existingMatch.complete) === 100 &&
+            existingMatch.hscore !== null &&
+            existingMatch.ascore !== null;
+
           // Update existing match
           await runQuery(
             `UPDATE matches 
@@ -290,6 +306,10 @@ async function syncGamesFromAPI(options = {}) {
             ]
           );
           updateCount++;
+
+          if (!wasCompleted && hasCompletedScores) {
+            completedUpdateCount++;
+          }
         } else {
           // Insert new match
           await runQuery(
@@ -315,6 +335,10 @@ async function syncGamesFromAPI(options = {}) {
             ]
           );
           insertCount++;
+
+          if (hasCompletedScores) {
+            completedInsertCount++;
+          }
         }
       } catch (gameError) {
         logger.error(`Error processing game ${game.id}:`, gameError);
@@ -326,11 +350,15 @@ async function syncGamesFromAPI(options = {}) {
     logger.info(`Inserted ${insertCount} new games.`);
     logger.info(`Updated ${updateCount} existing games.`);
     logger.info(`Skipped ${skipCount} games.`);
+    logger.info(`Completed game inserts: ${completedInsertCount}.`);
+    logger.info(`Matches newly marked complete via sync: ${completedUpdateCount}.`);
     
     return {
       insertCount,
       updateCount,
-      skipCount
+      skipCount,
+      completedInsertCount,
+      completedUpdateCount
     };
     
   } catch (error) {

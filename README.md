@@ -124,7 +124,7 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
   Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 
-Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and incremental ELO history updates when new completed results arrive.
+Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and incremental ELO history updates when newly completed results are detected from either `sync-games` (completed inserts/state transitions) or `api-refresh` score updates.
 
 Maintenance cron (Sydney local time) is configured as:
 - `03:05` daily: `npm run db-maintenance -- --mode=cleanup`
@@ -399,7 +399,7 @@ The application includes an interactive ELO chart that displays team strength ra
 
 - **File**: `data/historical/afl_elo_complete_history.csv` (chart years 2000-present)
 - **Seeding**: Replayed from 1990 so the 2000 baseline is properly seeded
-- **Updates**: Daily sync appends only newly completed matches (no historical rewrites)
+- **Updates**: Daily sync appends only newly completed matches (no historical rewrites). Completion detection includes both `sync-games` completed inserts/transitions and `api-refresh` completed score updates.
 - **Performance**: Optimized CSV structure for fast chart rendering
 
 ### API Endpoints
