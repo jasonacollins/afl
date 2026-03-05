@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(CURRENT_DIR, '..'))
 
 from season_simulator import (  # noqa: E402
     SeasonSimulator,
+    build_current_round_snapshot_metadata,
     build_post_season_snapshot_metadata,
     build_round_snapshot_metadata,
     interpolate_percentile,
@@ -106,6 +107,98 @@ def test_post_season_snapshot_metadata():
     assert metadata['round_order'] == 10000
 
 
+def test_current_round_snapshot_metadata_for_opening_round():
+    """In-progress Opening Round snapshots should use a dedicated current key."""
+    metadata = build_current_round_snapshot_metadata('OR')
+
+    assert metadata['round_key'] == 'round-or-current'
+    assert metadata['round_tab_label'] == 'Current'
+    assert metadata['round_label'] == 'Current Opening Round'
+    assert metadata['round_order'] == 0.5
+
+
+def test_current_round_snapshot_metadata_for_numeric_round():
+    """In-progress regular rounds should use a current suffix and label."""
+    metadata = build_current_round_snapshot_metadata('2')
+
+    assert metadata['round_key'] == 'round-2-current'
+    assert metadata['round_tab_label'] == 'Current'
+    assert metadata['round_label'] == 'Current Round 2'
+    assert metadata['round_order'] == 2.5
+
+
+def test_determine_snapshot_metadata_uses_current_key_for_partial_opening_round():
+    """Partial Opening Round should switch current context to OR-current."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.completed_matches = pd.DataFrame({
+        'round_number': ['OR'],
+        'match_date': pd.to_datetime(['2026-03-05'])
+    })
+    simulator.upcoming_matches = pd.DataFrame({
+        'round_number': ['OR', '1'],
+        'match_date': pd.to_datetime(['2026-03-06', '2026-03-12'])
+    })
+
+    metadata = simulator.determine_snapshot_round_metadata()
+
+    assert metadata['round_key'] == 'round-or-current'
+    assert metadata['round_tab_label'] == 'Current'
+    assert metadata['round_label'] == 'Current Opening Round'
+
+
+def test_determine_snapshot_metadata_uses_current_key_for_partial_regular_round():
+    """Partial regular rounds should emit a dedicated current snapshot key."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.completed_matches = pd.DataFrame({
+        'round_number': ['1', '2'],
+        'match_date': pd.to_datetime(['2026-03-13', '2026-03-20'])
+    })
+    simulator.upcoming_matches = pd.DataFrame({
+        'round_number': ['2', '3'],
+        'match_date': pd.to_datetime(['2026-03-21', '2026-03-28'])
+    })
+
+    metadata = simulator.determine_snapshot_round_metadata()
+
+    assert metadata['round_key'] == 'round-2-current'
+    assert metadata['round_tab_label'] == 'Current'
+    assert metadata['round_label'] == 'Current Round 2'
+
+
+def test_determine_snapshot_metadata_keeps_before_round_when_round_not_started():
+    """If no match in next round is complete, keep before-round context."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.completed_matches = pd.DataFrame({
+        'round_number': ['OR'],
+        'match_date': pd.to_datetime(['2026-03-08'])
+    })
+    simulator.upcoming_matches = pd.DataFrame({
+        'round_number': ['1', '2'],
+        'match_date': pd.to_datetime(['2026-03-12', '2026-03-19'])
+    })
+
+    metadata = simulator.determine_snapshot_round_metadata()
+
+    assert metadata['round_key'] == 'round-1'
+    assert metadata['round_tab_label'] == 'R1'
+    assert metadata['round_label'] == 'Before Round 1'
+
+
+def test_determine_snapshot_metadata_returns_post_when_season_complete():
+    """No upcoming matches with completed results should map to post-season."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.completed_matches = pd.DataFrame({
+        'round_number': ['Grand Final'],
+        'match_date': pd.to_datetime(['2026-09-26'])
+    })
+    simulator.upcoming_matches = pd.DataFrame(columns=['round_number', 'match_date'])
+
+    metadata = simulator.determine_snapshot_round_metadata()
+
+    assert metadata['round_key'] == 'season-complete'
+    assert metadata['round_tab_label'] == 'Post'
+
+
 def test_backfill_contexts_stop_at_current_round():
     """Backfill should include snapshots only up to the current round context."""
     simulator = SeasonSimulator.__new__(SeasonSimulator)
@@ -120,6 +213,26 @@ def test_backfill_contexts_stop_at_current_round():
         ])
     })
     simulator.snapshot_round_metadata = {'round_key': 'round-2'}
+
+    contexts = simulator.build_backfill_round_contexts()
+
+    assert [context['round_key'] for context in contexts] == ['round-or', 'round-1', 'round-2']
+
+
+def test_backfill_contexts_stop_at_base_round_for_current_snapshot_key():
+    """Current-snapshot keys should cap backfill at the matching base round."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.all_matches = pd.DataFrame({
+        'round_number': ['OR', '1', '1', '2', '3'],
+        'match_date': pd.to_datetime([
+            '2025-03-07',
+            '2025-03-14',
+            '2025-03-15',
+            '2025-03-21',
+            '2025-03-28'
+        ])
+    })
+    simulator.snapshot_round_metadata = {'round_key': 'round-2-current'}
 
     contexts = simulator.build_backfill_round_contexts()
 

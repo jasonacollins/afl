@@ -206,7 +206,8 @@ function buildRoundSnapshotMetadata(roundNumber) {
     return {
       roundKey: 'round-unknown',
       roundLabel: 'Current Snapshot',
-      roundTabLabel: 'Current'
+      roundTabLabel: 'Current',
+      roundNumber: null
     };
   }
 
@@ -215,7 +216,8 @@ function buildRoundSnapshotMetadata(roundNumber) {
     return {
       roundKey: 'round-unknown',
       roundLabel: 'Current Snapshot',
-      roundTabLabel: 'Current'
+      roundTabLabel: 'Current',
+      roundNumber: null
     };
   }
 
@@ -223,7 +225,8 @@ function buildRoundSnapshotMetadata(roundNumber) {
     return {
       roundKey: 'round-or',
       roundLabel: 'Before Opening Round',
-      roundTabLabel: 'OR'
+      roundTabLabel: 'OR',
+      roundNumber: 'OR'
     };
   }
 
@@ -233,7 +236,8 @@ function buildRoundSnapshotMetadata(roundNumber) {
     return {
       roundKey: `round-${roundValue}`,
       roundLabel: `Before Round ${roundValue}`,
-      roundTabLabel: `R${roundValue}`
+      roundTabLabel: `R${roundValue}`,
+      roundNumber: String(roundValue)
     };
   }
 
@@ -250,7 +254,8 @@ function buildRoundSnapshotMetadata(roundNumber) {
     return {
       roundKey: `finals-${finalsRoundKey}`,
       roundLabel: `Before ${finalsLabelMap[finalsRoundKey]}`,
-      roundTabLabel: finalsLabelMap[finalsRoundKey]
+      roundTabLabel: finalsLabelMap[finalsRoundKey],
+      roundNumber: finalsLabelMap[finalsRoundKey]
     };
   }
 
@@ -264,7 +269,8 @@ function buildRoundSnapshotMetadata(roundNumber) {
   return {
     roundKey: `round-${slugifyText(normalizedRound)}`,
     roundLabel: `Before ${titleRound || 'Current Snapshot'}`,
-    roundTabLabel: titleRound || 'Current'
+    roundTabLabel: titleRound || 'Current',
+    roundNumber: titleRound || null
   };
 }
 
@@ -273,6 +279,33 @@ function buildPostSeasonSnapshotMetadata() {
     roundKey: 'season-complete',
     roundLabel: 'Season Complete',
     roundTabLabel: 'Post'
+  };
+}
+
+function stripCurrentSnapshotSuffix(roundKey) {
+  const value = String(roundKey || '');
+  return value.endsWith('-current') ? value.slice(0, -8) : value;
+}
+
+function buildCurrentRoundSnapshotMetadata(roundNumber) {
+  const baseMetadata = buildRoundSnapshotMetadata(roundNumber);
+  const baseRoundKey = stripCurrentSnapshotSuffix(baseMetadata.roundKey);
+  const roundNumberValue = baseMetadata.roundNumber;
+
+  let currentLabel = 'Current Snapshot';
+  if (roundNumberValue === 'OR') {
+    currentLabel = 'Current Opening Round';
+  } else if (baseRoundKey.startsWith('finals-')) {
+    currentLabel = String(baseMetadata.roundLabel || 'Current Snapshot').replace(/^Before\s+/, 'Current ');
+  } else if (roundNumberValue !== null && roundNumberValue !== undefined) {
+    currentLabel = `Current Round ${roundNumberValue}`;
+  }
+
+  return {
+    ...baseMetadata,
+    roundKey: `${baseRoundKey}-current`,
+    roundLabel: currentLabel,
+    roundTabLabel: 'Current'
   };
 }
 
@@ -350,7 +383,20 @@ async function determineCurrentRoundSnapshotMetadata(year) {
   const upcomingMatches = sortedMatches.filter((match) => !isMatchCompleted(match));
 
   if (upcomingMatches.length > 0) {
-    return buildRoundSnapshotMetadata(upcomingMatches[0].round_number);
+    const nextRound = upcomingMatches[0].round_number;
+    const nextRoundMetadata = buildRoundSnapshotMetadata(nextRound);
+    const nextRoundKey = stripCurrentSnapshotSuffix(nextRoundMetadata.roundKey);
+    // If a round has both completed and upcoming matches, track a dedicated
+    // "-current" snapshot so the before-round snapshot remains historical.
+    const hasCompletedInSameRound = completedMatches.some((match) =>
+      stripCurrentSnapshotSuffix(buildRoundSnapshotMetadata(match.round_number).roundKey) === nextRoundKey
+    );
+
+    if (hasCompletedInSameRound) {
+      return buildCurrentRoundSnapshotMetadata(nextRound);
+    }
+
+    return nextRoundMetadata;
   }
 
   if (completedMatches.length > 0) {
@@ -501,4 +547,23 @@ async function dailySync() {
   }
 }
 
-dailySync();
+if (require.main === module) {
+  dailySync();
+}
+
+module.exports = {
+  normalizeRoundText,
+  resolveFinalsRoundKey,
+  buildRoundSnapshotMetadata,
+  buildCurrentRoundSnapshotMetadata,
+  buildPostSeasonSnapshotMetadata,
+  stripCurrentSnapshotSuffix,
+  isMatchCompleted,
+  compareMatchesForProgression,
+  determineCurrentRoundSnapshotMetadata,
+  loadExistingRoundSnapshots,
+  evaluateSimulationSnapshotState,
+  hasMatchDataChanges,
+  hasCompletedResultChanges,
+  dailySync
+};

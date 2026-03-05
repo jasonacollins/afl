@@ -97,6 +97,7 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture to project ladder outcomes, finals progression, and premiership chances. Results are written to `data/simulations/season_simulation_YYYY.json` and surfaced on `/simulation`.
 
 - The `/simulation` page supports round snapshot tabs (`Before Round X`, finals stages, and `Post`) so users can review historical “before round” states for the same season.
+- When a round is in progress (some matches completed, others upcoming), a separate `Current` tab is generated (for example `round-or-current`) while preserving the round-start tab (`OR`, `R1`, etc.).
 - Current standings and ELO ratings seed every simulation before match outcomes are sampled.
 - Finals series are simulated using season-specific AFL finals formats:
   - pre-2026: standard top-8

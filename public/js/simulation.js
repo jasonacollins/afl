@@ -323,6 +323,13 @@
             return String(simulationData.current_round_key);
         }
 
+        const inferredCurrentSnapshot = roundSnapshots.find((snapshot) =>
+            typeof snapshot.round_key === 'string' && snapshot.round_key.endsWith('-current')
+        );
+        if (inferredCurrentSnapshot) {
+            return inferredCurrentSnapshot.round_key;
+        }
+
         if (roundSnapshots.length > 0) {
             return roundSnapshots[roundSnapshots.length - 1].round_key;
         }
@@ -407,39 +414,12 @@
             `${activeSnapshot.round_label} • ${activeSnapshot.completed_matches} matches played`;
         document.getElementById('remaining-matches').textContent =
             activeSnapshot.remaining_matches;
-        document.getElementById('last-updated').textContent =
-            formatRelativeTime(activeSnapshot.last_updated);
 
         summaryStats.style.display = 'grid';
         tableContainer.style.display = 'block';
 
         populateTable();
         populateLadderPositionMatrix();
-    }
-
-    function formatRelativeTime(isoDate) {
-        if (!isoDate) {
-            return '-';
-        }
-
-        const timestamp = new Date(isoDate);
-        if (Number.isNaN(timestamp.getTime())) {
-            return '-';
-        }
-
-        const now = new Date();
-        const diffMs = now - timestamp;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 60) {
-            return diffMins <= 0 ? 'Just now' : `${diffMins}m ago`;
-        }
-        if (diffHours < 24) {
-            return `${diffHours}h ago`;
-        }
-        return `${diffDays}d ago`;
     }
 
     /**

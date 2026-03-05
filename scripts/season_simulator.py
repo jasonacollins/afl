@@ -237,6 +237,40 @@ def build_post_season_snapshot_metadata():
     }
 
 
+def strip_current_snapshot_suffix(round_key):
+    """Normalize a snapshot key back to its base round key."""
+    key = str(round_key or '')
+    return key[:-8] if key.endswith('-current') else key
+
+
+def build_current_round_snapshot_metadata(round_number):
+    """
+    Build metadata for an in-progress round "current" snapshot.
+    Keeps the base round key stable for historical before-round tabs.
+    """
+    base_metadata = build_round_snapshot_metadata(round_number)
+    base_round_key = strip_current_snapshot_suffix(base_metadata['round_key'])
+    round_number_value = base_metadata.get('round_number')
+
+    if round_number_value == 'OR':
+        current_label = 'Current Opening Round'
+    elif base_round_key.startswith('finals-'):
+        current_label = base_metadata['round_label'].replace('Before ', 'Current ')
+    elif round_number_value is not None:
+        current_label = f"Current Round {round_number_value}"
+    else:
+        current_label = 'Current Snapshot'
+
+    return {
+        **base_metadata,
+        'round_key': f'{base_round_key}-current',
+        'round_label': current_label,
+        'round_tab_label': 'Current',
+        # Keep current snapshots after their before-round counterpart.
+        'round_order': float(base_metadata.get('round_order', 9000)) + 0.5
+    }
+
+
 class SeasonSimulator:
     """
     Simulates AFL season outcomes using Monte Carlo methods
@@ -527,11 +561,23 @@ class SeasonSimulator:
         )
 
     def determine_snapshot_round_metadata(self):
-        """Determine the 'before round' context for this simulation snapshot."""
+        """Determine snapshot context, including dedicated in-progress current tabs."""
         if len(self.upcoming_matches) > 0:
             sorted_upcoming = self.upcoming_matches.sort_values('match_date')
             next_round = sorted_upcoming.iloc[0].get('round_number')
-            return build_round_snapshot_metadata(next_round)
+            next_round_metadata = build_round_snapshot_metadata(next_round)
+            next_round_key = strip_current_snapshot_suffix(next_round_metadata['round_key'])
+
+            if len(self.completed_matches) > 0 and 'round_number' in self.completed_matches.columns:
+                completed_round_keys = self.completed_matches['round_number'].apply(
+                    lambda value: strip_current_snapshot_suffix(
+                        build_round_snapshot_metadata(value)['round_key']
+                    )
+                )
+                if (completed_round_keys == next_round_key).any():
+                    return build_current_round_snapshot_metadata(next_round)
+
+            return next_round_metadata
 
         if len(self.completed_matches) > 0:
             return build_post_season_snapshot_metadata()
@@ -560,6 +606,7 @@ class SeasonSimulator:
             })
 
         current_round_key = self.snapshot_round_metadata['round_key']
+        target_round_key = strip_current_snapshot_suffix(current_round_key)
         if current_round_key == 'season-complete':
             contexts.append({
                 'round_key': 'season-complete',
@@ -571,7 +618,7 @@ class SeasonSimulator:
         capped_contexts = []
         for context in contexts:
             capped_contexts.append(context)
-            if context['round_key'] == current_round_key:
+            if context['round_key'] == target_round_key:
                 break
 
         return capped_contexts
