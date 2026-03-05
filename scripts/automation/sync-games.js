@@ -80,6 +80,30 @@ async function fetchAPI(endpoint, params = {}) {
   }
 }
 
+async function resolveVenueId(venueName) {
+  if (typeof venueName !== 'string' || venueName.trim() === '') {
+    return null;
+  }
+
+  const row = await getOne(
+    `SELECT venue_id
+     FROM (
+       SELECT v.venue_id AS venue_id, 0 AS priority
+       FROM venues v
+       WHERE TRIM(v.name) = TRIM(?) COLLATE NOCASE
+       UNION ALL
+       SELECT va.venue_id AS venue_id, 1 AS priority
+       FROM venue_aliases va
+       WHERE TRIM(va.alias_name) = TRIM(?) COLLATE NOCASE
+       ORDER BY priority, venue_id
+       LIMIT 1
+     )`,
+    [venueName, venueName]
+  );
+
+  return row ? row.venue_id : null;
+}
+
 // Sync team data first to ensure the IDs are correct
 async function syncTeams() {
   logger.info('Synchronizing team data with Squiggle API...');
@@ -264,6 +288,7 @@ async function syncGamesFromAPI(options = {}) {
         const homeBehinds = shouldNullFixtureScores ? null : (game.hbehinds || null);
         const awayGoals = shouldNullFixtureScores ? null : (game.agoals || null);
         const awayBehinds = shouldNullFixtureScores ? null : (game.abehinds || null);
+        const venueId = await resolveVenueId(game.venue);
         
         // Check if match already exists in database with the Squiggle ID
         const existingMatch = await getOne(
@@ -284,7 +309,7 @@ async function syncGamesFromAPI(options = {}) {
           await runQuery(
             `UPDATE matches 
              SET round_number = ?, match_date = ?, venue = ?, 
-                 home_team_id = ?, away_team_id = ?, hscore = ?, ascore = ?, 
+                 venue_id = ?, home_team_id = ?, away_team_id = ?, hscore = ?, ascore = ?, 
                  hgoals = ?, hbehinds = ?, agoals = ?, abehinds = ?,
                  year = ?, complete = ?
              WHERE match_id = ?`,
@@ -292,6 +317,7 @@ async function syncGamesFromAPI(options = {}) {
               roundNumber, 
               matchDate, 
               game.venue,
+              venueId,
               homeTeamId, 
               awayTeamId, 
               homeScore, 
@@ -315,13 +341,14 @@ async function syncGamesFromAPI(options = {}) {
           await runQuery(
             `INSERT INTO matches 
             (match_number, round_number, match_date, venue, 
-              home_team_id, away_team_id, hscore, ascore, hgoals, hbehinds, agoals, abehinds, year, complete)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              venue_id, home_team_id, away_team_id, hscore, ascore, hgoals, hbehinds, agoals, abehinds, year, complete)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               game.id, 
               roundNumber, 
               matchDate, 
               game.venue,
+              venueId,
               homeTeamId, 
               awayTeamId, 
               homeScore, 

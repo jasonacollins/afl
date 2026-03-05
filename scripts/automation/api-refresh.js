@@ -4,6 +4,30 @@ const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) =>
 const { logger } = require('../../utils/logger');
 const { AppError } = require('../../utils/error-handler');
 
+async function resolveVenueId(venueName) {
+  if (typeof venueName !== 'string' || venueName.trim() === '') {
+    return null;
+  }
+
+  const row = await getOne(
+    `SELECT venue_id
+     FROM (
+       SELECT v.venue_id AS venue_id, 0 AS priority
+       FROM venues v
+       WHERE TRIM(v.name) = TRIM(?) COLLATE NOCASE
+       UNION ALL
+       SELECT va.venue_id AS venue_id, 1 AS priority
+       FROM venue_aliases va
+       WHERE TRIM(va.alias_name) = TRIM(?) COLLATE NOCASE
+       ORDER BY priority, venue_id
+       LIMIT 1
+     )`,
+    [venueName, venueName]
+  );
+
+  return row ? row.venue_id : null;
+}
+
 /**
  * Fetches the latest game data from the Squiggle API for a given year,
  * updates the local database fixture (including completion percentage),
@@ -85,10 +109,12 @@ async function refreshAPIData(year, options = {}) {
         const teamsChanged = currentMatch.home_team_id !== homeTeamId || currentMatch.away_team_id !== awayTeamId;
 
         if (dateChanged || venueChanged || teamsChanged) {
+          const venueId = await resolveVenueId(apiVenue);
+
           // Only update if there are actual differences
           const result = await runQuery(
-            'UPDATE matches SET match_date = ?, venue = ?, home_team_id = ?, away_team_id = ? WHERE match_number = ?',
-            [apiDate, apiVenue, homeTeamId, awayTeamId, squiggleGameId]
+            'UPDATE matches SET match_date = ?, venue = ?, venue_id = ?, home_team_id = ?, away_team_id = ? WHERE match_number = ?',
+            [apiDate, apiVenue, venueId, homeTeamId, awayTeamId, squiggleGameId]
           );
 
           if (result.changes > 0) {

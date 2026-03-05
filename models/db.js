@@ -290,6 +290,38 @@ async function initializeDatabase() {
       await runQuery('VACUUM');
     };
 
+    const backfillMatchVenueIds = async () => {
+      if (!(await tableExists('matches')) || !(await tableExists('venues')) || !(await tableExists('venue_aliases'))) {
+        return;
+      }
+
+      const result = await runQuery(`
+        UPDATE matches
+        SET venue_id = (
+          SELECT resolved.venue_id
+          FROM (
+            SELECT v.venue_id AS venue_id, 0 AS priority
+            FROM venues v
+            WHERE TRIM(v.name) = TRIM(matches.venue) COLLATE NOCASE
+            UNION ALL
+            SELECT va.venue_id AS venue_id, 1 AS priority
+            FROM venue_aliases va
+            WHERE TRIM(va.alias_name) = TRIM(matches.venue) COLLATE NOCASE
+            ORDER BY priority, venue_id
+            LIMIT 1
+          ) AS resolved
+        )
+        WHERE
+          venue_id IS NULL
+          AND venue IS NOT NULL
+          AND TRIM(venue) <> ''
+      `);
+
+      if (result && result.changes > 0) {
+        logger.info('Backfilled missing venue_id values on matches table', { rowsUpdated: result.changes });
+      }
+    };
+
     // Core tables
     await runQuery(`
       CREATE TABLE IF NOT EXISTS teams (
@@ -403,6 +435,7 @@ async function initializeDatabase() {
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_dates ON venue_aliases(start_date, end_date)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_name ON venue_aliases(alias_name)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venues_state ON venues(state)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_matches_venue_id ON matches(venue_id)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_admin_script_runs_status_created ON admin_script_runs(status, created_at)');
 
     await migrateAdminScriptLoggingIfNeeded();
@@ -440,6 +473,7 @@ async function initializeDatabase() {
 
     if (await tableExists('matches')) {
       await runQuery('UPDATE matches SET complete = 0 WHERE complete IS NULL');
+      await backfillMatchVenueIds();
     }
 
     await ensureIncrementalAutoVacuum();
