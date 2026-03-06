@@ -41,10 +41,13 @@ def train_margin_model(data, params):
     list: Prediction results for evaluation
     """
     # Initialize model using core MarginEloModel
+    home_advantage = params.get('home_advantage', params.get('default_home_advantage', 50))
     model = MarginEloModel(
         base_rating=params['base_rating'],
         k_factor=params['k_factor'], 
-        home_advantage=params['home_advantage'],
+        home_advantage=home_advantage,
+        default_home_advantage=params.get('default_home_advantage', home_advantage),
+        interstate_home_advantage=params.get('interstate_home_advantage', home_advantage),
         season_carryover=params['season_carryover'],
         max_margin=params['max_margin'],
         margin_scale=params['margin_scale'],
@@ -69,7 +72,13 @@ def train_margin_model(data, params):
         current_year = match_year
         
         # Get prediction before update
-        predicted_margin = model.predict_margin(match['home_team'], match['away_team'])
+        predicted_margin = model.predict_margin(
+            match['home_team'],
+            match['away_team'],
+            venue_state=match.get('venue_state'),
+            home_team_state=match.get('home_team_state'),
+            away_team_state=match.get('away_team_state')
+        )
         
         # Calculate win probability from margin prediction (using logistic function)
         # This matches the approach used in the prediction script
@@ -99,7 +108,14 @@ def train_margin_model(data, params):
         
         # Update ratings based on actual result
         actual_margin = match['hscore'] - match['ascore']
-        model.update_ratings(match['home_team'], match['away_team'], actual_margin)
+        model.update_ratings(
+            match['home_team'],
+            match['away_team'],
+            actual_margin,
+            venue_state=match.get('venue_state'),
+            home_team_state=match.get('home_team_state'),
+            away_team_state=match.get('away_team_state')
+        )
     
     # Final ratings are already stored in the model
     

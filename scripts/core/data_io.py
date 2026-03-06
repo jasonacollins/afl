@@ -45,13 +45,17 @@ def fetch_afl_data(db_path: str, start_year: Optional[int] = None,
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
         m.venue, m.year, m.hscore, m.ascore,
-        ht.name as home_team, at.name as away_team
+        ht.name as home_team, at.name as away_team,
+        ht.state as home_team_state, at.state as away_team_state,
+        v.state as venue_state
     FROM 
         matches m
     JOIN 
         teams ht ON m.home_team_id = ht.team_id
     JOIN 
         teams at ON m.away_team_id = at.team_id
+    LEFT JOIN
+        venues v ON m.venue_id = v.venue_id
     WHERE 
         m.hscore IS NOT NULL AND m.ascore IS NOT NULL
         {year_clause}
@@ -87,13 +91,17 @@ def fetch_matches_for_prediction(db_path: str, start_year: int) -> pd.DataFrame:
     SELECT 
         m.match_id, m.match_number, m.round_number, m.match_date, 
         m.venue, m.year, m.hscore, m.ascore, m.complete,
-        ht.name as home_team, at.name as away_team
+        ht.name as home_team, at.name as away_team,
+        ht.state as home_team_state, at.state as away_team_state,
+        v.state as venue_state
     FROM 
         matches m
     JOIN 
         teams ht ON m.home_team_id = ht.team_id
     JOIN 
         teams at ON m.away_team_id = at.team_id
+    LEFT JOIN
+        venues v ON m.venue_id = v.venue_id
     WHERE 
         m.year >= {start_year}
     ORDER BY 
@@ -110,6 +118,41 @@ def fetch_matches_for_prediction(db_path: str, start_year: int) -> pd.DataFrame:
     matches = matches.sort_values(['year', 'match_date'])
     
     return matches
+
+
+def get_team_states_map(db_path: str) -> Dict[str, str]:
+    """
+    Load team -> state mapping from the database.
+    
+    Parameters:
+    -----------
+    db_path : str
+        Path to SQLite database
+    
+    Returns:
+    --------
+    Dict[str, str]
+        Mapping of team names to state codes (uppercased)
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        query = """
+        SELECT name, state
+        FROM teams
+        WHERE state IS NOT NULL AND TRIM(state) <> ''
+        """
+        teams_df = pd.read_sql_query(query, conn)
+    finally:
+        conn.close()
+
+    team_states: Dict[str, str] = {}
+    for _, row in teams_df.iterrows():
+        team_name = str(row['name']).strip()
+        team_state = str(row['state']).strip().upper()
+        if team_name and team_state:
+            team_states[team_name] = team_state
+
+    return team_states
 
 
 def get_all_teams(db_path: str) -> List[str]:

@@ -12,6 +12,8 @@ import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
+from .home_advantage import resolve_contextual_home_advantage
+
 
 class AFLEloModel:
     """
@@ -21,10 +23,12 @@ class AFLEloModel:
     Includes margin factors, season carryover, and comprehensive tracking.
     """
     
-    def __init__(self, base_rating: int = 1500, k_factor: float = 20, 
-                 home_advantage: float = 50, margin_factor: float = 0.3, 
-                 season_carryover: float = 0.6, max_margin: int = 120, 
-                 beta: float = 0.05):
+    def __init__(self, base_rating: int = 1500, k_factor: float = 20,
+                 home_advantage: float = 50, default_home_advantage: Optional[float] = None,
+                 interstate_home_advantage: Optional[float] = None,
+                 margin_factor: float = 0.3,
+                 season_carryover: float = 0.6, max_margin: int = 120,
+                 beta: float = 0.05, team_states: Optional[Dict[str, str]] = None):
         """
         Initialize the AFL ELO model with configurable parameters
         
@@ -48,10 +52,19 @@ class AFLEloModel:
         self.base_rating = base_rating
         self.k_factor = k_factor
         self.home_advantage = home_advantage
+        self.default_home_advantage = (
+            float(default_home_advantage) if default_home_advantage is not None else float(home_advantage)
+        )
+        self.interstate_home_advantage = (
+            float(interstate_home_advantage)
+            if interstate_home_advantage is not None
+            else float(home_advantage)
+        )
         self.margin_factor = margin_factor
         self.season_carryover = season_carryover
         self.max_margin = max_margin
         self.beta = beta
+        self.team_states = dict(team_states or {})
         self.team_ratings = {}
         self.yearly_ratings = {}
         self.rating_history = []
@@ -65,24 +78,70 @@ class AFLEloModel:
         """Cap margin to reduce effect of blowouts"""
         return min(abs(margin), self.max_margin) * np.sign(margin)
     
-    def calculate_win_probability(self, home_team: str, away_team: str) -> float:
+    def get_contextual_home_advantage(
+        self,
+        home_team: str,
+        away_team: str,
+        venue_state: Optional[str] = None,
+        home_team_state: Optional[str] = None,
+        away_team_state: Optional[str] = None
+    ) -> float:
+        """Resolve strict contextual home advantage."""
+        return resolve_contextual_home_advantage(
+            default_home_advantage=self.default_home_advantage,
+            interstate_home_advantage=self.interstate_home_advantage,
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state,
+            team_states=self.team_states
+        )
+
+    def calculate_win_probability(
+        self,
+        home_team: str,
+        away_team: str,
+        venue_state: Optional[str] = None,
+        home_team_state: Optional[str] = None,
+        away_team_state: Optional[str] = None
+    ) -> float:
         """Calculate probability of home team winning based on ELO difference"""
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+
+        applied_home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        rating_diff = (home_rating + applied_home_advantage) - away_rating
         
         # Convert rating difference to win probability using logistic function
         win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
         
         return win_probability
     
-    def predict_margin(self, home_team: str, away_team: str) -> float:
+    def predict_margin(
+        self,
+        home_team: str,
+        away_team: str,
+        venue_state: Optional[str] = None,
+        home_team_state: Optional[str] = None,
+        away_team_state: Optional[str] = None
+    ) -> float:
         """
         Predict margin using the beta scaling method
         """
-        win_prob = self.calculate_win_probability(home_team, away_team)
+        win_prob = self.calculate_win_probability(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         predicted_margin = (win_prob - 0.5) / self.beta
         return predicted_margin
 
@@ -90,7 +149,10 @@ class AFLEloModel:
                       ascore: int, year: int, match_id: Optional[int] = None, 
                       round_number: Optional[str] = None, 
                       match_date: Optional[str] = None, 
-                      venue: Optional[str] = None) -> Dict:
+                      venue: Optional[str] = None,
+                      venue_state: Optional[str] = None,
+                      home_team_state: Optional[str] = None,
+                      away_team_state: Optional[str] = None) -> Dict:
         """
         Update team ratings based on match result
         
@@ -130,8 +192,20 @@ class AFLEloModel:
         home_rating = self.team_ratings[home_team]
         away_rating = self.team_ratings[away_team]
         
-        # Calculate win probability
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
+        applied_home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        home_win_prob = self.calculate_win_probability(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         
         # Determine actual result (1 for home win, 0 for away win)
         actual_result = 1.0 if hscore > ascore else 0.0
@@ -162,6 +236,7 @@ class AFLEloModel:
             'round_number': round_number,
             'match_date': match_date,
             'venue': venue,
+            'venue_state': venue_state,
             'year': year,
             'home_team': home_team,
             'away_team': away_team,
@@ -170,7 +245,8 @@ class AFLEloModel:
             'pre_match_home_rating': home_rating,
             'pre_match_away_rating': away_rating,
             'rating_difference': home_rating - away_rating,
-            'adjusted_rating_difference': (home_rating + self.home_advantage) - away_rating,
+            'applied_home_advantage': applied_home_advantage,
+            'adjusted_rating_difference': (home_rating + applied_home_advantage) - away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
@@ -260,10 +336,13 @@ class AFLEloModel:
                 'base_rating': self.base_rating,
                 'k_factor': self.k_factor,
                 'home_advantage': self.home_advantage,
+                'default_home_advantage': self.default_home_advantage,
+                'interstate_home_advantage': self.interstate_home_advantage,
                 'margin_factor': self.margin_factor,
                 'season_carryover': self.season_carryover,
                 'max_margin': self.max_margin,
-                'beta': self.beta
+                'beta': self.beta,
+                'team_states': self.team_states
             },
             'team_ratings': self.team_ratings,
             'yearly_ratings': self.yearly_ratings,
@@ -534,10 +613,13 @@ def train_elo_model(data: pd.DataFrame, params: Optional[Dict] = None) -> AFLElo
             base_rating=params.get('base_rating', 1500),
             k_factor=params.get('k_factor', 20),
             home_advantage=params.get('home_advantage', 50),
+            default_home_advantage=params.get('default_home_advantage', params.get('home_advantage', 50)),
+            interstate_home_advantage=params.get('interstate_home_advantage', params.get('home_advantage', 50)),
             margin_factor=params.get('margin_factor', 0.3),
             season_carryover=params.get('season_carryover', 0.6),
             max_margin=params.get('max_margin', 120),
-            beta=params.get('beta', 0.05)
+            beta=params.get('beta', 0.05),
+            team_states=params.get('team_states')
         )
     
     # Get unique teams
@@ -567,7 +649,10 @@ def train_elo_model(data: pd.DataFrame, params: Optional[Dict] = None) -> AFLElo
             match_id=match.get('match_id'),
             round_number=match.get('round_number'),
             match_date=match.get('match_date'),
-            venue=match.get('venue')
+            venue=match.get('venue'),
+            venue_state=match.get('venue_state'),
+            home_team_state=match.get('home_team_state'),
+            away_team_state=match.get('away_team_state')
         )
         
         prev_year = match['year']
@@ -613,8 +698,19 @@ class MarginEloModel:
     ratings based on margin prediction accuracy.
     """
     
-    def __init__(self, k_factor=35, home_advantage=40, season_carryover=0.75, 
-                 margin_scale=0.15, scaling_factor=50, max_margin=100, base_rating=1500):
+    def __init__(
+        self,
+        k_factor=35,
+        home_advantage=40,
+        default_home_advantage: Optional[float] = None,
+        interstate_home_advantage: Optional[float] = None,
+        season_carryover=0.75,
+        margin_scale=0.15,
+        scaling_factor=50,
+        max_margin=100,
+        base_rating=1500,
+        team_states: Optional[Dict[str, str]] = None
+    ):
         """
         Initialize the margin-focused ELO model
         
@@ -637,11 +733,20 @@ class MarginEloModel:
         """
         self.k_factor = k_factor
         self.home_advantage = home_advantage
+        self.default_home_advantage = (
+            float(default_home_advantage) if default_home_advantage is not None else float(home_advantage)
+        )
+        self.interstate_home_advantage = (
+            float(interstate_home_advantage)
+            if interstate_home_advantage is not None
+            else float(home_advantage)
+        )
         self.season_carryover = season_carryover
         self.margin_scale = margin_scale
         self.scaling_factor = scaling_factor
         self.max_margin = max_margin
         self.base_rating = base_rating
+        self.team_states = dict(team_states or {})
         self.team_ratings = {}
         
     def initialize_ratings(self, teams):
@@ -649,27 +754,74 @@ class MarginEloModel:
         for team in teams:
             self.team_ratings[team] = self.base_rating
     
-    def predict_margin(self, home_team, away_team):
+    def get_contextual_home_advantage(
+        self,
+        home_team,
+        away_team,
+        venue_state: Optional[str] = None,
+        home_team_state: Optional[str] = None,
+        away_team_state: Optional[str] = None
+    ):
+        """Resolve strict contextual home advantage for margin model."""
+        return resolve_contextual_home_advantage(
+            default_home_advantage=self.default_home_advantage,
+            interstate_home_advantage=self.interstate_home_advantage,
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state,
+            team_states=self.team_states
+        )
+
+    def predict_margin(
+        self,
+        home_team,
+        away_team,
+        venue_state: Optional[str] = None,
+        home_team_state: Optional[str] = None,
+        away_team_state: Optional[str] = None
+    ):
         """Predict margin directly from ratings"""
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Apply home ground advantage to rating difference
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+
+        applied_home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        rating_diff = (home_rating + applied_home_advantage) - away_rating
         
         # Convert to margin - simpler than win probability model
         predicted_margin = rating_diff * self.margin_scale
         
         return predicted_margin
     
-    def update_ratings(self, home_team, away_team, actual_margin):
+    def update_ratings(
+        self,
+        home_team,
+        away_team,
+        actual_margin,
+        venue_state: Optional[str] = None,
+        home_team_state: Optional[str] = None,
+        away_team_state: Optional[str] = None
+    ):
         """Update ratings based on actual margin"""
         # Get current ratings
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
         
         # Predict margin
-        predicted_margin = self.predict_margin(home_team, away_team)
+        predicted_margin = self.predict_margin(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         
         # Cap actual margin to reduce impact of blowouts
         capped_margin = np.sign(actual_margin) * min(abs(actual_margin), self.max_margin)
@@ -702,11 +854,14 @@ class MarginEloModel:
             'parameters': {
                 'k_factor': self.k_factor,
                 'home_advantage': self.home_advantage,
+                'default_home_advantage': self.default_home_advantage,
+                'interstate_home_advantage': self.interstate_home_advantage,
                 'season_carryover': self.season_carryover,
                 'margin_scale': self.margin_scale,
                 'scaling_factor': self.scaling_factor,
                 'max_margin': self.max_margin,
-                'base_rating': self.base_rating
+                'base_rating': self.base_rating,
+                'team_states': self.team_states
             },
             'team_ratings': self.team_ratings.copy()
         }

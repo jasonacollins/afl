@@ -39,7 +39,8 @@ from core.optimise import parameter_tuning_grid_search, evaluate_parameters_walk
 elo_param_grid = {
     'base_rating': [1500],  # Usually kept fixed
     'k_factor': [20, 25, 30, 35, 40, 45, 50, 55, 60],
-    'home_advantage': [20, 30, 40, 50, 60, 70, 80, 90, 100],
+    'default_home_advantage': [20, 30, 40, 50, 60, 70],
+    'interstate_home_advantage': [40, 50, 60, 70, 80, 90, 100],
     'margin_factor': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
     'season_carryover': [0.4, 0.5, 0.6, 0.7, 0.8],
     'max_margin': [60, 80, 100]
@@ -101,9 +102,14 @@ def optimize_elo_grid_search(db_path, start_year=1990, end_year=2024, max_combin
     # Get detailed evaluation of best parameters including BITS scores
     print(f"\nEvaluating best parameters with detailed metrics...")
     detailed_results = evaluate_parameters_walkforward(
-        [best_params['k_factor'], best_params['home_advantage'], 
-         best_params['margin_factor'], best_params['season_carryover'], 
-         best_params['max_margin']],
+        [
+            best_params['k_factor'],
+            best_params.get('default_home_advantage', best_params['home_advantage']),
+            best_params.get('interstate_home_advantage', best_params['home_advantage']),
+            best_params['margin_factor'],
+            best_params['season_carryover'],
+            best_params['max_margin'],
+        ],
         matches_df,
         verbose=False,
         return_detailed=True
@@ -129,7 +135,8 @@ def check_parameter_sampling():
     # Check if simple good params are in our grid
     simple_good = {
         'k_factor': 45,
-        'home_advantage': 50, 
+        'default_home_advantage': 50,
+        'interstate_home_advantage': 70,
         'margin_factor': 0.5,
         'season_carryover': 0.6,
         'max_margin': 80
@@ -166,14 +173,24 @@ def check_parameter_sampling():
     print(f"\nChecking if simple good combination appears in random sampling...")
     all_combinations = []
     for k_factor in elo_param_grid['k_factor']:
-        for home_advantage in elo_param_grid['home_advantage']:
-            for margin_factor in elo_param_grid['margin_factor']:
-                for season_carryover in elo_param_grid['season_carryover']:
-                    for max_margin in elo_param_grid['max_margin']:
-                        combo = (k_factor, home_advantage, margin_factor, season_carryover, max_margin)
-                        all_combinations.append(combo)
+        for default_home_advantage in elo_param_grid['default_home_advantage']:
+            for interstate_home_advantage in elo_param_grid['interstate_home_advantage']:
+                if interstate_home_advantage < default_home_advantage:
+                    continue
+                for margin_factor in elo_param_grid['margin_factor']:
+                    for season_carryover in elo_param_grid['season_carryover']:
+                        for max_margin in elo_param_grid['max_margin']:
+                            combo = (
+                                k_factor,
+                                default_home_advantage,
+                                interstate_home_advantage,
+                                margin_factor,
+                                season_carryover,
+                                max_margin,
+                            )
+                            all_combinations.append(combo)
     
-    simple_good_tuple = (45, 50, 0.5, 0.6, 80)
+    simple_good_tuple = (45, 50, 70, 0.5, 0.6, 80)
     if simple_good_tuple in all_combinations:
         print(f"  ✓ Simple good combination IS in the full grid")
     else:
@@ -190,7 +207,8 @@ def test_known_good_params():
     print("Testing exact optimal parameter set...")
     optimal_params = {
         'k_factor': 47.0,
-        'home_advantage': 52.0,
+        'default_home_advantage': 52.0,
+        'interstate_home_advantage': 70.0,
         'margin_factor': 0.47,
         'season_carryover': 0.61,
         'max_margin': 71.0,
@@ -202,7 +220,8 @@ def test_known_good_params():
     print("\nTesting simple 'good enough' parameter set...")
     simple_params = {
         'k_factor': 45.0,
-        'home_advantage': 50.0,
+        'default_home_advantage': 50.0,
+        'interstate_home_advantage': 70.0,
         'margin_factor': 0.5,
         'season_carryover': 0.6,
         'max_margin': 80.0,
@@ -222,9 +241,14 @@ def test_known_good_params():
         print(f"  {key}: {value}")
     
     optimal_score = evaluate_parameters_walkforward(
-        [optimal_params['k_factor'], optimal_params['home_advantage'], 
-         optimal_params['margin_factor'], optimal_params['season_carryover'], 
-         optimal_params['max_margin']],
+        [
+            optimal_params['k_factor'],
+            optimal_params['default_home_advantage'],
+            optimal_params['interstate_home_advantage'],
+            optimal_params['margin_factor'],
+            optimal_params['season_carryover'],
+            optimal_params['max_margin'],
+        ],
         matches_df,
         verbose=False
     )
@@ -235,9 +259,14 @@ def test_known_good_params():
         print(f"  {key}: {value}")
     
     simple_score = evaluate_parameters_walkforward(
-        [simple_params['k_factor'], simple_params['home_advantage'], 
-         simple_params['margin_factor'], simple_params['season_carryover'], 
-         simple_params['max_margin']],
+        [
+            simple_params['k_factor'],
+            simple_params['default_home_advantage'],
+            simple_params['interstate_home_advantage'],
+            simple_params['margin_factor'],
+            simple_params['season_carryover'],
+            simple_params['max_margin'],
+        ],
         matches_df,
         verbose=False
     )
@@ -265,9 +294,14 @@ def test_known_good_params():
     # Test with walk-forward validation
     from core.optimise import evaluate_parameters_walkforward
     score = evaluate_parameters_walkforward(
-        [test_params['k_factor'], test_params['home_advantage'], 
-         test_params['margin_factor'], test_params['season_carryover'], 
-         test_params['max_margin']],
+        [
+            test_params['k_factor'],
+            test_params['default_home_advantage'],
+            test_params['interstate_home_advantage'],
+            test_params['margin_factor'],
+            test_params['season_carryover'],
+            test_params['max_margin'],
+        ],
         matches_df,
         verbose=True
     )

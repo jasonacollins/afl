@@ -26,7 +26,19 @@ Implement contextual home advantage in ELO so interstate travel is modeled separ
 - No explicit `matches(venue_id)` index exists.
 
 ### Already Implemented in ELO Code
-- `scripts/elo_history_generator.py` already applies contextual home advantage and joins `matches.venue_id -> venues.state`.
+- Strict interstate HA selector is implemented and shared in `scripts/core/home_advantage.py`.
+- Rule now enforced everywhere:
+  - apply `interstate_home_advantage` only when `home_team_state == venue_state` and `away_team_state != venue_state`
+  - otherwise apply `default_home_advantage`
+  - if any state is missing or `venue_state == 'INTL'`, apply `default_home_advantage`
+- State context (`home_team_state`, `away_team_state`, `venue_state`) is now fetched via DB joins in `scripts/core/data_io.py`.
+- Active win/margin model code and optimization/training paths under `scripts/core/` now use the shared selector.
+- Runtime prediction scripts now use the same rule:
+  - `scripts/elo_win_predict.py`
+  - `scripts/elo_margin_predict.py`
+  - `scripts/elo_predict_combined.py`
+- History replay now uses the same shared selector and no longer uses a hardcoded team-state map:
+  - `scripts/elo_history_generator.py`
 
 ## Corrections to Previous Notes
 - Column name is `teams.state`, not `teams.team_state`.
@@ -44,29 +56,22 @@ Implement contextual home advantage in ELO so interstate travel is modeled separ
 - Optional hardening: add a uniqueness guard for canonical venue names (for example, unique index on `venues(name)`).
 - Optional hardening: add trigger(s) or a shared resolver helper so `venue` and `venue_id` cannot drift again.
 
-### 2) ELO Model Rollout Beyond History Generator
-- Keep dual home-advantage behavior in `elo_history_generator.py`.
-- Extend active training/prediction pipeline to dual parameters:
-  - `scripts/elo_win_train.py`
-  - `scripts/elo_win_optimize.py`
-  - `scripts/elo_predict_combined.py`
-  - `scripts/elo_margin_train.py`
-  - `scripts/elo_margin_optimize.py`
-  - `scripts/elo_margin_predict.py`
-  - shared model code under `scripts/core/`
-- Parameter naming target:
-  - `default_home_advantage` (same-state)
+### 2) ELO Model Rollout (Completed)
+- Dual HA parameters are now active across core, training, optimization, prediction, and history code paths.
+- Parameter names are implemented:
+  - `default_home_advantage`
   - `interstate_home_advantage`
-- Maintain backward compatibility for existing model JSON files containing only `home_advantage`.
+- Backward compatibility is implemented: model files with only `home_advantage` are treated as using that value for both defaults.
+- Remaining operational work is model retraining/publishing, not code rollout.
 
 ### 3) Edge Cases
 - Neutral venue handling:
   - Schema currently has no `matches.is_neutral` flag.
   - Decide whether to add explicit neutral handling (recommended for Grand Finals and special events).
 - Interstate "home" games:
-  - Ensure venue-state logic remains authoritative (not nominal home-team state).
+  - Strict rule is now implemented: interstate boost is only allowed when the home team is in its own state at that venue.
 - International games:
-  - `INTL` venue states exist; define explicit model behavior for them.
+  - `INTL` now explicitly falls back to `default_home_advantage`.
 
 ### 4) Optional Historical Accuracy Enhancements
 - Add `team_states_history` table for relocations/rebrands if historical treatment is required.
@@ -77,6 +82,7 @@ Implement contextual home advantage in ELO so interstate travel is modeled separ
   - `SELECT COUNT(*) FROM matches WHERE venue_id IS NULL;` returns `0`.
   - Name/alias mapping audit returns no unmapped venues.
 - Modeling checks:
+  - Interstate advantage branch only triggers when `home_team_state == venue_state` and `away_team_state != venue_state`.
   - Interstate advantage parameter converges above same-state/default in optimization output.
   - Historical log-loss/Brier improves or remains neutral after rollout.
 - Edge-case checks:
@@ -87,6 +93,7 @@ Implement contextual home advantage in ELO so interstate travel is modeled separ
 - Fixture sync/update: `scripts/automation/sync-games.js`, `scripts/automation/api-refresh.js`
 - Historical generator: `scripts/elo_history_generator.py`
 - Core ELO logic: `scripts/core/`
+- Shared HA selector: `scripts/core/home_advantage.py`
 
 ---
-Last updated: March 6, 2026 (post schema + data verification)
+Last updated: March 6, 2026 (strict interstate HA rollout recorded)

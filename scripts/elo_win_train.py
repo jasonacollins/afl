@@ -124,7 +124,9 @@ def main():
         param_grid = {
             'base_rating': [1500],  # Usually kept fixed
             'k_factor': [10, 15, 20, 25, 30, 40],  # How quickly ratings change
-            'home_advantage': [20, 30, 40, 50, 60, 70],  # Home ground advantage in rating points
+            'default_home_advantage': [20, 30, 40, 50, 60, 70],  # Same-state home advantage
+            'interstate_home_advantage': [40, 50, 60, 70, 80, 90],  # Interstate boost when strict condition matches
+            'home_advantage': [20, 30, 40, 50, 60, 70],  # Legacy fallback
             'margin_factor': [0.1, 0.2, 0.3, 0.4, 0.5, 0.7],  # How much margin affects rating changes
             'season_carryover': [0.5, 0.6, 0.7, 0.75, 0.8, 0.9],  # How much rating carries over between seasons
             'max_margin': [60, 80, 100, 120, 140, 160]  # Maximum margin to consider
@@ -132,7 +134,8 @@ def main():
         
         # Report the total number of combinations
         total_combos = (len(param_grid['k_factor']) * 
-                        len(param_grid['home_advantage']) * 
+                        len(param_grid['default_home_advantage']) *
+                        len(param_grid['interstate_home_advantage']) *
                         len(param_grid['margin_factor']) * 
                         len(param_grid['season_carryover']) * 
                         len(param_grid['max_margin']))
@@ -162,6 +165,8 @@ def main():
             'base_rating': 1500,
             'k_factor': 20,
             'home_advantage': 50,
+            'default_home_advantage': 50,
+            'interstate_home_advantage': 70,
             'margin_factor': 0.3,
             'season_carryover': 0.6,
             'max_margin': 120

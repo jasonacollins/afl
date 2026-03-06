@@ -32,7 +32,9 @@ from core.optimise import parameter_tuning_margin_grid_search
 margin_param_grid = {
     'base_rating': [1500],  # Fixed like standard model
     'k_factor': [20, 25, 30, 35, 40, 45, 50, 55, 60],  # Same as standard
-    'home_advantage': [20, 30, 40, 50, 60, 70, 80, 90, 100],  # Same as standard
+    'default_home_advantage': [20, 30, 40, 50, 60, 70],
+    'interstate_home_advantage': [40, 50, 60, 70, 80, 90, 100],
+    'home_advantage': [20, 30, 40, 50, 60, 70],  # Legacy fallback; primary tuning uses default/interstate
     'season_carryover': [0.4, 0.5, 0.6, 0.7, 0.8],  # Same as standard
     'max_margin': [60, 80, 100],  # Same as standard
     # Margin-specific parameters
@@ -54,7 +56,8 @@ def optimize_margin_elo_grid_search(db_path, start_year=1990, end_year=2024, max
     
     # Calculate total possible combinations
     total_combos = (len(margin_param_grid['k_factor']) * 
-                    len(margin_param_grid['home_advantage']) * 
+                    len(margin_param_grid['default_home_advantage']) *
+                    len(margin_param_grid['interstate_home_advantage']) *
                     len(margin_param_grid['season_carryover']) *
                     len(margin_param_grid['max_margin']) *
                     len(margin_param_grid['margin_scale']) *

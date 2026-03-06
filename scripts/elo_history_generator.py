@@ -36,34 +36,13 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
+from core.home_advantage import resolve_contextual_home_advantage
+
 
 MODEL_TYPE_WIN = 'win_elo'
 MODEL_TYPE_MARGIN = 'margin_elo'
 DEFAULT_SEED_START_YEAR = 1990
 DEFAULT_OUTPUT_START_YEAR = 2000
-
-
-# Team state mapping for interstate home advantage calculation
-TEAM_STATES = {
-    'Adelaide': 'SA',
-    'Brisbane Lions': 'QLD',
-    'Carlton': 'VIC',
-    'Collingwood': 'VIC',
-    'Essendon': 'VIC',
-    'Fremantle': 'WA',
-    'Geelong': 'VIC',
-    'Gold Coast': 'QLD',
-    'Greater Western Sydney': 'NSW',
-    'Hawthorn': 'VIC',
-    'Melbourne': 'VIC',
-    'North Melbourne': 'VIC',
-    'Port Adelaide': 'SA',
-    'Richmond': 'VIC',
-    'St Kilda': 'VIC',
-    'Sydney': 'NSW',
-    'West Coast': 'WA',
-    'Western Bulldogs': 'VIC'
-}
 
 
 class AFLEloHistoryGenerator:
@@ -81,7 +60,8 @@ class AFLEloHistoryGenerator:
         season_carryover=0.6,
         max_margin=120,
         margin_scale=0.15,
-        scaling_factor=80
+        scaling_factor=80,
+        team_states=None
     ):
         self.model_type = model_type
         self.base_rating = float(base_rating)
@@ -98,6 +78,7 @@ class AFLEloHistoryGenerator:
         self.max_margin = float(max_margin)
         self.margin_scale = float(margin_scale)
         self.scaling_factor = float(scaling_factor)
+        self.team_states = dict(team_states or {})
         self.team_ratings = {}
         self.rating_history = []
 
@@ -110,17 +91,52 @@ class AFLEloHistoryGenerator:
     def _cap_margin(self, margin):
         return min(abs(margin), self.max_margin) * np.sign(margin)
 
-    def predict_margin(self, home_team, away_team):
+    def predict_margin(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+        home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        rating_diff = (home_rating + home_advantage) - away_rating
         return rating_diff * self.margin_scale
 
-    def calculate_win_probability(self, home_team, away_team, venue_state=None):
+    def calculate_win_probability(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
+        home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+
         if self.model_type == MODEL_TYPE_MARGIN:
-            predicted_margin = self.predict_margin(home_team, away_team)
+            predicted_margin = self.predict_margin(
+                home_team,
+                away_team,
+                venue_state=venue_state,
+                home_team_state=home_team_state,
+                away_team_state=away_team_state
+            )
             rating_diff = (
-                (self.team_ratings.get(home_team, self.base_rating) + self.home_advantage)
+                (self.team_ratings.get(home_team, self.base_rating) + home_advantage)
                 - self.team_ratings.get(away_team, self.base_rating)
                 if self.margin_scale == 0
                 else predicted_margin / self.margin_scale
@@ -129,20 +145,45 @@ class AFLEloHistoryGenerator:
 
         home_rating = self.team_ratings.get(home_team, self.base_rating)
         away_rating = self.team_ratings.get(away_team, self.base_rating)
-        home_advantage = self.get_contextual_home_advantage(home_team, away_team, venue_state)
         rating_diff = (home_rating + home_advantage) - away_rating
         return 1.0 / (1.0 + 10 ** (-rating_diff / 400))
 
-    def get_contextual_home_advantage(self, home_team, away_team, venue_state):
-        away_team_state = TEAM_STATES.get(away_team)
-        venue_state_value = venue_state if venue_state is not None else TEAM_STATES.get(home_team)
+    def get_contextual_home_advantage(
+        self,
+        home_team,
+        away_team,
+        venue_state,
+        home_team_state=None,
+        away_team_state=None
+    ):
+        return resolve_contextual_home_advantage(
+            default_home_advantage=self.default_home_advantage,
+            interstate_home_advantage=self.interstate_home_advantage,
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state,
+            team_states=self.team_states
+        )
 
-        if away_team_state and venue_state_value and away_team_state != venue_state_value:
-            return self.interstate_home_advantage
-        return self.default_home_advantage
-
-    def _calculate_win_rating_change(self, home_team, away_team, hscore, ascore, venue_state):
-        home_win_prob = self.calculate_win_probability(home_team, away_team, venue_state=venue_state)
+    def _calculate_win_rating_change(
+        self,
+        home_team,
+        away_team,
+        hscore,
+        ascore,
+        venue_state,
+        home_team_state=None,
+        away_team_state=None
+    ):
+        home_win_prob = self.calculate_win_probability(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
 
         actual_result = 1.0 if hscore > ascore else 0.0
         if hscore == ascore:
@@ -160,11 +201,26 @@ class AFLEloHistoryGenerator:
 
         return self.k_factor * margin_multiplier * (actual_result - home_win_prob)
 
-    def _calculate_margin_rating_change(self, home_team, away_team, hscore, ascore):
+    def _calculate_margin_rating_change(
+        self,
+        home_team,
+        away_team,
+        hscore,
+        ascore,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         if self.scaling_factor == 0:
             raise ValueError('scaling_factor cannot be zero for margin model history generation')
 
-        predicted_margin = self.predict_margin(home_team, away_team)
+        predicted_margin = self.predict_margin(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         actual_margin = hscore - ascore
         margin_error = predicted_margin - actual_margin
 
@@ -182,7 +238,9 @@ class AFLEloHistoryGenerator:
         round_number=None,
         match_date=None,
         venue=None,
-        venue_state=None
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
     ):
         if home_team not in self.team_ratings:
             self.team_ratings[home_team] = self.base_rating
@@ -193,9 +251,25 @@ class AFLEloHistoryGenerator:
         away_rating_before = self.team_ratings[away_team]
 
         if self.model_type == MODEL_TYPE_MARGIN:
-            rating_change = self._calculate_margin_rating_change(home_team, away_team, hscore, ascore)
+            rating_change = self._calculate_margin_rating_change(
+                home_team,
+                away_team,
+                hscore,
+                ascore,
+                venue_state=venue_state,
+                home_team_state=home_team_state,
+                away_team_state=away_team_state
+            )
         else:
-            rating_change = self._calculate_win_rating_change(home_team, away_team, hscore, ascore, venue_state)
+            rating_change = self._calculate_win_rating_change(
+                home_team,
+                away_team,
+                hscore,
+                ascore,
+                venue_state,
+                home_team_state=home_team_state,
+                away_team_state=away_team_state
+            )
 
         self.team_ratings[home_team] += rating_change
         self.team_ratings[away_team] -= rating_change
@@ -304,7 +378,8 @@ def build_generator_from_config(model_config):
         season_carryover=params.get('season_carryover', 0.6),
         max_margin=params.get('max_margin', 120),
         margin_scale=params.get('margin_scale', 0.15),
-        scaling_factor=params.get('scaling_factor', 80)
+        scaling_factor=params.get('scaling_factor', 80),
+        team_states=params.get('team_states')
     )
 
 
@@ -330,6 +405,7 @@ def fetch_afl_data(db_path, start_year=None, end_year=None, after_date=None, aft
         m.match_id, m.match_number, m.round_number, m.match_date,
         m.venue, m.year, m.hscore, m.ascore,
         ht.name AS home_team, at.name AS away_team,
+        ht.state AS home_team_state, at.state AS away_team_state,
         v.state AS venue_state
     FROM matches m
     JOIN teams ht ON m.home_team_id = ht.team_id
@@ -357,6 +433,8 @@ def apply_matches_to_generator(generator, data, previous_year=None):
                 generator.apply_season_carryover(transition_year)
 
         venue_state = match.get('venue_state') if pd.notna(match.get('venue_state')) else None
+        home_team_state = match.get('home_team_state') if pd.notna(match.get('home_team_state')) else None
+        away_team_state = match.get('away_team_state') if pd.notna(match.get('away_team_state')) else None
         generator.update_ratings(
             home_team=match['home_team'],
             away_team=match['away_team'],
@@ -367,7 +445,9 @@ def apply_matches_to_generator(generator, data, previous_year=None):
             round_number=match['round_number'],
             match_date=match['match_date'],
             venue=match['venue'],
-            venue_state=venue_state
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
         )
 
         matches_processed += 1

@@ -14,6 +14,7 @@ from core.data_io import (
     load_model
 )
 from core.elo_core import AFLEloModel, MarginEloModel
+from core.home_advantage import resolve_contextual_home_advantage
 from core.scoring import evaluate_predictions, format_scoring_summary
 
 
@@ -115,6 +116,15 @@ class AFLCombinedEloPredictor:
             self.base_rating = self.win_params['base_rating']
             self.k_factor = self.win_params['k_factor']
             self.home_advantage = self.win_params['home_advantage']
+            self.win_default_home_advantage = self.win_params.get(
+                'default_home_advantage',
+                self.win_params['home_advantage']
+            )
+            self.win_interstate_home_advantage = self.win_params.get(
+                'interstate_home_advantage',
+                self.win_params['home_advantage']
+            )
+            self.win_team_states = self.win_params.get('team_states', {})
             self.season_carryover = self.win_params['season_carryover']
             self.max_margin = self.win_params['max_margin']
             
@@ -155,6 +165,19 @@ class AFLCombinedEloPredictor:
             self.margin_params = model_data['parameters']
             self.margin_scale = self.margin_params['margin_scale']
             self.scaling_factor = self.margin_params['scaling_factor']
+            self.margin_home_advantage = self.margin_params.get(
+                'home_advantage',
+                self.home_advantage
+            )
+            self.margin_default_home_advantage = self.margin_params.get(
+                'default_home_advantage',
+                self.margin_home_advantage
+            )
+            self.margin_interstate_home_advantage = self.margin_params.get(
+                'interstate_home_advantage',
+                self.margin_home_advantage
+            )
+            self.margin_team_states = self.margin_params.get('team_states', {})
             
             # Set team ratings
             if 'team_ratings' not in model_data:
@@ -179,35 +202,112 @@ class AFLCombinedEloPredictor:
         """Cap margin to reduce effect of blowouts"""
         return min(abs(margin), self.max_margin) * np.sign(margin)
     
-    def calculate_win_probability(self, home_team, away_team):
+    def get_win_home_advantage(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
+        return resolve_contextual_home_advantage(
+            default_home_advantage=self.win_default_home_advantage,
+            interstate_home_advantage=self.win_interstate_home_advantage,
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state,
+            team_states=self.win_team_states
+        )
+
+    def get_margin_home_advantage(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
+        return resolve_contextual_home_advantage(
+            default_home_advantage=self.margin_default_home_advantage,
+            interstate_home_advantage=self.margin_interstate_home_advantage,
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state,
+            team_states=self.margin_team_states
+        )
+
+    def calculate_win_probability(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         """Calculate probability of home team winning using win ELO model"""
         home_rating = self.win_ratings.get(home_team, self.base_rating)
         away_rating = self.win_ratings.get(away_team, self.base_rating)
         
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+        applied_home_advantage = self.get_win_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        rating_diff = (home_rating + applied_home_advantage) - away_rating
         
         # Convert rating difference to win probability using logistic function
         win_probability = 1.0 / (1.0 + 10 ** (-rating_diff / 400))
         
         return win_probability
     
-    def predict_margin(self, home_team, away_team):
+    def predict_margin(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         """Predict match margin using margin-only ELO model"""
         home_rating = self.margin_ratings.get(home_team, self.base_rating)
         away_rating = self.margin_ratings.get(away_team, self.base_rating)
         
-        # Apply home ground advantage
-        rating_diff = (home_rating + self.home_advantage) - away_rating
+        applied_home_advantage = self.get_margin_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        rating_diff = (home_rating + applied_home_advantage) - away_rating
         
         # Use margin_scale to convert rating difference to margin
         predicted_margin = rating_diff * self.margin_scale
         
         return predicted_margin
     
-    def predict_margin_builtin(self, home_team, away_team):
+    def predict_margin_builtin(
+        self,
+        home_team,
+        away_team,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         """Predict margin using built-in ELO calculation from win model"""
-        win_prob = self.calculate_win_probability(home_team, away_team)
+        win_prob = self.calculate_win_probability(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         predicted_margin = (win_prob - 0.5) / self.beta
         return predicted_margin
     
@@ -238,7 +338,21 @@ class AFLCombinedEloPredictor:
             'margin_ratings_after': self.margin_ratings.copy()
         })
     
-    def update_ratings(self, home_team, away_team, hscore, ascore, match_id=None, year=None, round_number=None, match_date=None, venue=None):
+    def update_ratings(
+        self,
+        home_team,
+        away_team,
+        hscore,
+        ascore,
+        match_id=None,
+        year=None,
+        round_number=None,
+        match_date=None,
+        venue=None,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         """
         Update team ratings based on match result for both models
         """
@@ -264,11 +378,44 @@ class AFLCombinedEloPredictor:
         win_away_rating = self.win_ratings[away_team]
         margin_home_rating = self.margin_ratings[home_team]
         margin_away_rating = self.margin_ratings[away_team]
+
+        win_home_advantage = self.get_win_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        margin_home_advantage = self.get_margin_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         
         # Calculate predictions using both models
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
-        predicted_margin = self.predict_margin(home_team, away_team)
-        predicted_margin_builtin = self.predict_margin_builtin(home_team, away_team)
+        home_win_prob = self.calculate_win_probability(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        predicted_margin = self.predict_margin(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        predicted_margin_builtin = self.predict_margin_builtin(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         
         # Store the pre-update prediction info
         prediction_info = {
@@ -285,8 +432,10 @@ class AFLCombinedEloPredictor:
             'margin_away_rating': margin_away_rating,
             'win_rating_difference': win_home_rating - win_away_rating,
             'margin_rating_difference': margin_home_rating - margin_away_rating,
-            'adjusted_win_rating_difference': (win_home_rating + self.home_advantage) - win_away_rating,
-            'adjusted_margin_rating_difference': (margin_home_rating + self.home_advantage) - margin_away_rating,
+            'win_applied_home_advantage': win_home_advantage,
+            'margin_applied_home_advantage': margin_home_advantage,
+            'adjusted_win_rating_difference': (win_home_rating + win_home_advantage) - win_away_rating,
+            'adjusted_margin_rating_difference': (margin_home_rating + margin_home_advantage) - margin_away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_winner': home_team if home_win_prob > 0.5 else away_team,
@@ -376,7 +525,19 @@ class AFLCombinedEloPredictor:
         
         return prediction_info
     
-    def predict_match(self, home_team, away_team, match_id=None, year=None, round_number=None, match_date=None, venue=None):
+    def predict_match(
+        self,
+        home_team,
+        away_team,
+        match_id=None,
+        year=None,
+        round_number=None,
+        match_date=None,
+        venue=None,
+        venue_state=None,
+        home_team_state=None,
+        away_team_state=None
+    ):
         """
         Predict the outcome of a match without updating ratings
         """
@@ -402,11 +563,44 @@ class AFLCombinedEloPredictor:
         win_away_rating = self.win_ratings[away_team]
         margin_home_rating = self.margin_ratings[home_team]
         margin_away_rating = self.margin_ratings[away_team]
+
+        win_home_advantage = self.get_win_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        margin_home_advantage = self.get_margin_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         
         # Calculate predictions using both models
-        home_win_prob = self.calculate_win_probability(home_team, away_team)
-        predicted_margin = self.predict_margin(home_team, away_team)
-        predicted_margin_builtin = self.predict_margin_builtin(home_team, away_team)
+        home_win_prob = self.calculate_win_probability(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        predicted_margin = self.predict_margin(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
+        predicted_margin_builtin = self.predict_margin_builtin(
+            home_team,
+            away_team,
+            venue_state=venue_state,
+            home_team_state=home_team_state,
+            away_team_state=away_team_state
+        )
         
         # Create prediction result
         prediction = {
@@ -423,8 +617,10 @@ class AFLCombinedEloPredictor:
             'margin_away_rating': margin_away_rating,
             'win_rating_difference': win_home_rating - win_away_rating,
             'margin_rating_difference': margin_home_rating - margin_away_rating,
-            'adjusted_win_rating_difference': (win_home_rating + self.home_advantage) - win_away_rating,
-            'adjusted_margin_rating_difference': (margin_home_rating + self.home_advantage) - margin_away_rating,
+            'win_applied_home_advantage': win_home_advantage,
+            'margin_applied_home_advantage': margin_home_advantage,
+            'adjusted_win_rating_difference': (win_home_rating + win_home_advantage) - win_away_rating,
+            'adjusted_margin_rating_difference': (margin_home_rating + margin_home_advantage) - margin_away_rating,
             'home_win_probability': home_win_prob,
             'away_win_probability': 1 - home_win_prob,
             'predicted_margin': predicted_margin,  # From margin-only model
@@ -678,7 +874,10 @@ def predict_matches(win_model_path, margin_model_path, db_path='data/database/af
                 year=match['year'],
                 round_number=match['round_number'],
                 match_date=match['match_date'].isoformat() if pd.notna(match['match_date']) else None,
-                venue=match['venue']
+                venue=match['venue'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
             )
         else:
             # For future matches, just predict without updating
@@ -689,7 +888,10 @@ def predict_matches(win_model_path, margin_model_path, db_path='data/database/af
                 year=match['year'],
                 round_number=match['round_number'],
                 match_date=match['match_date'].isoformat() if pd.notna(match['match_date']) else None,
-                venue=match['venue']
+                venue=match['venue'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
             )
 
     if future_only:

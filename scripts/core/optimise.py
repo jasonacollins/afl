@@ -25,6 +25,77 @@ from .elo_core import AFLEloModel
 from .scoring import calculate_bits_score, calculate_brier_score, evaluate_predictions
 
 
+def _unpack_standard_params(
+    params: List[float],
+) -> Tuple[float, float, float, float, float, float]:
+    """
+    Unpack standard ELO parameters with backward compatibility.
+
+    Supported layouts:
+    - [k_factor, home_advantage, margin_factor, season_carryover, max_margin]
+    - [k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin]
+    """
+    if len(params) == 5:
+        k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
+        return k_factor, home_advantage, home_advantage, margin_factor, season_carryover, max_margin
+
+    if len(params) == 6:
+        k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin = params
+        return (
+            k_factor,
+            default_home_advantage,
+            interstate_home_advantage,
+            margin_factor,
+            season_carryover,
+            max_margin,
+        )
+
+    raise ValueError(
+        "Standard ELO params must have length 5 or 6: "
+        "[k_factor, home_advantage, margin_factor, season_carryover, max_margin] or "
+        "[k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin]"
+    )
+
+
+def _unpack_margin_params(params: List[float]) -> Tuple[float, float, float, float, float, float, float]:
+    """
+    Unpack margin ELO parameters with backward compatibility.
+
+    Supported layouts:
+    - [k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin]
+    - [k_factor, default_home_advantage, interstate_home_advantage, season_carryover, margin_scale, scaling_factor, max_margin]
+    """
+    if len(params) == 6:
+        k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin = params
+        return (
+            k_factor,
+            home_advantage,
+            home_advantage,
+            season_carryover,
+            margin_scale,
+            scaling_factor,
+            max_margin,
+        )
+
+    if len(params) == 7:
+        k_factor, default_home_advantage, interstate_home_advantage, season_carryover, margin_scale, scaling_factor, max_margin = params
+        return (
+            k_factor,
+            default_home_advantage,
+            interstate_home_advantage,
+            season_carryover,
+            margin_scale,
+            scaling_factor,
+            max_margin,
+        )
+
+    raise ValueError(
+        "Margin ELO params must have length 6 or 7: "
+        "[k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin] or "
+        "[k_factor, default_home_advantage, interstate_home_advantage, season_carryover, margin_scale, scaling_factor, max_margin]"
+    )
+
+
 def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame, 
                           cv_folds: int = 3, verbose: bool = False) -> float:
     """
@@ -47,7 +118,14 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
     float
         Average Brier score across folds
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
+    (
+        k_factor,
+        default_home_advantage,
+        interstate_home_advantage,
+        margin_factor,
+        season_carryover,
+        max_margin,
+    ) = _unpack_standard_params(params)
     
     # Create time-based splits
     tscv = TimeSeriesSplit(n_splits=cv_folds)
@@ -63,7 +141,9 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
         # Create new model for each fold
         fold_model = AFLEloModel(
             k_factor=k_factor,
-            home_advantage=home_advantage,
+            home_advantage=default_home_advantage,
+            default_home_advantage=default_home_advantage,
+            interstate_home_advantage=interstate_home_advantage,
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
@@ -87,7 +167,10 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
                 match['year'], match_id=match.get('match_id'),
                 round_number=match.get('round_number'), 
                 match_date=match.get('match_date'),
-                venue=match.get('venue')
+                venue=match.get('venue'),
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
             )
             prev_year = match['year']
         
@@ -102,7 +185,13 @@ def evaluate_parameters_cv(params: List[float], matches_df: pd.DataFrame,
         test_probs = []
         test_results = []
         for _, match in test_data.iterrows():
-            prob = fold_model.calculate_win_probability(match['home_team'], match['away_team'])
+            prob = fold_model.calculate_win_probability(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
             test_probs.append(max(min(prob, 0.999), 0.001))  # clip
             
             if match['hscore'] > match['ascore']:
@@ -147,7 +236,14 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
         Average Brier score across splits (if return_detailed=False)
         or dict with detailed metrics (if return_detailed=True)
     """
-    k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
+    (
+        k_factor,
+        default_home_advantage,
+        interstate_home_advantage,
+        margin_factor,
+        season_carryover,
+        max_margin,
+    ) = _unpack_standard_params(params)
 
     # Ensure chronological order
     matches_df = matches_df.sort_values(['year', 'match_date'])
@@ -173,7 +269,9 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
         # Fresh model per split
         model = AFLEloModel(
             k_factor=k_factor,
-            home_advantage=home_advantage,
+            home_advantage=default_home_advantage,
+            default_home_advantage=default_home_advantage,
+            interstate_home_advantage=interstate_home_advantage,
             margin_factor=margin_factor,
             season_carryover=season_carryover,
             max_margin=max_margin,
@@ -198,6 +296,9 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
                 round_number=match.get('round_number'),
                 match_date=match.get('match_date'),
                 venue=match.get('venue'),
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state'),
             )
             prev_year = match['year']
 
@@ -211,7 +312,13 @@ def evaluate_parameters_walkforward(params: List[float], matches_df: pd.DataFram
         split_predictions = []
         
         for _, match in test_data.iterrows():
-            prob = model.calculate_win_probability(match['home_team'], match['away_team'])
+            prob = model.calculate_win_probability(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
             clipped_prob = max(min(prob, 0.999), 0.001)  # clip for numerical stability
             test_probs.append(clipped_prob)
 
@@ -643,7 +750,10 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
                 match_id=match.get('match_id'),
                 round_number=match.get('round_number'),
                 match_date=match.get('match_date'),
-                venue=match.get('venue')
+                venue=match.get('venue'),
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
             )
             prev_year = match['year']
         
@@ -657,11 +767,24 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
         
         for _, match in test_data.iterrows():
             # Get ELO-based predictions
-            win_prob = model.calculate_win_probability(match['home_team'], match['away_team'])
+            win_prob = model.calculate_win_probability(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
             
             home_rating = model.team_ratings.get(match['home_team'], model.base_rating)
             away_rating = model.team_ratings.get(match['away_team'], model.base_rating)
-            rating_diff = (home_rating + model.home_advantage) - away_rating
+            applied_home_advantage = model.get_contextual_home_advantage(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
+            rating_diff = (home_rating + applied_home_advantage) - away_rating
             
             # Apply margin prediction method
             if method == 'simple':
@@ -712,22 +835,35 @@ def evaluate_model_walkforward(params: List[float], matches_df: pd.DataFrame,
     from .elo_core import AFLEloModel, MarginEloModel
     
     if model_type == 'standard':
-        if len(params) != 5:
-            raise ValueError("Standard ELO model requires 5 parameters: [k_factor, home_advantage, margin_factor, season_carryover, max_margin]")
-        k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
+        (
+            k_factor,
+            default_home_advantage,
+            interstate_home_advantage,
+            margin_factor,
+            season_carryover,
+            max_margin,
+        ) = _unpack_standard_params(params)
         model_class = AFLEloModel
         model_kwargs = {
             'k_factor': k_factor,
-            'home_advantage': home_advantage,
+            'home_advantage': default_home_advantage,
+            'default_home_advantage': default_home_advantage,
+            'interstate_home_advantage': interstate_home_advantage,
             'margin_factor': margin_factor,
             'season_carryover': season_carryover,
             'max_margin': max_margin,
             'beta': 0.05  # Default beta
         }
     elif model_type == 'margin':
-        if len(params) != 6:
-            raise ValueError("Margin ELO model requires 6 parameters: [k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin]")
-        k_factor, home_advantage, season_carryover, margin_scale, scaling_factor, max_margin = params
+        (
+            k_factor,
+            default_home_advantage,
+            interstate_home_advantage,
+            season_carryover,
+            margin_scale,
+            scaling_factor,
+            max_margin,
+        ) = _unpack_margin_params(params)
         
         # Mathematical stability constraints for margin model
         max_rating_change = k_factor * max_margin / scaling_factor
@@ -743,7 +879,9 @@ def evaluate_model_walkforward(params: List[float], matches_df: pd.DataFrame,
         model_class = MarginEloModel
         model_kwargs = {
             'k_factor': k_factor,
-            'home_advantage': home_advantage,
+            'home_advantage': default_home_advantage,
+            'default_home_advantage': default_home_advantage,
+            'interstate_home_advantage': interstate_home_advantage,
             'season_carryover': season_carryover,
             'margin_scale': margin_scale,
             'scaling_factor': scaling_factor,
@@ -792,11 +930,21 @@ def evaluate_model_walkforward(params: List[float], matches_df: pd.DataFrame,
                     match_id=match.get('match_id'),
                     round_number=match.get('round_number'),
                     match_date=match.get('match_date'),
-                    venue=match.get('venue')
+                    venue=match.get('venue'),
+                    venue_state=match.get('venue_state'),
+                    home_team_state=match.get('home_team_state'),
+                    away_team_state=match.get('away_team_state')
                 )
             else:  # margin
                 actual_margin = match['hscore'] - match['ascore']
-                model.update_ratings(match['home_team'], match['away_team'], actual_margin)
+                model.update_ratings(
+                    match['home_team'],
+                    match['away_team'],
+                    actual_margin,
+                    venue_state=match.get('venue_state'),
+                    home_team_state=match.get('home_team_state'),
+                    away_team_state=match.get('away_team_state')
+                )
                 
                 # Check for rating explosion during training
                 max_rating = max(model.team_ratings.values())
@@ -818,7 +966,13 @@ def evaluate_model_walkforward(params: List[float], matches_df: pd.DataFrame,
             test_probs = []
             test_results = []
             for _, match in test_data.iterrows():
-                prob = model.calculate_win_probability(match['home_team'], match['away_team'])
+                prob = model.calculate_win_probability(
+                    match['home_team'],
+                    match['away_team'],
+                    venue_state=match.get('venue_state'),
+                    home_team_state=match.get('home_team_state'),
+                    away_team_state=match.get('away_team_state')
+                )
                 test_probs.append(max(min(prob, 0.999), 0.001))  # clip
 
                 if match['hscore'] > match['ascore']:
@@ -837,14 +991,27 @@ def evaluate_model_walkforward(params: List[float], matches_df: pd.DataFrame,
             actual_margins = []
             
             for _, match in test_data.iterrows():
-                pred_margin = model.predict_margin(match['home_team'], match['away_team'])
+                pred_margin = model.predict_margin(
+                    match['home_team'],
+                    match['away_team'],
+                    venue_state=match.get('venue_state'),
+                    home_team_state=match.get('home_team_state'),
+                    away_team_state=match.get('away_team_state')
+                )
                 actual_margin = match['hscore'] - match['ascore']
                 
                 predicted_margins.append(pred_margin)
                 actual_margins.append(actual_margin)
                 
                 # Update model with this match
-                model.update_ratings(match['home_team'], match['away_team'], actual_margin)
+                model.update_ratings(
+                    match['home_team'],
+                    match['away_team'],
+                    actual_margin,
+                    venue_state=match.get('venue_state'),
+                    home_team_state=match.get('home_team_state'),
+                    away_team_state=match.get('away_team_state')
+                )
             
             split_score = np.mean(np.abs(np.array(predicted_margins) - np.array(actual_margins)))
             
@@ -899,39 +1066,53 @@ def parameter_tuning_grid_search_unified(data: pd.DataFrame, param_grid: Dict,
     if model_type == 'standard':
         # Standard ELO parameters
         for k_factor in param_grid['k_factor']:
-            for home_advantage in param_grid['home_advantage']:
-                for margin_factor in param_grid['margin_factor']:
-                    for season_carryover in param_grid['season_carryover']:
-                        for max_margin in param_grid['max_margin']:
-                            params = {
-                                'base_rating': param_grid['base_rating'][0],
-                                'k_factor': k_factor,
-                                'home_advantage': home_advantage,
-                                'margin_factor': margin_factor,
-                                'season_carryover': season_carryover,
-                                'max_margin': max_margin,
-                                'beta': 0.05
-                            }
-                            param_combinations.append(params)
+            default_ha_values = param_grid.get('default_home_advantage', param_grid.get('home_advantage', []))
+            interstate_ha_values = param_grid.get('interstate_home_advantage', param_grid.get('home_advantage', []))
+            for default_home_advantage in default_ha_values:
+                for interstate_home_advantage in interstate_ha_values:
+                    if interstate_home_advantage <= default_home_advantage:
+                        continue
+                    for margin_factor in param_grid['margin_factor']:
+                        for season_carryover in param_grid['season_carryover']:
+                            for max_margin in param_grid['max_margin']:
+                                params = {
+                                    'base_rating': param_grid['base_rating'][0],
+                                    'k_factor': k_factor,
+                                    'home_advantage': default_home_advantage,
+                                    'default_home_advantage': default_home_advantage,
+                                    'interstate_home_advantage': interstate_home_advantage,
+                                    'margin_factor': margin_factor,
+                                    'season_carryover': season_carryover,
+                                    'max_margin': max_margin,
+                                    'beta': 0.05
+                                }
+                                param_combinations.append(params)
     
     elif model_type == 'margin':
         # Margin ELO parameters
         for k_factor in param_grid['k_factor']:
-            for home_advantage in param_grid['home_advantage']:
-                for season_carryover in param_grid['season_carryover']:
-                    for max_margin in param_grid['max_margin']:
-                        for margin_scale in param_grid['margin_scale']:
-                            for scaling_factor in param_grid['scaling_factor']:
-                                params = {
-                                    'base_rating': param_grid['base_rating'][0],
-                                    'k_factor': k_factor,
-                                    'home_advantage': home_advantage,
-                                    'season_carryover': season_carryover,
-                                    'max_margin': max_margin,
-                                    'margin_scale': margin_scale,
-                                    'scaling_factor': scaling_factor
-                                }
-                                param_combinations.append(params)
+            default_ha_values = param_grid.get('default_home_advantage', param_grid.get('home_advantage', []))
+            interstate_ha_values = param_grid.get('interstate_home_advantage', param_grid.get('home_advantage', []))
+            for default_home_advantage in default_ha_values:
+                for interstate_home_advantage in interstate_ha_values:
+                    if interstate_home_advantage <= default_home_advantage:
+                        continue
+                    for season_carryover in param_grid['season_carryover']:
+                        for max_margin in param_grid['max_margin']:
+                            for margin_scale in param_grid['margin_scale']:
+                                for scaling_factor in param_grid['scaling_factor']:
+                                    params = {
+                                        'base_rating': param_grid['base_rating'][0],
+                                        'k_factor': k_factor,
+                                        'home_advantage': default_home_advantage,
+                                        'default_home_advantage': default_home_advantage,
+                                        'interstate_home_advantage': interstate_home_advantage,
+                                        'season_carryover': season_carryover,
+                                        'max_margin': max_margin,
+                                        'margin_scale': margin_scale,
+                                        'scaling_factor': scaling_factor
+                                    }
+                                    param_combinations.append(params)
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
     
@@ -962,11 +1143,24 @@ def parameter_tuning_grid_search_unified(data: pd.DataFrame, param_grid: Dict,
         
         # Prepare parameters for evaluation function
         if model_type == 'standard':
-            param_list = [params['k_factor'], params['home_advantage'], params['margin_factor'], 
-                         params['season_carryover'], params['max_margin']]
+            param_list = [
+                params['k_factor'],
+                params.get('default_home_advantage', params['home_advantage']),
+                params.get('interstate_home_advantage', params['home_advantage']),
+                params['margin_factor'],
+                params['season_carryover'],
+                params['max_margin'],
+            ]
         else:  # margin
-            param_list = [params['k_factor'], params['home_advantage'], params['season_carryover'], 
-                         params['margin_scale'], params['scaling_factor'], params['max_margin']]
+            param_list = [
+                params['k_factor'],
+                params.get('default_home_advantage', params['home_advantage']),
+                params.get('interstate_home_advantage', params['home_advantage']),
+                params['season_carryover'],
+                params['margin_scale'],
+                params['scaling_factor'],
+                params['max_margin'],
+            ]
         
         # Use unified evaluation function
         avg_score = evaluate_model_walkforward(param_list, data, model_type=model_type, verbose=False)
@@ -1036,4 +1230,3 @@ def evaluate_margin_elo_walkforward(params: List[float], matches_df: pd.DataFram
     Legacy wrapper for margin ELO walk-forward evaluation - now uses unified function
     """
     return evaluate_model_walkforward(params, matches_df, 'margin', verbose)
-

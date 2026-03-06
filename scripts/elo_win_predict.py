@@ -69,8 +69,20 @@ def predict_matches(model_path, db_path='data/database/afl_predictions.db', star
         
         if has_scores:
             # For completed matches, first calculate prediction then update ratings
-            home_win_prob = predictor.calculate_win_probability(match['home_team'], match['away_team'])
-            predicted_margin = predictor.predict_margin(match['home_team'], match['away_team'])
+            home_win_prob = predictor.calculate_win_probability(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
+            predicted_margin = predictor.predict_margin(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
             
             # Update ratings (this will add prediction to predictor.predictions)
             prediction_info = predictor.update_ratings(
@@ -82,7 +94,10 @@ def predict_matches(model_path, db_path='data/database/afl_predictions.db', star
                 match_id=match['match_id'],
                 round_number=match['round_number'],
                 match_date=match['match_date'].isoformat() if pd.notna(match['match_date']) else None,
-                venue=match['venue']
+                venue=match['venue'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
             )
             
             # Add predicted margin to the last prediction (the one we just created)
@@ -91,8 +106,20 @@ def predict_matches(model_path, db_path='data/database/afl_predictions.db', star
         else:
             # For future matches, just predict without updating
             # Calculate prediction manually since AFLEloModel doesn't have predict_match method
-            home_win_prob = predictor.calculate_win_probability(match['home_team'], match['away_team'])
-            predicted_margin = predictor.predict_margin(match['home_team'], match['away_team'])
+            home_win_prob = predictor.calculate_win_probability(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
+            predicted_margin = predictor.predict_margin(
+                match['home_team'],
+                match['away_team'],
+                venue_state=match.get('venue_state'),
+                home_team_state=match.get('home_team_state'),
+                away_team_state=match.get('away_team_state')
+            )
             
             # Create prediction record
             prediction = {
