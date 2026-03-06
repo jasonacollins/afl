@@ -45,6 +45,13 @@ For detailed documentation on ELO model training, optimization, and prediction w
   - `docker compose down && docker compose build && docker compose up -d`
 - Before production deploy, confirm local `HEAD` matches `origin/main`; if not, push first.
 - After deployment, verify `https://afl.jcx.au/js/main.js` reflects the new build (hash/marker check).
+- Model isolation rules:
+  - Testing must be isolated by default.
+  - New models must be created as new artifacts/predictors.
+  - Do not overwrite existing models, predictors, automation paths, or DB rows unless explicitly requested.
+  - Treat any model/predictor not explicitly named in the request as protected.
+  - For experiments (for example HA tests), use isolated predictor IDs/artifacts (for example `7`/`8`) and avoid changing production automation defaults.
+  - Do not replace the full production DB for experiment rollout; write scoped rows for target predictors. If DB replacement is explicitly requested, backup first and verify protected predictors are unchanged after replacement.
 
 ## AI-Specific Architecture Notes
 
@@ -121,6 +128,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - **Historical Ratings**: Maintained in CSV format for chart performance (read-optimized)
 - **Daily Dad's AI Updates**: `npm run daily-sync` writes predictor `6` using margin-only predictions (`scripts/elo_margin_predict.py`)
 - **Daily Dad's AI Simulation Context**: `npm run daily-sync` regenerates season simulations in margin-only mode (`scripts/season_simulator.py` with `--model-path` only)
+- Experimental work must not alter non-target model behavior unless a promotion is explicitly requested.
 - This separation allows for data integrity in predictions while maintaining fast chart rendering
 - Hybrid storage approach: predictions in database, historical ratings in CSV
 - Direct database writes for ELO predictions ensure transactional integrity

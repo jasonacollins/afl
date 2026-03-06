@@ -86,6 +86,14 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - Path parameters are restricted to approved repo subdirectories under `data/`.
 - Prediction-writing jobs require an active predictor selection from the UI.
 
+### Model Isolation Policy (Critical)
+- Any model, predictor, artifact, automation path, or DB rows not explicitly named in the request are protected by default and must not be changed.
+- Testing must be isolated by default: new models are new models, and existing models must not be overwritten unless explicitly requested.
+- Experimental model work (for example HA testing) must be isolated to explicitly approved predictors/artifacts (for example predictor `7` / `8` and separate model files).
+- Do not repoint `daily-sync` / automation model paths as part of experiments unless explicitly requested.
+- Do not replace production DB files to publish experiment outputs; write only scoped predictor rows for the target IDs.
+- If a production DB file replacement is explicitly required, take a backup first and verify protected predictors are unchanged before/after replacement.
+
 ### Storage Hygiene
 - Database and log cleanup is automated by `npm run db-maintenance`.
 - Default retention is 30 days for completed `admin_script_runs` rows and run log files.
@@ -107,6 +115,7 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   - margin updates from margin ELO model
 - Daily sync writes Dad's AI predictions using the margin-only model (`scripts/elo_margin_predict.py`) for predictor `6`.
 - Daily sync regenerates Dad's AI season simulations in margin-only mode (no `--win-model`), using the promoted margin model.
+- Any model experiments must not change non-target model artifacts or non-target predictor outputs.
 - Completed finals results are treated as hard constraints for later rounds in finals snapshots.
 - Percentile win ranges (10th–90th) now interpolate within the cumulative distribution instead of snapping to the nearest integer win count:
   - We locate the discrete win bucket whose probability mass contains the desired percentile.
@@ -319,6 +328,10 @@ git rev-parse --short HEAD
 git rev-parse --short origin/main
 ```
 If these differ, push first so production can pull the same commit.
+
+Pre-deploy safety check for model work:
+- Confirm only explicitly requested model artifacts/predictors are modified.
+- Confirm automation model paths used by `daily-sync` are unchanged unless explicitly intended.
 
 1. Pull latest changes:
    ```bash
