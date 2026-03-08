@@ -263,6 +263,9 @@
                     }
                     return a.round_label.localeCompare(b.round_label);
                 });
+
+            const preferredCurrentRoundKey = determinePreferredCurrentRoundKey(roundSnapshots);
+            roundSnapshots = pruneStaleCurrentSnapshots(roundSnapshots, preferredCurrentRoundKey);
         } else {
             roundSnapshots = [
                 normalizeRoundSnapshot({
@@ -316,6 +319,38 @@
             last_updated: snapshot.last_updated || simulationData.last_updated || null,
             results: Array.isArray(snapshot.results) ? snapshot.results : []
         };
+    }
+
+    function isCurrentSnapshotKey(roundKey) {
+        return typeof roundKey === 'string' && roundKey.endsWith('-current');
+    }
+
+    function determinePreferredCurrentRoundKey(snapshots) {
+        if (typeof simulationData.current_round_key === 'string') {
+            return simulationData.current_round_key;
+        }
+
+        const inferredCurrentSnapshot = [...snapshots]
+            .filter(snapshot => isCurrentSnapshotKey(snapshot.round_key))
+            .sort((a, b) => {
+                if (a.round_order !== b.round_order) {
+                    return a.round_order - b.round_order;
+                }
+                return a.round_label.localeCompare(b.round_label);
+            })
+            .pop();
+
+        return inferredCurrentSnapshot ? inferredCurrentSnapshot.round_key : null;
+    }
+
+    function pruneStaleCurrentSnapshots(snapshots, currentRoundKey) {
+        const keepCurrentRoundKey = isCurrentSnapshotKey(currentRoundKey)
+            ? currentRoundKey
+            : null;
+
+        return snapshots.filter((snapshot) =>
+            !isCurrentSnapshotKey(snapshot.round_key) || snapshot.round_key === keepCurrentRoundKey
+        );
     }
 
     function getDefaultRoundSnapshotKey() {

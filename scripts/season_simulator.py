@@ -271,6 +271,24 @@ def build_current_round_snapshot_metadata(round_number):
     }
 
 
+def prune_stale_current_snapshots(snapshots, active_round_key):
+    """
+    Remove outdated "-current" snapshots once a round has completed.
+    Keep only the active current snapshot when the active key is current.
+    """
+    active_key = str(active_round_key or '')
+    keep_current_key = active_key if active_key.endswith('-current') else None
+
+    pruned = []
+    for snapshot in snapshots:
+        round_key = str(snapshot.get('round_key') or '')
+        if round_key.endswith('-current') and round_key != keep_current_key:
+            continue
+        pruned.append(snapshot)
+
+    return pruned
+
+
 class SeasonSimulator:
     """
     Simulates AFL season outcomes using Monte Carlo methods
@@ -1551,8 +1569,12 @@ class SeasonSimulator:
             snapshots_by_key[existing_snapshot['round_key']] = existing_snapshot
         snapshots_by_key[snapshot_data['round_key']] = snapshot_data
 
+        pruned_snapshots = prune_stale_current_snapshots(
+            list(snapshots_by_key.values()),
+            snapshot_data['round_key']
+        )
         round_snapshots = sorted(
-            snapshots_by_key.values(),
+            pruned_snapshots,
             key=lambda snapshot: (
                 snapshot.get('round_order', 9999),
                 snapshot.get('round_label', '')

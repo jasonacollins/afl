@@ -22,6 +22,7 @@ from season_simulator import (  # noqa: E402
     build_round_snapshot_metadata,
     interpolate_percentile,
     is_finals_round,
+    prune_stale_current_snapshots,
     resolve_finals_round_key,
 )
 
@@ -125,6 +126,33 @@ def test_current_round_snapshot_metadata_for_numeric_round():
     assert metadata['round_tab_label'] == 'Current'
     assert metadata['round_label'] == 'Current Round 2'
     assert metadata['round_order'] == 2.5
+
+
+def test_prune_stale_current_snapshots_when_active_round_not_current():
+    """Completed rounds should drop stale current snapshots."""
+    snapshots = [
+        {'round_key': 'round-or', 'round_order': 0},
+        {'round_key': 'round-or-current', 'round_order': 0.5},
+        {'round_key': 'round-1', 'round_order': 1}
+    ]
+
+    pruned = prune_stale_current_snapshots(snapshots, 'round-1')
+
+    assert [snapshot['round_key'] for snapshot in pruned] == ['round-or', 'round-1']
+
+
+def test_prune_stale_current_snapshots_keeps_only_active_current_snapshot():
+    """Only the active current snapshot should remain when one is in progress."""
+    snapshots = [
+        {'round_key': 'round-or', 'round_order': 0},
+        {'round_key': 'round-or-current', 'round_order': 0.5},
+        {'round_key': 'round-1', 'round_order': 1},
+        {'round_key': 'round-1-current', 'round_order': 1.5}
+    ]
+
+    pruned = prune_stale_current_snapshots(snapshots, 'round-1-current')
+
+    assert [snapshot['round_key'] for snapshot in pruned] == ['round-or', 'round-1', 'round-1-current']
 
 
 def test_determine_snapshot_metadata_uses_current_key_for_partial_opening_round():
