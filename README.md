@@ -54,9 +54,11 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 ### Supported Jobs
 - `sync-games` (`scripts/automation/sync-games.js`)
 - `api-refresh` (`scripts/automation/api-refresh.js`)
-- `predictions` (`combined-predictions` key, `scripts/elo_predict_combined.py`)
-- `margin-predictions` (`scripts/elo_margin_predict.py`, launched via mode option inside the `Predictions` card)
+- `predictions` (`combined-predictions` key; launched through the `Predictions` card mode switch)
+- `win-margin-methods-predictions` (`scripts/elo_margin_methods_predict.py`, launched via `Win + Optimised Margin` mode in the `Predictions` card)
+- `margin-predictions` (`scripts/elo_margin_predict.py`, launched via `Margin-only (Derive Win %)` mode in the `Predictions` card)
 - `win-train` (`scripts/elo_win_train.py`)
+- `win-margin-methods-optimize` (`scripts/elo_margin_methods_optimize.py`, launched from `Train Model` → `Optimise For: Win Probability` step 2)
 - `margin-train` (`scripts/elo_margin_train.py`)
 - `elo-history` (`scripts/elo_history_generator.py`)
 - `season-simulation` (`scripts/season_simulator.py`)
@@ -66,6 +68,7 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - Only one job can be active at a time.
 - Run metadata is persisted in SQLite (`admin_script_runs`), including `log_path` for each run.
 - Stdout/stderr/system logs are persisted to per-run files under `logs/admin-scripts/YYYY/MM/run-<run_id>.log`.
+- Long-running runs emit periodic `Progress snapshot` system logs (elapsed, stdout/stderr counts, idle time, and latest parsed progress token when present).
 - Legacy DB log rows are archived to `logs/admin-scripts/archive/` and migrated away at startup.
 - Restart recovery marks in-flight jobs as `interrupted`.
 - `sync-games` is the fixture bootstrap step for a new season (inserts new `matches` rows when they do not exist yet).
@@ -73,13 +76,12 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - `sync-games` normalizes future incomplete Squiggle `0-0` score placeholders (including goals/behinds) to `NULL` so upcoming fixtures remain unplayed in app logic.
 - `api-refresh` is update-only for existing fixtures/results; it does not insert missing matches.
 - If `api-refresh` finds API games for a year but zero existing DB matches, it logs a warning telling admins to run `sync-games` first.
-- The `Predictions` card supports a `Predict future games only` option:
-  - enabled: only upcoming fixtures are output/saved
-  - disabled: full-year prediction output is generated from the chosen `startYear`
 - The `Predictions` card includes a model-type mode switch:
-  - `Combined (Win + Margin)` runs `scripts/elo_predict_combined.py`
+  - `Win + Optimised Margin` runs `scripts/elo_margin_methods_predict.py` (win model + optimized margin methods artifact)
   - `Margin-only (Derive Win %)` runs `scripts/elo_margin_predict.py` and writes derived win probabilities + margins
+  - The `Win + Optimised Margin` mode supports `Predict future games only` and advanced testing flags (`override completed`, optional `method override`, optional `allow model mismatch`).
 - The training UI is a single `Train Model` card with an `Optimise For` selector (`Win Probability` or `Margin`), which routes to `win-train` or `margin-train`.
+  - In `Win Probability` mode, a second form is available to run `Optimise Win Margin Methods` (`scripts/elo_margin_methods_optimize.py`).
 
 ### Safety and Validation
 - Only an allowlisted script catalog can be executed.

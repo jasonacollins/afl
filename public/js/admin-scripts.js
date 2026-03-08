@@ -9,6 +9,8 @@
   const RUNNING_STATES = new Set(['queued', 'running']);
   const LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH = 'data/models/margin/optimal_margin_only_elo_params.json';
   const MARGIN_OPTIMIZE_OUTPUT_PATH_PATTERN = /^data\/models\/margin\/optimal_margin_only_elo_params_trained_to_\d{4}\.json$/;
+  const LEGACY_WIN_MARGIN_METHODS_OPTIMIZE_OUTPUT_PATH = 'data/models/win/optimal_margin_methods.json';
+  const WIN_MARGIN_METHODS_OPTIMIZE_OUTPUT_PATH_PATTERN = /^data\/models\/win\/optimal_margin_methods_trained_to_\d{4}\.json$/;
 
   function getCsrfToken() {
     const metaTag = document.querySelector('meta[name="csrf-token"]');
@@ -94,6 +96,10 @@
     return `data/models/margin/optimal_margin_only_elo_params_trained_to_${endYear}.json`;
   }
 
+  function buildWinMarginMethodsOptimizeOutputPath(endYear) {
+    return `data/models/win/optimal_margin_methods_trained_to_${endYear}.json`;
+  }
+
   function extractTrainedToYearFromPath(modelPath) {
     const match = String(modelPath || '').match(/trained_to_(\d{4})\.json$/);
     if (!match) return null;
@@ -101,6 +107,26 @@
   }
 
   function chooseLatestTrainedMarginModel(options) {
+    if (!Array.isArray(options) || options.length === 0) {
+      return null;
+    }
+
+    let best = null;
+    options.forEach((option) => {
+      const year = extractTrainedToYearFromPath(option.value);
+      if (!Number.isInteger(year)) {
+        return;
+      }
+
+      if (!best || year > best.year) {
+        best = { value: option.value, year };
+      }
+    });
+
+    return best ? best.value : options[0].value;
+  }
+
+  function chooseLatestTrainedWinModel(options) {
     if (!Array.isArray(options) || options.length === 0) {
       return null;
     }
@@ -164,6 +190,52 @@
     });
   }
 
+  function getWinMarginMethodsOptimizeEndYear() {
+    const endYearInput = getEl('winMarginMethodsOptimizeEndYear');
+    const parsed = Number.parseInt(endYearInput ? endYearInput.value : '', 10);
+
+    if (Number.isInteger(parsed)) {
+      return parsed;
+    }
+
+    const currentYear = scriptMetadata?.defaults?.currentYear || new Date().getFullYear();
+    return currentYear - 1;
+  }
+
+  function setupWinMarginMethodsOptimizeOutputPathSync() {
+    const endYearInput = getEl('winMarginMethodsOptimizeEndYear');
+    const outputPathInput = getEl('winMarginMethodsOptimizeOutputPath');
+    if (!endYearInput || !outputPathInput) {
+      return;
+    }
+
+    const getSuggestedPath = () => buildWinMarginMethodsOptimizeOutputPath(getWinMarginMethodsOptimizeEndYear());
+    const shouldAutoManage = (value) =>
+      !value
+      || value === LEGACY_WIN_MARGIN_METHODS_OPTIMIZE_OUTPUT_PATH
+      || WIN_MARGIN_METHODS_OPTIMIZE_OUTPUT_PATH_PATTERN.test(value);
+    const currentValue = outputPathInput.value.trim();
+
+    if (shouldAutoManage(currentValue)) {
+      outputPathInput.value = getSuggestedPath();
+      outputPathInput.dataset.autoManaged = 'true';
+    } else {
+      outputPathInput.dataset.autoManaged = 'false';
+    }
+
+    endYearInput.addEventListener('input', () => {
+      if (outputPathInput.dataset.autoManaged === 'true') {
+        outputPathInput.value = getSuggestedPath();
+      }
+    });
+
+    outputPathInput.addEventListener('input', () => {
+      const value = outputPathInput.value.trim();
+      const suggestedPath = getSuggestedPath();
+      outputPathInput.dataset.autoManaged = String(value === suggestedPath || shouldAutoManage(value));
+    });
+  }
+
   function applyMetadataToForm() {
     if (!scriptMetadata) return;
 
@@ -178,6 +250,8 @@
       'winTrainEndYear',
       'marginOptimizeStartYear',
       'marginOptimizeEndYear',
+      'winMarginMethodsOptimizeStartYear',
+      'winMarginMethodsOptimizeEndYear',
       'marginTrainStartYear',
       'marginTrainEndYear',
       'historySeedStartYear',
@@ -206,8 +280,14 @@
     if (getEl('combinedDbPath') && !getEl('combinedDbPath').value) {
       getEl('combinedDbPath').value = defaults.dbPath || '';
     }
+    if (getEl('optimizedDbPath') && !getEl('optimizedDbPath').value) {
+      getEl('optimizedDbPath').value = defaults.dbPath || '';
+    }
     if (getEl('combinedOutputDir') && !getEl('combinedOutputDir').value) {
-      getEl('combinedOutputDir').value = defaults.combinedOutputDir || '';
+      getEl('combinedOutputDir').value = defaults.marginPredictionsOutputDir || 'data/predictions/margin';
+    }
+    if (getEl('optimizedOutputDir') && !getEl('optimizedOutputDir').value) {
+      getEl('optimizedOutputDir').value = defaults.winMarginMethodsOutputDir || 'data/predictions/win';
     }
     if (getEl('historyDbPath') && !getEl('historyDbPath').value) {
       getEl('historyDbPath').value = defaults.dbPath || '';
@@ -239,6 +319,9 @@
     if (getEl('marginOptimizeDbPath') && !getEl('marginOptimizeDbPath').value) {
       getEl('marginOptimizeDbPath').value = defaults.dbPath || '';
     }
+    if (getEl('winMarginMethodsOptimizeDbPath') && !getEl('winMarginMethodsOptimizeDbPath').value) {
+      getEl('winMarginMethodsOptimizeDbPath').value = defaults.dbPath || '';
+    }
     if (getEl('winTrainOutputDir') && !getEl('winTrainOutputDir').value) {
       getEl('winTrainOutputDir').value = defaults.winModelOutputDir || 'data/models/win';
     }
@@ -248,6 +331,10 @@
     if (getEl('marginOptimizeOutputPath') && !getEl('marginOptimizeOutputPath').value) {
       getEl('marginOptimizeOutputPath').value =
         defaults.marginOptimizeOutputPath || buildMarginOptimizeOutputPath(currentYear - 1);
+    }
+    if (getEl('winMarginMethodsOptimizeOutputPath') && !getEl('winMarginMethodsOptimizeOutputPath').value) {
+      getEl('winMarginMethodsOptimizeOutputPath').value =
+        defaults.winMarginMethodsOptimizeOutputPath || buildWinMarginMethodsOptimizeOutputPath(currentYear - 1);
     }
     if (getEl('simNumSimulations') && !getEl('simNumSimulations').value) {
       getEl('simNumSimulations').value = '50000';
@@ -264,22 +351,54 @@
     if (getEl('marginOptimizeEndYear') && !getEl('marginOptimizeEndYear').value) {
       getEl('marginOptimizeEndYear').value = String(currentYear - 1);
     }
+    if (getEl('winMarginMethodsOptimizeEndYear') && !getEl('winMarginMethodsOptimizeEndYear').value) {
+      getEl('winMarginMethodsOptimizeEndYear').value = String(currentYear - 1);
+    }
     if (getEl('marginOptimizeMaxCombinations') && !getEl('marginOptimizeMaxCombinations').value) {
       getEl('marginOptimizeMaxCombinations').value = '500';
     }
+    if (getEl('winMarginMethodsOptimizeNCalls') && !getEl('winMarginMethodsOptimizeNCalls').value) {
+      getEl('winMarginMethodsOptimizeNCalls').value = '100';
+    }
+    if (getEl('winMarginMethodsOptimizeRandomSeed') && !getEl('winMarginMethodsOptimizeRandomSeed').value) {
+      getEl('winMarginMethodsOptimizeRandomSeed').value = '42';
+    }
 
-    const winModelOptions = (scriptMetadata.modelFiles?.win || []).map((entry) => ({ value: entry, label: entry }));
+    const allWinFiles = scriptMetadata.modelFiles?.win || [];
+    const winModelEntries = scriptMetadata.modelFiles?.winModels
+      || allWinFiles.filter((entry) => /afl_elo_win_trained_to_\d{4}\.json$/i.test(entry));
+    const winParamsEntries = scriptMetadata.modelFiles?.winParams
+      || allWinFiles.filter((entry) => /optimal_elo_params_win(?:_trained_to_\d{4})?\.json$/i.test(entry));
+    const winModelOrParamsEntries = scriptMetadata.modelFiles?.winModelOrParams
+      || allWinFiles.filter((entry) =>
+        /afl_elo_win_trained_to_\d{4}\.json$/i.test(entry)
+        || /optimal_elo_params_win(?:_trained_to_\d{4})?\.json$/i.test(entry)
+      );
+    const winModelOptions = winModelEntries.map((entry) => ({ value: entry, label: entry }));
+    const winParamsOptions = winParamsEntries.map((entry) => ({ value: entry, label: entry }));
+    const winModelOrParamsOptions = winModelOrParamsEntries.map((entry) => ({ value: entry, label: entry }));
+    const winMarginMethodsOptions = (
+      scriptMetadata.modelFiles?.winMarginMethods
+      || allWinFiles.filter((entry) => /optimal_margin_methods/i.test(entry))
+    ).map((entry) => ({ value: entry, label: entry }));
     const marginModelOptions = (scriptMetadata.modelFiles?.margin || []).map((entry) => ({ value: entry, label: entry }));
     const historyModelOptions = (scriptMetadata.modelFiles?.history || []).map((entry) => ({ value: entry, label: entry }));
     const defaultMarginModelPath = chooseLatestTrainedMarginModel(marginModelOptions);
+    const defaultWinModelPath = chooseLatestTrainedWinModel(winModelOptions);
     const defaultHistoryModelPath = defaultMarginModelPath || (historyModelOptions[0] ? historyModelOptions[0].value : null);
 
-    populateSelect('combinedWinModelPath', winModelOptions, winModelOptions[0] ? winModelOptions[0].value : null);
+    populateSelect('optimizedWinModelPath', winModelOptions, defaultWinModelPath);
+    populateSelect(
+      'winMarginMethodsOptimizeEloParamsPath',
+      winModelOrParamsOptions,
+      defaultWinModelPath || (winModelOrParamsOptions[0] ? winModelOrParamsOptions[0].value : null)
+    );
     populateSelect('historyModelPath', historyModelOptions, defaultHistoryModelPath);
     populateSelect('combinedMarginModelPath', marginModelOptions, defaultMarginModelPath);
+    populateSelect('optimizedMarginMethodsPath', winMarginMethodsOptions, winMarginMethodsOptions[0] ? winMarginMethodsOptions[0].value : null);
     populateSelect('simModelPath', marginModelOptions, defaultMarginModelPath);
-    populateSelect('winTrainParamsFile', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_elo_params')) || {}).value, true);
-    populateSelect('winTrainMarginParams', winModelOptions, (winModelOptions.find((option) => option.value.includes('optimal_margin_methods')) || {}).value, true);
+    populateSelect('winTrainParamsFile', winParamsOptions, (winParamsOptions[0] || {}).value, true);
+    populateSelect('winTrainMarginParams', winMarginMethodsOptions, (winMarginMethodsOptions[0] || {}).value, true);
     populateSelect('marginTrainParamsFile', marginModelOptions, (marginModelOptions.find((option) => option.value.includes('optimal_margin_only_elo_params')) || marginModelOptions[0] || {}).value);
 
     const predictorOptions = (scriptMetadata.activePredictors || []).map((predictor) => ({
@@ -287,7 +406,8 @@
       label: `${predictor.display_name} (#${predictor.predictor_id})`
     }));
 
-    populateSelect('combinedPredictorId', predictorOptions, defaults.predictorId);
+    populateSelect('combinedPredictorId', predictorOptions, defaults.marginPredictorId || defaults.predictorId);
+    populateSelect('optimizedPredictorId', predictorOptions, defaults.winMarginMethodsPredictorId || defaults.predictorId);
   }
 
   async function loadMetadata() {
@@ -473,17 +593,51 @@
       const params = getFormParams(form);
 
       if (baseScriptKey === 'combined-predictions') {
-        const predictionMode = params.predictionMode === 'margin' ? 'margin' : 'combined';
+        const allowedModes = new Set(['optimized', 'margin']);
+        const predictionMode = allowedModes.has(params.predictionMode) ? params.predictionMode : 'optimized';
         delete params.predictionMode;
 
         if (predictionMode === 'margin') {
           scriptKey = 'margin-predictions';
           params.modelPath = params.marginModelPath;
-          delete params.winModelPath;
+          delete params.optimizedWinModelPath;
+          delete params.optimizedMarginMethodsPath;
+          delete params.optimizedPredictorId;
+          delete params.optimizedDbPath;
+          delete params.optimizedOutputDir;
+          delete params.optimizedFutureOnly;
+          delete params.optimizedOverrideCompleted;
+          delete params.optimizedSaveToDb;
+          delete params.optimizedMethodOverride;
+          delete params.optimizedAllowModelMismatch;
+          delete params.methodOverride;
+          delete params.allowModelMismatch;
           delete params.futureOnly;
         } else {
-          delete params.overrideCompleted;
+          scriptKey = 'win-margin-methods-predictions';
+          params.winModelPath = params.optimizedWinModelPath;
+          params.marginMethodsPath = params.optimizedMarginMethodsPath;
+          params.predictorId = params.optimizedPredictorId;
+          params.dbPath = params.optimizedDbPath;
+          params.outputDir = params.optimizedOutputDir;
+          params.futureOnly = params.optimizedFutureOnly;
+          params.overrideCompleted = params.optimizedOverrideCompleted;
+          params.saveToDb = params.optimizedSaveToDb;
+          params.methodOverride = params.optimizedMethodOverride;
+          params.allowModelMismatch = params.optimizedAllowModelMismatch;
+          delete params.marginModelPath;
           delete params.modelPath;
+          delete params.optimizedWinModelPath;
+          delete params.optimizedMarginMethodsPath;
+          delete params.optimizedPredictorId;
+          delete params.optimizedDbPath;
+          delete params.optimizedOutputDir;
+          delete params.optimizedFutureOnly;
+          delete params.optimizedOverrideCompleted;
+          delete params.optimizedSaveToDb;
+          delete params.optimizedMethodOverride;
+          delete params.optimizedAllowModelMismatch;
+          delete params.combinedPredictorId;
         }
       }
 
@@ -592,26 +746,55 @@
   }
 
   function setPredictionsModePanel(mode) {
-    const normalizedMode = mode === 'margin' ? 'margin' : 'combined';
+    const normalizedMode = ['optimized', 'margin'].includes(mode) ? mode : 'optimized';
     document.querySelectorAll('[data-predictions-mode-panel]').forEach((panel) => {
-      const panelMode = panel.getAttribute('data-predictions-mode-panel');
-      panel.style.display = panelMode === normalizedMode ? 'block' : 'none';
+      const panelModes = (panel.getAttribute('data-predictions-mode-panel') || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      panel.style.display = panelModes.includes(normalizedMode) ? 'block' : 'none';
     });
 
-    const winModelSelect = getEl('combinedWinModelPath');
-    if (winModelSelect) {
-      winModelSelect.required = normalizedMode === 'combined';
+    const optimizedWinModelSelect = getEl('optimizedWinModelPath');
+    if (optimizedWinModelSelect) {
+      optimizedWinModelSelect.required = normalizedMode === 'optimized';
+    }
+    const marginModelSelect = getEl('combinedMarginModelPath');
+    if (marginModelSelect) {
+      marginModelSelect.required = normalizedMode === 'margin';
+    }
+    const optimizedMethodsSelect = getEl('optimizedMarginMethodsPath');
+    if (optimizedMethodsSelect) {
+      optimizedMethodsSelect.required = normalizedMode === 'optimized';
+    }
+    const combinedPredictorSelect = getEl('combinedPredictorId');
+    if (combinedPredictorSelect) {
+      combinedPredictorSelect.required = normalizedMode === 'margin';
+    }
+    const optimizedPredictorSelect = getEl('optimizedPredictorId');
+    if (optimizedPredictorSelect) {
+      optimizedPredictorSelect.required = normalizedMode === 'optimized';
     }
 
-    const outputDirInput = getEl('combinedOutputDir');
+    const outputDirInput = getEl(normalizedMode === 'optimized' ? 'optimizedOutputDir' : 'combinedOutputDir');
     if (outputDirInput) {
       const defaults = scriptMetadata?.defaults || {};
       const combinedDefault = defaults.combinedOutputDir || 'data/predictions/combined';
       const marginDefault = defaults.marginPredictionsOutputDir || 'data/predictions/margin';
+      const optimizedDefault = defaults.winMarginMethodsOutputDir || 'data/predictions/win';
       const currentValue = outputDirInput.value.trim();
 
-      if (!currentValue || currentValue === combinedDefault || currentValue === marginDefault) {
-        outputDirInput.value = normalizedMode === 'margin' ? marginDefault : combinedDefault;
+      if (!currentValue
+        || currentValue === combinedDefault
+        || currentValue === marginDefault
+        || currentValue === optimizedDefault) {
+        if (normalizedMode === 'margin') {
+          outputDirInput.value = marginDefault;
+        } else if (normalizedMode === 'optimized') {
+          outputDirInput.value = optimizedDefault;
+        } else {
+          outputDirInput.value = combinedDefault;
+        }
       }
     }
   }
@@ -677,8 +860,9 @@
 
     try {
       await loadMetadata();
-      setPredictionsModePanel(getEl('predictionsMode') ? getEl('predictionsMode').value : 'combined');
+      setPredictionsModePanel(getEl('predictionsMode') ? getEl('predictionsMode').value : 'optimized');
       setupMarginOptimizeOutputPathSync();
+      setupWinMarginMethodsOptimizeOutputPathSync();
       await refreshRuns();
     } catch (error) {
       showPageError(error.message);

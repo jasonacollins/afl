@@ -86,43 +86,75 @@
             <div class="form-group">
               <label for="predictionsMode">Model Type</label>
               <select id="predictionsMode" name="predictionMode">
-                <option value="combined">Combined (Win + Margin)</option>
+                <option value="optimized">Win + Optimised Margin</option>
                 <option value="margin">Margin-only (Derive Win %)</option>
               </select>
             </div>
-            <div class="form-group" data-predictions-mode-panel="combined">
-              <label for="combinedWinModelPath">Win Model</label>
-              <select id="combinedWinModelPath" name="winModelPath" required></select>
-            </div>
-            <div class="form-group">
+            <div class="form-group" data-predictions-mode-panel="margin">
               <label for="combinedMarginModelPath">Margin Model</label>
               <select id="combinedMarginModelPath" name="marginModelPath" required></select>
             </div>
-            <div class="form-group">
+            <div class="form-group" data-predictions-mode-panel="margin">
               <label for="combinedPredictorId">Predictor</label>
               <select id="combinedPredictorId" name="predictorId" required></select>
             </div>
-            <div class="form-group checkbox" data-predictions-mode-panel="combined">
-              <input type="checkbox" id="combinedFutureOnly" name="futureOnly" checked>
-              <label for="combinedFutureOnly">Predict future games only</label>
+            <div class="form-group" data-predictions-mode-panel="optimized">
+              <label for="optimizedWinModelPath">Win Model</label>
+              <select id="optimizedWinModelPath" name="optimizedWinModelPath"></select>
+            </div>
+            <div class="form-group" data-predictions-mode-panel="optimized">
+              <label for="optimizedMarginMethodsPath">Margin Methods</label>
+              <select id="optimizedMarginMethodsPath" name="optimizedMarginMethodsPath"></select>
+            </div>
+            <div class="form-group" data-predictions-mode-panel="optimized">
+              <label for="optimizedPredictorId">Predictor</label>
+              <select id="optimizedPredictorId" name="optimizedPredictorId"></select>
+            </div>
+            <div class="form-group checkbox" data-predictions-mode-panel="optimized">
+              <input type="checkbox" id="optimizedFutureOnly" name="optimizedFutureOnly" checked>
+              <label for="optimizedFutureOnly">Predict future games only</label>
             </div>
             <details class="script-advanced">
               <summary>Advanced</summary>
-              <div class="form-group">
+              <div class="form-group" data-predictions-mode-panel="margin">
                 <label for="combinedDbPath">DB Path</label>
                 <input type="text" id="combinedDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
               </div>
-              <div class="form-group">
+              <div class="form-group" data-predictions-mode-panel="margin">
                 <label for="combinedOutputDir">Output Directory</label>
-                <input type="text" id="combinedOutputDir" name="outputDir" placeholder="data/predictions/combined">
+                <input type="text" id="combinedOutputDir" name="outputDir" placeholder="data/predictions/margin">
               </div>
-              <div class="form-group checkbox">
+              <div class="form-group checkbox" data-predictions-mode-panel="margin">
                 <input type="checkbox" id="combinedSaveToDb" name="saveToDb" checked>
                 <label for="combinedSaveToDb">Save predictions to database</label>
               </div>
               <div class="form-group checkbox" data-predictions-mode-panel="margin">
                 <input type="checkbox" id="combinedOverrideCompleted" name="overrideCompleted">
                 <label for="combinedOverrideCompleted">Override completed/started matches</label>
+              </div>
+              <div class="form-group" data-predictions-mode-panel="optimized">
+                <label for="optimizedDbPath">DB Path</label>
+                <input type="text" id="optimizedDbPath" name="optimizedDbPath" placeholder="data/database/afl_predictions.db">
+              </div>
+              <div class="form-group" data-predictions-mode-panel="optimized">
+                <label for="optimizedOutputDir">Output Directory</label>
+                <input type="text" id="optimizedOutputDir" name="optimizedOutputDir" placeholder="data/predictions/win">
+              </div>
+              <div class="form-group checkbox" data-predictions-mode-panel="optimized">
+                <input type="checkbox" id="optimizedSaveToDb" name="optimizedSaveToDb" checked>
+                <label for="optimizedSaveToDb">Save predictions to database</label>
+              </div>
+              <div class="form-group checkbox" data-predictions-mode-panel="optimized">
+                <input type="checkbox" id="optimizedOverrideCompleted" name="optimizedOverrideCompleted">
+                <label for="optimizedOverrideCompleted">Override completed/started matches</label>
+              </div>
+              <div class="form-group" data-predictions-mode-panel="optimized">
+                <label for="optimizedMethodOverride">Method Override (optional)</label>
+                <input type="text" id="optimizedMethodOverride" name="optimizedMethodOverride" placeholder="simple, linear, or diminishing_returns">
+              </div>
+              <div class="form-group checkbox" data-predictions-mode-panel="optimized">
+                <input type="checkbox" id="optimizedAllowModelMismatch" name="optimizedAllowModelMismatch">
+                <label for="optimizedAllowModelMismatch">Allow model mismatch (unsafe)</label>
               </div>
             </details>
             <button type="submit" class="button primary-button">Run Predictions</button>
@@ -182,6 +214,42 @@
                 </div>
               </details>
               <button type="submit" class="button primary-button">Run Win Training</button>
+            </form>
+
+            <form class="script-run-form" data-script-key="win-margin-methods-optimize">
+              <p><strong>Step 2 (Testing):</strong> Optimise margin derivation methods for a trained win model.</p>
+              <div class="form-group">
+                <label for="winMarginMethodsOptimizeEloParamsPath">Win Model / Params</label>
+                <select id="winMarginMethodsOptimizeEloParamsPath" name="eloParamsPath" required></select>
+              </div>
+              <div class="form-group">
+                <label for="winMarginMethodsOptimizeStartYear">Start Year</label>
+                <input type="number" id="winMarginMethodsOptimizeStartYear" name="startYear" min="1990" placeholder="1990">
+              </div>
+              <div class="form-group">
+                <label for="winMarginMethodsOptimizeEndYear">End Year</label>
+                <input type="number" id="winMarginMethodsOptimizeEndYear" name="endYear" min="1990">
+              </div>
+              <details class="script-advanced">
+                <summary>Advanced</summary>
+                <div class="form-group">
+                  <label for="winMarginMethodsOptimizeNCalls">N Calls</label>
+                  <input type="number" id="winMarginMethodsOptimizeNCalls" name="nCalls" min="1" max="5000" placeholder="100">
+                </div>
+                <div class="form-group">
+                  <label for="winMarginMethodsOptimizeRandomSeed">Random Seed</label>
+                  <input type="number" id="winMarginMethodsOptimizeRandomSeed" name="randomSeed" placeholder="42">
+                </div>
+                <div class="form-group">
+                  <label for="winMarginMethodsOptimizeDbPath">DB Path</label>
+                  <input type="text" id="winMarginMethodsOptimizeDbPath" name="dbPath" placeholder="data/database/afl_predictions.db">
+                </div>
+                <div class="form-group">
+                  <label for="winMarginMethodsOptimizeOutputPath">Output Path</label>
+                  <input type="text" id="winMarginMethodsOptimizeOutputPath" name="outputPath" placeholder="data/models/win/optimal_margin_methods_trained_to_YYYY.json">
+                </div>
+              </details>
+              <button type="submit" class="button primary-button">Run Win Margin Methods Optimisation</button>
             </form>
           </div>
 

@@ -686,9 +686,9 @@ def predict_margin_linear(rating_diff: float, slope: float, intercept: float) ->
     return rating_diff * slope + intercept
 
 
-def evaluate_margin_method_walkforward(params: List[float], method: str, 
-                                     elo_params: Dict, matches_df: pd.DataFrame, 
-                                     verbose: bool = False) -> float:
+def evaluate_margin_method_walkforward(params: List[float], method: str,
+                                     elo_params: Dict, matches_df: pd.DataFrame,
+                                     verbose: bool = False, return_detailed: bool = False):
     """
     Evaluate margin prediction parameters using walk-forward validation
     Returns Mean Absolute Error (lower is better)
@@ -708,8 +708,9 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
         
     Returns:
     --------
-    float
-        Mean Absolute Error across validation splits
+    float or dict
+        Mean Absolute Error across validation splits (legacy behavior), or
+        detailed split + aggregate metrics when return_detailed=True
     """
     # Ensure chronological order
     matches_df = matches_df.sort_values(['year', 'match_date'])
@@ -721,7 +722,10 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
     # All unique teams
     all_teams = pd.concat([matches_df['home_team'], matches_df['away_team']]).unique()
     
-    all_errors = []
+    split_mae_values = []
+    split_summaries = []
+    total_abs_error = 0.0
+    total_matches = 0
     
     for i in range(len(seasons) - 1):
         train_seasons = seasons[:i + 1]
@@ -762,8 +766,8 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
             model.apply_season_carryover(test_season)
         
         # Predict margins on test season (no ELO rating updates)
-        predicted_margins = []
-        actual_margins = []
+        split_abs_error = 0.0
+        split_count = 0
         
         for _, match in test_data.iterrows():
             # Get ELO-based predictions
@@ -798,17 +802,47 @@ def evaluate_margin_method_walkforward(params: List[float], method: str,
             
             actual_margin = match['hscore'] - match['ascore']
             
-            predicted_margins.append(predicted_margin)
-            actual_margins.append(actual_margin)
+            split_abs_error += abs(predicted_margin - actual_margin)
+            split_count += 1
         
         # Calculate MAE for this split
-        split_mae = np.mean(np.abs(np.array(predicted_margins) - np.array(actual_margins)))
-        all_errors.append(split_mae)
+        if split_count == 0:
+            continue
+
+        split_mae = split_abs_error / split_count
+        split_mae_values.append(split_mae)
+        split_summaries.append({
+            'test_season': int(test_season),
+            'match_count': int(split_count),
+            'mae': float(split_mae),
+            'abs_error_sum': float(split_abs_error)
+        })
+        total_abs_error += split_abs_error
+        total_matches += split_count
         
         if verbose:
             print(f"Train ≤ {test_season - 1}, test {test_season}: MAE {split_mae:.2f}")
     
-    return np.mean(all_errors) if all_errors else np.inf
+    if not split_mae_values:
+        return np.inf if not return_detailed else {
+            'unweighted_split_mae': np.inf,
+            'global_match_weighted_mae': np.inf,
+            'total_matches': 0,
+            'split_results': []
+        }
+
+    unweighted_split_mae = float(np.mean(split_mae_values))
+    global_match_weighted_mae = float(total_abs_error / total_matches) if total_matches else np.inf
+
+    if not return_detailed:
+        return unweighted_split_mae
+
+    return {
+        'unweighted_split_mae': unweighted_split_mae,
+        'global_match_weighted_mae': global_match_weighted_mae,
+        'total_matches': int(total_matches),
+        'split_results': split_summaries
+    }
 
 
 def evaluate_model_walkforward(params: List[float], matches_df: pd.DataFrame, 

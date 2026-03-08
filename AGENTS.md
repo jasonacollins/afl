@@ -117,11 +117,18 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - `api-refresh` should warn when API games exist for a year but no corresponding DB matches are found, instructing admins to run `sync-games` first.
 - UI notes:
   - The predictions runner is labelled `Predictions` (internal script key remains `combined-predictions`).
-  - The predictions card includes a `Predict future games only` option that maps to `--future-only` for `scripts/elo_predict_combined.py`.
   - The predictions card includes a model-type mode switch:
-    - `Combined (Win + Margin)` maps to `combined-predictions` (`scripts/elo_predict_combined.py`)
+    - `Win + Optimised Margin` maps to `win-margin-methods-predictions` (`scripts/elo_margin_methods_predict.py`)
     - `Margin-only (Derive Win %)` maps to `margin-predictions` (`scripts/elo_margin_predict.py`)
+  - `Win + Optimised Margin` mode supports:
+    - `Predict future games only` (`--future-only`)
+    - `Override completed/started matches` (`--override-completed`)
+    - optional method override (`--method-override`)
+    - optional compatibility bypass (`--allow-model-mismatch`, unsafe)
+  - Win-model training UI (`Optimise For: Win Probability`) includes a second-step optimizer form:
+    - `Optimise Win Margin Methods` maps to `win-margin-methods-optimize` (`scripts/elo_margin_methods_optimize.py`)
   - Training is presented as one `Train Model` card with an `Optimise For` selector (`Win Probability` or `Margin`) that routes to `win-train` or `margin-train`.
+  - Admin script logs include periodic progress snapshots with elapsed time and stdout/stderr line counts for long-running jobs.
 
 **ELO Data Architecture**: The ELO system uses a hybrid approach for optimal performance:
 - **Predictions**: Written directly to database by Python scripts (transactional, real-time)

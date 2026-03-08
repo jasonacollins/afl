@@ -13,13 +13,16 @@ const {
 
 const PROJECT_ROOT = path.join(__dirname, '..');
 const LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH = 'data/models/margin/optimal_margin_only_elo_params.json';
+const LEGACY_WIN_MARGIN_METHODS_OUTPUT_PATH = 'data/models/win/optimal_margin_methods.json';
 const DEFAULTS = {
   dbPath: 'data/database/afl_predictions.db',
   combinedOutputDir: 'data/predictions/combined',
   marginPredictionsOutputDir: 'data/predictions/margin',
+  winMarginMethodsOutputDir: 'data/predictions/win',
   winModelOutputDir: 'data/models/win',
   marginModelOutputDir: 'data/models/margin',
   marginOptimizeOutputPath: LEGACY_MARGIN_OPTIMIZE_OUTPUT_PATH,
+  winMarginMethodsOptimizeOutputPath: LEGACY_WIN_MARGIN_METHODS_OUTPUT_PATH,
   historicalOutputDir: 'data/historical',
   historicalOutputPrefix: 'afl_elo_complete_history',
   historicalMode: 'incremental',
@@ -28,6 +31,7 @@ const DEFAULTS = {
 };
 
 const MAX_LOG_MESSAGE_LENGTH = 4000;
+const RUN_HEARTBEAT_INTERVAL_MS = 15000;
 
 const RUN_STATUS = {
   QUEUED: 'queued',
@@ -56,6 +60,29 @@ function getMarginOptimizeOutputPath(endYear) {
     'data/models/margin',
     `optimal_margin_only_elo_params_trained_to_${endYear}.json`
   );
+}
+
+function getDefaultWinMarginMethodsOptimizeEndYear() {
+  return new Date().getFullYear() - 1;
+}
+
+function getWinMarginMethodsOptimizeOutputPath(endYear) {
+  return path.posix.join(
+    'data/models/win',
+    `optimal_margin_methods_trained_to_${endYear}.json`
+  );
+}
+
+function isWinMarginMethodsFile(filePath) {
+  return /optimal_margin_methods(?:_trained_to_\d{4})?\.json$/i.test(path.posix.basename(filePath));
+}
+
+function isWinParamsFile(filePath) {
+  return /optimal_elo_params_win(?:_trained_to_\d{4})?\.json$/i.test(path.posix.basename(filePath));
+}
+
+function isWinTrainedModelFile(filePath) {
+  return /afl_elo_win_trained_to_\d{4}\.json$/i.test(path.posix.basename(filePath));
 }
 
 function trimToNull(value) {
@@ -210,9 +237,13 @@ async function getModelFiles() {
     listJsonFiles('data/models/margin')
   ]);
 
+  const winMarginMethods = win.filter((filePath) => isWinMarginMethodsFile(filePath));
+  const winParams = win.filter((filePath) => isWinParamsFile(filePath));
+  const winModels = win.filter((filePath) => isWinTrainedModelFile(filePath));
+  const winModelOrParams = win.filter((filePath) => isWinTrainedModelFile(filePath) || isWinParamsFile(filePath));
   const history = [...new Set([...margin, ...win])].sort((a, b) => a.localeCompare(b));
 
-  return { win, margin, history };
+  return { win, margin, history, winMarginMethods, winParams, winModels, winModelOrParams };
 }
 
 async function getScriptMetadata() {
@@ -222,6 +253,7 @@ async function getScriptMetadata() {
   ]);
   const currentYear = new Date().getFullYear();
   const defaultMarginOptimizeEndYear = getDefaultMarginOptimizeEndYear();
+  const defaultWinMarginMethodsOptimizeEndYear = getDefaultWinMarginMethodsOptimizeEndYear();
 
   return {
     scripts: getScriptCatalog(),
@@ -232,12 +264,15 @@ async function getScriptMetadata() {
       yearMax: getYearMax(),
       predictorId: chooseDefaultPredictorId(activePredictors, 6),
       marginPredictorId: chooseDefaultPredictorId(activePredictors, 7),
+      winMarginMethodsPredictorId: chooseDefaultPredictorId(activePredictors, 8),
       dbPath: DEFAULTS.dbPath,
       combinedOutputDir: DEFAULTS.combinedOutputDir,
       marginPredictionsOutputDir: DEFAULTS.marginPredictionsOutputDir,
+      winMarginMethodsOutputDir: DEFAULTS.winMarginMethodsOutputDir,
       winModelOutputDir: DEFAULTS.winModelOutputDir,
       marginModelOutputDir: DEFAULTS.marginModelOutputDir,
       marginOptimizeOutputPath: getMarginOptimizeOutputPath(defaultMarginOptimizeEndYear),
+      winMarginMethodsOptimizeOutputPath: getWinMarginMethodsOptimizeOutputPath(defaultWinMarginMethodsOptimizeEndYear),
       historicalOutputDir: DEFAULTS.historicalOutputDir,
       historicalOutputPrefix: DEFAULTS.historicalOutputPrefix,
       historicalMode: DEFAULTS.historicalMode,
@@ -331,6 +366,54 @@ async function getExistingActiveRun() {
 
 function getCommandString(command, args) {
   return [command, ...args].join(' ');
+}
+
+function isPythonCommand(command) {
+  const basename = path.basename(String(command || '')).toLowerCase();
+  return /^python(\d+(?:\.\d+)?)?$/.test(basename);
+}
+
+function formatDurationMs(durationMs) {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  }
+  return `${seconds}s`;
+}
+
+function extractProgressSnapshot(line) {
+  if (!line) {
+    return null;
+  }
+
+  const progressIndex = line.toLowerCase().indexOf('progress');
+  if (progressIndex === -1) {
+    return null;
+  }
+
+  const fractionMatch = line.match(/(\d+)\s*\/\s*(\d+)/);
+  if (fractionMatch) {
+    const numerator = Number.parseInt(fractionMatch[1], 10);
+    const denominator = Number.parseInt(fractionMatch[2], 10);
+    if (Number.isInteger(numerator) && Number.isInteger(denominator) && denominator > 0) {
+      const pct = ((numerator / denominator) * 100).toFixed(0);
+      return `${numerator}/${denominator} (${pct}%)`;
+    }
+  }
+
+  const percentMatch = line.match(/(\d{1,3}(?:\.\d+)?)\s*%/);
+  if (percentMatch) {
+    return `${percentMatch[1]}%`;
+  }
+
+  return line.length > 120 ? `${line.slice(0, 120)}...` : line;
 }
 
 function parseLogLine(rawLine, runId, seq) {
@@ -433,6 +516,9 @@ async function buildScriptCommand(scriptKey, params = {}) {
   if (scriptKey === 'combined-predictions') {
     const startYear = toInteger(params.startYear, 'startYear', { required: true, min: YEAR_MIN, max: yearMax });
     const winModelPath = normalizeRepoPath(params.winModelPath, 'winModelPath');
+    if (isWinParamsFile(winModelPath) || isWinMarginMethodsFile(winModelPath)) {
+      throw new Error('winModelPath must reference a trained win model artifact');
+    }
     const marginModelPath = normalizeRepoPath(params.marginModelPath, 'marginModelPath');
     const predictorId = toInteger(params.predictorId, 'predictorId', { required: true, min: 1, max: Number.MAX_SAFE_INTEGER });
 
@@ -527,6 +613,141 @@ async function buildScriptCommand(scriptKey, params = {}) {
     };
   }
 
+  if (scriptKey === 'win-margin-methods-predictions') {
+    const startYear = toInteger(params.startYear, 'startYear', { required: true, min: YEAR_MIN, max: yearMax });
+    const winModelPath = normalizeRepoPath(params.winModelPath, 'winModelPath');
+    if (isWinParamsFile(winModelPath) || isWinMarginMethodsFile(winModelPath)) {
+      throw new Error('winModelPath must reference a trained win model artifact');
+    }
+    const marginMethodsPath = normalizeRepoPath(params.marginMethodsPath, 'marginMethodsPath');
+    if (!isWinMarginMethodsFile(marginMethodsPath)) {
+      throw new Error('marginMethodsPath must reference an optimal_margin_methods artifact');
+    }
+    const predictorId = toInteger(params.predictorId, 'predictorId', {
+      required: true,
+      min: 1,
+      max: Number.MAX_SAFE_INTEGER
+    });
+    await assertActivePredictor(predictorId);
+
+    const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
+    const outputDir = normalizeOptionalRepoPath(
+      params.outputDir,
+      'outputDir',
+      DEFAULTS.winMarginMethodsOutputDir
+    );
+    const saveToDb = normalizeBoolean(params.saveToDb, true);
+    const futureOnly = normalizeBoolean(params.futureOnly, false);
+    const overrideCompleted = normalizeBoolean(params.overrideCompleted, false);
+    const allowModelMismatch = normalizeBoolean(params.allowModelMismatch, false);
+    const methodOverrideRaw = trimToNull(params.methodOverride);
+    const allowedMethodOverrides = new Set(['simple', 'linear', 'diminishing_returns']);
+    const methodOverride = methodOverrideRaw ? methodOverrideRaw.toLowerCase() : null;
+
+    if (methodOverride && !allowedMethodOverrides.has(methodOverride)) {
+      throw new Error('methodOverride must be one of: simple, linear, diminishing_returns');
+    }
+
+    normalizedParams.startYear = startYear;
+    normalizedParams.winModelPath = winModelPath;
+    normalizedParams.marginMethodsPath = marginMethodsPath;
+    normalizedParams.predictorId = predictorId;
+    normalizedParams.dbPath = dbPath;
+    normalizedParams.outputDir = outputDir;
+    normalizedParams.saveToDb = saveToDb;
+    normalizedParams.futureOnly = futureOnly;
+    normalizedParams.overrideCompleted = overrideCompleted;
+    normalizedParams.methodOverride = methodOverride;
+    normalizedParams.allowModelMismatch = allowModelMismatch;
+
+    const args = [
+      'scripts/elo_margin_methods_predict.py',
+      '--start-year', String(startYear),
+      '--elo-model', winModelPath,
+      '--margin-methods', marginMethodsPath,
+      '--db-path', dbPath,
+      '--output-dir', outputDir,
+      '--predictor-id', String(predictorId)
+    ];
+
+    if (!saveToDb) {
+      args.push('--no-save-to-db');
+    }
+    if (futureOnly) {
+      args.push('--future-only');
+    }
+    if (overrideCompleted) {
+      args.push('--override-completed');
+    }
+    if (methodOverride) {
+      args.push('--method-override', methodOverride);
+    }
+    if (allowModelMismatch) {
+      args.push('--allow-model-mismatch');
+    }
+
+    return {
+      command: 'python3',
+      args,
+      normalizedParams
+    };
+  }
+
+  if (scriptKey === 'win-margin-methods-optimize') {
+    const startYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax }) || YEAR_MIN;
+    const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax })
+      || getDefaultWinMarginMethodsOptimizeEndYear();
+    if (startYear > endYear) {
+      throw new Error('startYear cannot be greater than endYear');
+    }
+
+    const eloParamsPath = normalizeRepoPath(params.eloParamsPath, 'eloParamsPath');
+    if (isWinMarginMethodsFile(eloParamsPath)) {
+      throw new Error('eloParamsPath must reference a win model/params artifact, not a margin methods artifact');
+    }
+    const nCalls = toInteger(params.nCalls, 'nCalls', { required: false, min: 1, max: 5000 }) ?? 100;
+    const randomSeed = toInteger(
+      params.randomSeed,
+      'randomSeed',
+      { required: false, min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER }
+    ) ?? 42;
+    const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
+    const requestedOutputPath = trimToNull(params.outputPath);
+    const outputPathInput = requestedOutputPath === LEGACY_WIN_MARGIN_METHODS_OUTPUT_PATH
+      ? null
+      : requestedOutputPath;
+    const outputPath = normalizeOptionalRepoPath(
+      outputPathInput,
+      'outputPath',
+      getWinMarginMethodsOptimizeOutputPath(endYear)
+    );
+
+    normalizedParams.eloParamsPath = eloParamsPath;
+    normalizedParams.startYear = startYear;
+    normalizedParams.endYear = endYear;
+    normalizedParams.nCalls = nCalls;
+    normalizedParams.randomSeed = randomSeed;
+    normalizedParams.dbPath = dbPath;
+    normalizedParams.outputPath = outputPath;
+
+    const args = [
+      'scripts/elo_margin_methods_optimize.py',
+      '--elo-params', eloParamsPath,
+      '--start-year', String(startYear),
+      '--end-year', String(endYear),
+      '--n-calls', String(nCalls),
+      '--random-seed', String(randomSeed),
+      '--db-path', dbPath,
+      '--output-path', outputPath
+    ];
+
+    return {
+      command: 'python3',
+      args,
+      normalizedParams
+    };
+  }
+
   if (scriptKey === 'win-train') {
     const startYear = toInteger(params.startYear, 'startYear', { required: false, min: YEAR_MIN, max: yearMax }) || YEAR_MIN;
     const endYear = toInteger(params.endYear, 'endYear', { required: false, min: YEAR_MIN, max: yearMax }) || new Date().getFullYear();
@@ -541,6 +762,12 @@ async function buildScriptCommand(scriptKey, params = {}) {
     const maxCombinations = toInteger(params.maxCombinations, 'maxCombinations', { required: false, min: 1, max: 5000 }) || 500;
     const paramsFile = normalizeOptionalRepoPath(params.paramsFile, 'paramsFile');
     const marginParams = normalizeOptionalRepoPath(params.marginParams, 'marginParams');
+    if (paramsFile && (isWinTrainedModelFile(paramsFile) || isWinMarginMethodsFile(paramsFile))) {
+      throw new Error('paramsFile must reference an optimal_elo_params_win artifact');
+    }
+    if (marginParams && !isWinMarginMethodsFile(marginParams)) {
+      throw new Error('marginParams must reference an optimal_margin_methods artifact');
+    }
 
     normalizedParams.startYear = startYear;
     normalizedParams.endYear = endYear;
@@ -741,6 +968,9 @@ async function buildScriptCommand(scriptKey, params = {}) {
     const year = toInteger(params.year, 'year', { required: true, min: YEAR_MIN, max: yearMax });
     const modelPath = normalizeRepoPath(params.modelPath, 'modelPath');
     const winModelPath = normalizeOptionalRepoPath(params.winModelPath, 'winModelPath');
+    if (winModelPath && (isWinParamsFile(winModelPath) || isWinMarginMethodsFile(winModelPath))) {
+      throw new Error('winModelPath must reference a trained win model artifact');
+    }
     const dbPath = normalizeOptionalRepoPath(params.dbPath, 'dbPath', DEFAULTS.dbPath);
     const numSimulations = toInteger(params.numSimulations, 'numSimulations', {
       required: false,
@@ -859,6 +1089,14 @@ async function startScriptRun(scriptKey, params, adminUserId) {
   let logWriteFailureMessage = null;
   let child = null;
   let finalized = false;
+  let heartbeatTimer = null;
+  const runStartedAtMs = Date.now();
+  let lastOutputAtMs = runStartedAtMs;
+  let stdoutLineCount = 0;
+  let stderrLineCount = 0;
+  let lastHeartbeatStdoutCount = 0;
+  let lastHeartbeatStderrCount = 0;
+  let lastProgressSnapshot = null;
 
   const queueLog = (stream, message) => {
     if (logWriteFailureMessage) {
@@ -880,8 +1118,17 @@ async function startScriptRun(scriptKey, params, adminUserId) {
       });
   };
 
-  child = spawn(commandSpec.command, commandSpec.args, {
+  const spawnArgs = [...commandSpec.args];
+  if (isPythonCommand(commandSpec.command) && spawnArgs[0] !== '-u') {
+    spawnArgs.unshift('-u');
+  }
+
+  child = spawn(commandSpec.command, spawnArgs, {
     cwd: PROJECT_ROOT,
+    env: {
+      ...process.env,
+      PYTHONUNBUFFERED: '1'
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 
@@ -889,11 +1136,33 @@ async function startScriptRun(scriptKey, params, adminUserId) {
     runId,
     scriptKey,
     command: commandSpec.command,
-    args: commandSpec.args,
+    args: spawnArgs,
     child
   };
 
-  queueLog('system', `Starting command: ${getCommandString(commandSpec.command, commandSpec.args)}`);
+  queueLog('system', `Starting command: ${getCommandString(commandSpec.command, spawnArgs)}`);
+
+  heartbeatTimer = setInterval(() => {
+    if (finalized) {
+      return;
+    }
+
+    const now = Date.now();
+    const elapsed = formatDurationMs(now - runStartedAtMs);
+    const idle = formatDurationMs(now - lastOutputAtMs);
+    const stdoutDelta = stdoutLineCount - lastHeartbeatStdoutCount;
+    const stderrDelta = stderrLineCount - lastHeartbeatStderrCount;
+    const progressSuffix = lastProgressSnapshot ? ` | latest progress ${lastProgressSnapshot}` : '';
+
+    queueLog(
+      'system',
+      `Progress snapshot: elapsed ${elapsed} | stdout lines ${stdoutLineCount} (+${stdoutDelta}) `
+      + `| stderr lines ${stderrLineCount} (+${stderrDelta}) | idle ${idle}${progressSuffix}`
+    );
+
+    lastHeartbeatStdoutCount = stdoutLineCount;
+    lastHeartbeatStderrCount = stderrLineCount;
+  }, RUN_HEARTBEAT_INTERVAL_MS);
 
   const finalizeRun = async (status, exitCode, errorMessage) => {
     if (finalized) {
@@ -917,6 +1186,10 @@ async function startScriptRun(scriptKey, params, adminUserId) {
         [status, exitCode, errorMessage || null, nowIso(), runId]
       );
     } finally {
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
       if (activeProcess && activeProcess.runId === runId) {
         activeProcess = null;
       }
@@ -924,13 +1197,25 @@ async function startScriptRun(scriptKey, params, adminUserId) {
   };
 
   child.stdout.on('data', (buffer) => {
+    lastOutputAtMs = Date.now();
     splitOutputLines(buffer).forEach((line) => {
+      stdoutLineCount += 1;
+      const snapshot = extractProgressSnapshot(line);
+      if (snapshot) {
+        lastProgressSnapshot = snapshot;
+      }
       queueLog('stdout', line);
     });
   });
 
   child.stderr.on('data', (buffer) => {
+    lastOutputAtMs = Date.now();
     splitOutputLines(buffer).forEach((line) => {
+      stderrLineCount += 1;
+      const snapshot = extractProgressSnapshot(line);
+      if (snapshot) {
+        lastProgressSnapshot = snapshot;
+      }
       queueLog('stderr', line);
     });
   });
@@ -984,7 +1269,7 @@ async function startScriptRun(scriptKey, params, adminUserId) {
     adminUserId,
     logPath: toPosixRelativePath(path.relative(PROJECT_ROOT, runLogAbsolutePath)),
     command: commandSpec.command,
-    args: commandSpec.args
+    args: spawnArgs
   });
 
   return {
@@ -1176,5 +1461,8 @@ module.exports = {
   getRunById,
   getRunLogs,
   recoverInterruptedRuns,
-  getExistingActiveRun
+  getExistingActiveRun,
+  __testables: {
+    buildScriptCommand
+  }
 };

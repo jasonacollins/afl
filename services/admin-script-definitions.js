@@ -40,7 +40,7 @@ const SCRIPT_DEFINITIONS = {
     description: 'Run win + margin ELO predictions and write to database.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
-      { name: 'winModelPath', label: 'Win Model', type: 'select', required: true, optionSource: 'modelFiles.win' },
+      { name: 'winModelPath', label: 'Win Model', type: 'select', required: true, optionSource: 'modelFiles.winModels' },
       { name: 'marginModelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
       { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
       { name: 'futureOnly', label: 'Future Games Only', type: 'boolean', required: false },
@@ -63,6 +63,38 @@ const SCRIPT_DEFINITIONS = {
       { name: 'overrideCompleted', label: 'Override Completed', type: 'boolean', required: false }
     ]
   },
+  'win-margin-methods-predictions': {
+    key: 'win-margin-methods-predictions',
+    label: 'Win + Optimised Margin',
+    description: 'Run win ELO predictions with optimized margin derivation methods.',
+    fields: [
+      { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'winModelPath', label: 'Win Model', type: 'select', required: true, optionSource: 'modelFiles.winModels' },
+      { name: 'marginMethodsPath', label: 'Margin Methods', type: 'select', required: true, optionSource: 'modelFiles.winMarginMethods' },
+      { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
+      { name: 'futureOnly', label: 'Future Games Only', type: 'boolean', required: false },
+      { name: 'overrideCompleted', label: 'Override Completed', type: 'boolean', required: false },
+      { name: 'methodOverride', label: 'Method Override', type: 'text', required: false },
+      { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
+      { name: 'outputDir', label: 'Output Directory', type: 'text', required: false },
+      { name: 'saveToDb', label: 'Save to DB', type: 'boolean', required: false },
+      { name: 'allowModelMismatch', label: 'Allow Model Mismatch', type: 'boolean', required: false }
+    ]
+  },
+  'win-margin-methods-optimize': {
+    key: 'win-margin-methods-optimize',
+    label: 'Optimise Win Margin Methods (Testing)',
+    description: 'Optimise margin derivation methods for a win ELO model and write a testing artifact.',
+    fields: [
+      { name: 'eloParamsPath', label: 'Win Model / Params', type: 'select', required: true, optionSource: 'modelFiles.winModelOrParams' },
+      { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'endYear', label: 'End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
+      { name: 'nCalls', label: 'N Calls', type: 'number', required: false, min: 1, max: 5000 },
+      { name: 'randomSeed', label: 'Random Seed', type: 'number', required: false },
+      { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
+      { name: 'outputPath', label: 'Output Path', type: 'text', required: false }
+    ]
+  },
   'win-train': {
     key: 'win-train',
     label: 'Train Win Model',
@@ -75,8 +107,8 @@ const SCRIPT_DEFINITIONS = {
       { name: 'noTuneParameters', label: 'Skip Parameter Tuning', type: 'boolean', required: false },
       { name: 'cvFolds', label: 'CV Folds', type: 'number', required: false, min: 2, max: 10 },
       { name: 'maxCombinations', label: 'Max Combinations', type: 'number', required: false, min: 1, max: 5000 },
-      { name: 'paramsFile', label: 'Params File', type: 'select', required: false, optionSource: 'modelFiles.win' },
-      { name: 'marginParams', label: 'Margin Params File', type: 'select', required: false, optionSource: 'modelFiles.win' }
+      { name: 'paramsFile', label: 'Params File', type: 'select', required: false, optionSource: 'modelFiles.winParams' },
+      { name: 'marginParams', label: 'Margin Params File', type: 'select', required: false, optionSource: 'modelFiles.winMarginMethods' }
     ]
   },
   'margin-optimize': {
@@ -128,7 +160,7 @@ const SCRIPT_DEFINITIONS = {
     fields: [
       { name: 'year', label: 'Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'modelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
-      { name: 'winModelPath', label: 'Win Model (Combined Mode)', type: 'select', required: false, optionSource: 'modelFiles.win' },
+      { name: 'winModelPath', label: 'Win Model (Combined Mode)', type: 'select', required: false, optionSource: 'modelFiles.winModels' },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
       { name: 'numSimulations', label: 'Simulations', type: 'number', required: false, min: 1000, max: 200000 },
       { name: 'fromScratch', label: 'From Scratch', type: 'boolean', required: false },
