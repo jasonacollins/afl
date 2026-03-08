@@ -365,9 +365,9 @@ class EloChart {
       console.log('Teams available:', this.teams.length, 'teams');
       console.log('Sample chart data:', this.chartData.slice(0, 2));
 
-    // Create custom labels for x-axis ticks based on rounds
-    const rounds = [...new Set(this.chartData.map(point => point.round))].filter(r => r);
-    console.log('Rounds for labels:', rounds);
+    // Create explicit x -> round labels for stable tick rendering
+    const xAxisLabels = this.buildXAxisLabelMap(this.chartData);
+    console.log('Round labels for x-axis:', Array.from(xAxisLabels.entries()));
 
     // Prepare datasets for each team with step-pattern configuration using x,y coordinates
     const datasets = this.teams.map((team, index) => {
@@ -406,7 +406,10 @@ class EloChart {
         fill: false,
         stepped: 'after', // Enable stepped lines for box-pattern effect
         tension: 0, // Remove any curve smoothing for sharp steps
-        pointRadius: 0, // Remove dots as requested
+        pointRadius: (ctx) => {
+          const dataset = ctx && ctx.dataset;
+          return dataset && Array.isArray(dataset.data) && dataset.data.length <= 1 ? 3 : 0;
+        },
         pointHoverRadius: 4, // Small hover indication
         pointBackgroundColor: originalColor,
         pointBorderColor: originalColor,
@@ -505,7 +508,8 @@ class EloChart {
                     if (this.currentMode === 'yearRange') {
                       return `Year ${pointData.year}`;
                     } else {
-                      return pointData.round ? `Round ${pointData.round}` : `Year ${pointData.year}`;
+                      const roundTitle = this.formatRoundTitle(pointData.round);
+                      return roundTitle || `Year ${pointData.year}`;
                     }
                   }
                   
@@ -522,8 +526,8 @@ class EloChart {
                   if (this.currentMode === 'yearRange') {
                     return 'Year Range';
                   } else {
-                    const roundIndex = Math.floor(dataPoint.parsed.x);
-                    return `Round ${rounds[roundIndex] || roundIndex + 1}`;
+                    const roundLabel = this.getRoundLabelForX(dataPoint.parsed.x, xAxisLabels);
+                    return this.formatRoundTitle(roundLabel) || `Round ${Math.floor(dataPoint.parsed.x) + 1}`;
                   }
                 },
                 label: function(context) {
@@ -577,9 +581,8 @@ class EloChart {
                     }
                     return '';
                   } else {
-                    // Show round labels at integer positions
-                    const roundIndex = Math.floor(value);
-                    return rounds[roundIndex] || '';
+                    // Show season/round labels at exact integer x-positions
+                    return this.getRoundLabelForX(value, xAxisLabels);
                   }
                 }.bind(this)
               }
@@ -759,8 +762,8 @@ class EloChart {
     
     const ctx = canvas.getContext('2d');
 
-    // Create rounds for x-axis labels
-    const rounds = [...new Set(chartData.map(point => point.round))].filter(r => r);
+    // Create explicit x -> round labels for stable tick rendering
+    const xAxisLabels = this.buildXAxisLabelMap(chartData);
 
     // Separate teams into highlighted and faded, with highlighted teams last (front)
     const fadedTeams = teams.filter(team => !highlightedTeams.has(team));
@@ -804,7 +807,10 @@ class EloChart {
         fill: false,
         stepped: 'after',
         tension: 0,
-        pointRadius: 0,
+        pointRadius: (ctx) => {
+          const dataset = ctx && ctx.dataset;
+          return dataset && Array.isArray(dataset.data) && dataset.data.length <= 1 ? 3 : 0;
+        },
         pointHoverRadius: 4,
         pointBackgroundColor: noSelection || isHighlighted ? originalColor : '#cccccc',
         pointBorderColor: noSelection || isHighlighted ? originalColor : '#cccccc',
@@ -872,7 +878,8 @@ class EloChart {
                   if (this.currentMode === 'yearRange') {
                     return `Year ${pointData.year}`;
                   } else {
-                    return pointData.round ? `Round ${pointData.round}` : `Year ${pointData.year}`;
+                    const roundTitle = this.formatRoundTitle(pointData.round);
+                    return roundTitle || `Year ${pointData.year}`;
                   }
                 }
                 
@@ -889,8 +896,8 @@ class EloChart {
                 if (this.currentMode === 'yearRange') {
                   return 'Year Range';
                 } else {
-                  const roundIndex = Math.floor(dataPoint.parsed.x);
-                  return `Round ${rounds[roundIndex] || roundIndex + 1}`;
+                  const roundLabel = this.getRoundLabelForX(dataPoint.parsed.x, xAxisLabels);
+                  return this.formatRoundTitle(roundLabel) || `Round ${Math.floor(dataPoint.parsed.x) + 1}`;
                 }
               },
               label: function(context) {
@@ -944,9 +951,8 @@ class EloChart {
                   }
                   return '';
                 } else {
-                  // Show round labels at integer positions
-                  const roundIndex = Math.floor(value);
-                  return rounds[roundIndex] || '';
+                  // Show season/round labels at exact integer x-positions
+                  return this.getRoundLabelForX(value, xAxisLabels);
                 }
               }.bind(this)
             }
@@ -969,6 +975,57 @@ class EloChart {
     // Restore highlight state
     this.highlightedTeams = highlightedTeams;
     this.createLegend();
+  }
+
+  buildXAxisLabelMap(chartData) {
+    const labelsByX = new Map();
+    if (!Array.isArray(chartData)) {
+      return labelsByX;
+    }
+
+    const sortedPoints = [...chartData].sort((a, b) => {
+      const xA = a.x !== undefined ? a.x : a.step || 0;
+      const xB = b.x !== undefined ? b.x : b.step || 0;
+      return xA - xB;
+    });
+
+    sortedPoints.forEach(point => {
+      const x = point.x !== undefined ? point.x : point.step;
+      if (!Number.isFinite(x) || !point.round) {
+        return;
+      }
+
+      if (!labelsByX.has(x)) {
+        labelsByX.set(x, point.round);
+      }
+    });
+
+    return labelsByX;
+  }
+
+  getRoundLabelForX(xValue, xAxisLabels) {
+    if (!Number.isFinite(xValue) || !(xAxisLabels instanceof Map)) {
+      return '';
+    }
+
+    const roundedX = Math.round(xValue);
+    if (Math.abs(xValue - roundedX) > 0.001) {
+      return '';
+    }
+
+    return xAxisLabels.get(roundedX) || '';
+  }
+
+  formatRoundTitle(roundLabel) {
+    if (!roundLabel) {
+      return '';
+    }
+
+    if (roundLabel === 'Season start') {
+      return 'Season start';
+    }
+
+    return `Round ${roundLabel}`;
   }
 
   showError(message) {
@@ -1105,7 +1162,10 @@ class EloChart {
       fill: false,
       stepped: 'after',
       tension: 0,
-      pointRadius: 0,
+      pointRadius: (ctx) => {
+        const dataset = ctx && ctx.dataset;
+        return dataset && Array.isArray(dataset.data) && dataset.data.length <= 1 ? 3 : 0;
+      },
       pointHoverRadius: 4,
       pointBackgroundColor: originalColor,
       pointBorderColor: originalColor,
