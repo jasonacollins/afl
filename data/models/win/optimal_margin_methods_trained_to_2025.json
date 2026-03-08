@@ -1,0 +1,101 @@
+{
+    "artifact_version": 2.0,
+    "artifact_type": "win_margin_methods",
+    "created_at": "2026-03-08T05:15:23.869928Z",
+    "train_window": {
+        "start_year": 1990,
+        "end_year": 2025
+    },
+    "optimization_settings": {
+        "selection_metric": "global_match_weighted_mae",
+        "n_calls": 500,
+        "random_seed": 42,
+        "search_space": {
+            "simple": {
+                "scale_factor": [
+                    0.05,
+                    0.25
+                ]
+            },
+            "diminishing_returns": {
+                "beta": [
+                    0.015,
+                    0.08
+                ]
+            },
+            "linear": {
+                "slope": [
+                    0.05,
+                    0.25
+                ],
+                "intercept": [
+                    -8.0,
+                    8.0
+                ]
+            }
+        }
+    },
+    "best_method": "linear",
+    "best_params": {
+        "slope": 0.13921457858404523,
+        "intercept": -0.9731437887050447
+    },
+    "best_score": 31.760177912740428,
+    "best_unweighted_split_mae": 31.827453932564776,
+    "best_total_matches": 6711.0,
+    "all_methods": {
+        "simple": {
+            "score": 31.771075328545745,
+            "unweighted_split_mae": 31.835694332243786,
+            "total_matches": 6711,
+            "params": {
+                "scale_factor": 0.13778229206100934
+            }
+        },
+        "diminishing_returns": {
+            "score": 32.2434593639272,
+            "unweighted_split_mae": 32.30748805910514,
+            "total_matches": 6711,
+            "params": {
+                "beta": 0.015080149063274028
+            }
+        },
+        "linear": {
+            "score": 31.760177912740428,
+            "unweighted_split_mae": 31.827453932564776,
+            "total_matches": 6711,
+            "params": {
+                "slope": 0.13921457858404523,
+                "intercept": -0.9731437887050447
+            }
+        }
+    },
+    "required_win_model": {
+        "model_type": "win_elo",
+        "train_end_year": 2025,
+        "parameter_signature": {
+            "base_rating": 1500,
+            "k_factor": 55,
+            "default_home_advantage": 30.0,
+            "interstate_home_advantage": 90.0,
+            "home_advantage": 30,
+            "margin_factor": 0.2,
+            "season_carryover": 0.6,
+            "max_margin": 80,
+            "beta": 0.05,
+            "team_states": {}
+        }
+    },
+    "elo_params_used": {
+        "base_rating": 1500,
+        "k_factor": 55,
+        "home_advantage": 30,
+        "default_home_advantage": 30.0,
+        "interstate_home_advantage": 90.0,
+        "margin_factor": 0.2,
+        "season_carryover": 0.6,
+        "max_margin": 80,
+        "beta": 0.05,
+        "team_states": {}
+    }
+}
