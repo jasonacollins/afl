@@ -1,6 +1,6 @@
 <%- include('partials/header') %>
 
-<div class="container">
+<div class="container home-page">
   <div class="welcome-section">
     <h1>Welcome to Dad's AFL Predictions</h1>
     
@@ -86,12 +86,12 @@
         <table class="predictions-table stack-mobile">
             <thead>
                 <tr>
-                <th style="text-align: left;">Match</th>
-                <th style="text-align: center;">Result</th>
-                <th style="text-align: center;">Prediction</th>
-                <th style="text-align: center;">Win accuracy</th>
-                <th style="text-align: center;">Predicted margin</th>
-                <th style="text-align: center;">Margin error</th>
+                <th>Match</th>
+                <th>Result</th>
+                <th>Prediction</th>
+                <th>Win accuracy</th>
+                <th>Predicted margin</th>
+                <th>Margin error</th>
                 </tr>
             </thead>
           <tbody>
@@ -99,8 +99,10 @@
               <% matches.forEach(match => { %>
                 <tr>
                   <td class="team-names stack-primary" data-label="Match">
-                    <div><%= match.home_team %> vs <%= match.away_team %></div>
-                    <div style="font-size: 0.8rem; color: var(--light-text);"><%= match.venue %>, <%= match.match_date %></div>
+                    <div class="match-info">
+                      <div class="teams"><%= match.home_team %> vs <%= match.away_team %></div>
+                      <div class="match-details"><%= match.venue %>, <%= match.match_date %></div>
+                    </div>
                   </td>
                   <td class="score" data-label="Result">
                     <% if (match.hscore !== null && match.ascore !== null) { %>
@@ -177,7 +179,7 @@
               <% }) %>
             <% } else { %>
               <tr>
-                <td colspan="6" style="text-align: center; padding: 2rem;">No matches available for this round</td>
+                <td colspan="6" class="table-empty-row">No matches available for this round</td>
               </tr>
             <% } %>
           </tbody>
@@ -191,358 +193,5 @@
 <% if (locals.featuredPredictor) { %>
   <script src="/js/home.js"></script>
 <% } %>
-
-
-<style>
-  .welcome-section {
-    text-align: center;
-    margin-bottom: 2rem;
-    padding: 2rem;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-  
-  .welcome-section h1 {
-    margin-bottom: 1rem;
-  }
-  
-  .welcome-section p {
-    margin-bottom: 1.5rem;
-    font-size: 1.1rem;
-  }
-  
-  .login-buttons {
-    margin-top: 1rem;
-  }
-  
-  .login-buttons .button {
-    display: inline-block;
-    width: auto;
-    min-width: 150px;
-  }
-  
-  .predictions-viewer {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    padding: 1.5rem;
-    width: 100%;
-  }
-  
-  .predictions-viewer h2 {
-    margin: 0 0 1.5rem 0;
-    color: var(--primary-color);
-    font-size: 1.3rem;
-  }
-  
-  .header-controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-
-  .header-controls > .year-selector,
-  .header-controls > .round-selector {
-    flex: 1 1 320px;
-  }
-  
-  .predictor-name {
-    font-weight: bold;
-    color: var(--primary-color);
-  }
-
-  .predictions-viewer .year-selector {
-    margin-bottom: 1rem;
-    background-color: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    border: none;
-  }
-
-  .predictions-viewer .year-selector h2 {
-    margin-bottom: 0.5rem;
-  }
-  
-  .round-selector {
-    margin-bottom: 1rem;
-  }
-  
-  .round-selector h2 {
-    margin-bottom: 0.5rem;
-  }
-  
-  .round-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  
-  .round-button {
-    background-color: var(--background-light);
-    border: 1px solid var(--border-color);
-    padding: 0.4rem 0.75rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-  }
-  
-  .round-button:hover {
-    background-color: #f0f0f0;
-  }
-  
-  .round-button.completed:not(.selected) {
-    background-color: #28a745;
-    border-color: #28a745;
-    color: white;
-  }
-  
-  .round-button.current:not(.selected) {
-    background-color: #007bff;
-    border-color: #007bff;
-    color: white;
-  }
-  
-  .round-button.selected {
-    background-color: #dc3545 !important;
-    border-color: #dc3545 !important;
-    color: white !important;
-  }
-  
-  #predictions-table-container {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .predictions-table {
-    width: 100%;
-    min-width: 760px;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-  }
-  
-  .predictions-table th,
-  .predictions-table td {
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--border-color);
-    vertical-align: middle;
-  }
-  
-  /* Match column - align left */
-  .predictions-table th:nth-child(1),
-  .predictions-table td:nth-child(1) {
-    text-align: left;
-  }
-    
-  /* Result column - align center */
-  .predictions-table th:nth-child(2),
-  .predictions-table td:nth-child(2) {
-    text-align: center;
-  }
-    
-    /* Prediction column - align center */
-    .predictions-table th:nth-child(3),
-    .predictions-table td:nth-child(3) {
-    text-align: center;
-  }
-    
-  /* Win Accuracy column - align center */
-  .predictions-table th:nth-child(4),
-  .predictions-table td:nth-child(4) {
-    text-align: center;
-  }
-    
-  /* Margin column - align center */
-  .predictions-table th:nth-child(5),
-  .predictions-table td:nth-child(5) {
-    text-align: center;
-  }
-    
-  /* Margin error column - align center */
-  .predictions-table th:nth-child(6),
-  .predictions-table td:nth-child(6) {
-    text-align: center;
-  }
-
-  .predictions-table tr:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-  }
-  
-  .team-names {
-    font-weight: 600;
-    text-align: left !important;
-  }
-  
-  .score {
-    text-align: center;
-    font-weight: 600;
-  }
-  
-  .prediction {
-    text-align: center;
-  }
-  
-  .win-accuracy {
-    text-align: center;
-  }
-  
-  .margin {
-    text-align: center;
-    font-weight: 600;
-    font-size: 0.9rem;
-  }
-  
-  .margin-accuracy {
-    text-align: center;
-    font-size: 0.9rem;
-  }
-  
-  .metrics {
-    font-size: 0.8rem;
-    color: var(--light-text);
-  }
-  
-  .correct {
-    color: var(--success-color);
-    font-weight: bold;
-  }
-  
-  .incorrect {
-    color: var(--error-color);
-    font-weight: bold;
-  }
-  
-  .partial {
-    color: var(--warning-color);
-    font-weight: bold;
-  }
-  
-  /* Performance Card Styles */
-  .performance-card {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    padding: 1.5rem;
-    margin-bottom: 2rem;
-    border-left: 4px solid var(--primary-color);
-  }
-  
-  .performance-header {
-    margin-bottom: 1.5rem;
-  }
-  
-  .performance-card h2 {
-    margin: 0;
-    color: var(--primary-color);
-    font-size: 1.3rem;
-  }
-  
-  .performance-metrics {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
-    max-width: 900px;
-    margin: 0 auto;
-  }
-  
-  .metric {
-    text-align: center;
-    padding: 1rem;
-    background-color: var(--background-light);
-    border-radius: 6px;
-    transition: transform 0.2s ease;
-  }
-  
-  .metric:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  .metric-label {
-    font-size: 0.9rem;
-    color: var(--light-text);
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  
-  .metric-value {
-    font-size: 1.8rem;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 0.3rem;
-  }
-  
-  .metric-detail {
-    font-size: 0.8rem;
-    color: var(--light-text);
-    font-style: italic;
-  }
-  
-  @media (max-width: 768px) {
-    .welcome-section {
-      padding: 1.25rem;
-    }
-
-    .predictions-viewer {
-      padding: 1rem;
-    }
-
-    .header-controls {
-      align-items: stretch;
-    }
-
-    .header-controls > .year-selector,
-    .header-controls > .round-selector {
-      flex-basis: 100%;
-      margin-bottom: 0;
-    }
-
-    .predictions-table th,
-    .predictions-table td {
-      padding: 0.6rem;
-    }
-
-    .performance-metrics {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1rem;
-    }
-    
-    .metric {
-      padding: 0.8rem;
-    }
-    
-    .metric-value {
-      font-size: 1.5rem;
-    }
-  }
-  
-  @media (max-width: 480px) {
-    .welcome-section h1 {
-      font-size: 1.4rem;
-    }
-
-    .login-buttons .button {
-      width: 100%;
-      min-width: 0;
-    }
-
-    .predictions-table {
-      min-width: 680px;
-      font-size: 0.82rem;
-    }
-
-    .performance-metrics {
-      grid-template-columns: 1fr;
-      gap: 0.8rem;
-    }
-  }
-</style>
 
 <%- include('partials/footer') %>

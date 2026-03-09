@@ -13,35 +13,49 @@
 <body>
   <header class="site-header">
     <div class="header-container">
-      <div class="logo">
-        <h1><a href="/">AFL Predictions</a></h1>
+      <div class="header-top-row">
+        <div class="logo">
+          <h1><a href="/">AFL Predictions</a></h1>
+        </div>
+
+        <button
+          type="button"
+          class="mobile-nav-toggle"
+          aria-expanded="false"
+          aria-controls="site-menu"
+          aria-label="Toggle navigation menu"
+        >
+          <span class="mobile-nav-toggle-label">Menu</span>
+        </button>
       </div>
 
-      <nav class="main-nav" aria-label="Primary">
-        <a href="/" class="main-nav-link <%= currentPath === '/' ? 'active' : '' %>">Model predictions</a>
-        <a href="/elo" class="main-nav-link <%= currentPath === '/elo' ? 'active' : '' %>">ELO</a>
-        <a href="/simulation" class="main-nav-link <%= currentPath === '/simulation' ? 'active' : '' %>">Simulation</a>
+      <div id="site-menu" class="site-menu">
+        <nav class="main-nav" aria-label="Primary">
+          <a href="/" class="main-nav-link <%= currentPath === '/' ? 'active' : '' %>">Model predictions</a>
+          <a href="/elo" class="main-nav-link <%= currentPath === '/elo' ? 'active' : '' %>">ELO</a>
+          <a href="/simulation" class="main-nav-link <%= currentPath === '/simulation' ? 'active' : '' %>">Simulation</a>
+          <% if (locals.user) { %>
+            <a href="/predictions" class="main-nav-link <%= currentPath === '/predictions' || currentPath.startsWith('/predictions/') ? 'active' : '' %>">Predictor page</a>
+            <% if (locals.isAdmin) { %>
+              <a href="/admin" class="main-nav-link <%= currentPath === '/admin' || currentPath.startsWith('/admin/') ? 'active' : '' %>">Admin panel</a>
+            <% } %>
+          <% } %>
+        </nav>
+
         <% if (locals.user) { %>
-          <a href="/predictions" class="main-nav-link <%= currentPath === '/predictions' || currentPath.startsWith('/predictions/') ? 'active' : '' %>">Predictor page</a>
-          <% if (locals.isAdmin) { %>
-            <a href="/admin" class="main-nav-link <%= currentPath === '/admin' || currentPath.startsWith('/admin/') ? 'active' : '' %>">Admin panel</a>
-          <% } %>
+          <div class="user-info">
+            <span>Hi, <%= user.display_name %>!</span>
+            <% if (locals.isAdmin) { %>
+              <span class="admin-badge">Admin</span>
+            <% } %>
+            <a href="/logout" class="button logout-button">Logout</a>
+          </div>
+        <% } else { %>
+          <div class="user-info">
+            <a href="/login" class="button primary-button">Login</a>
+          </div>
         <% } %>
-      </nav>
-      
-      <% if (locals.user) { %>
-        <div class="user-info">
-          <span>Hi, <%= user.display_name %>!</span>
-          <% if (locals.isAdmin) { %>
-            <span class="admin-badge">Admin</span>
-          <% } %>
-          <a href="/logout" class="button logout-button">Logout</a>
-        </div>
-      <% } else { %>
-        <div class="user-info">
-          <a href="/login" class="button primary-button">Login</a>
-        </div>
-      <% } %>
+      </div>
     </div>
   </header>
   

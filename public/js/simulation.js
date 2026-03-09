@@ -44,6 +44,14 @@
     const TABLE_COLOR_BLEND = { min: 0.15, max: 1, power: 0.65 };
     const MATRIX_COLOR_BLEND = { min: 0.12, max: 0.95, power: 0.75 };
 
+    function setElementHidden(element, hidden) {
+        if (!element) {
+            return;
+        }
+
+        element.classList.toggle('is-hidden', Boolean(hidden));
+    }
+
     function interpolateColor(colorA, colorB, t) {
         const clampedT = Math.max(0, Math.min(t, 1));
         return [
@@ -200,19 +208,19 @@
         const showExpandedFinalsColumns = Number(year) >= 2026;
         const showTop8Column = !showExpandedFinalsColumns;
         if (top10Header) {
-            top10Header.style.display = showExpandedFinalsColumns ? '' : 'none';
+            setElementHidden(top10Header, !showExpandedFinalsColumns);
         }
         if (top6Header) {
-            top6Header.style.display = showExpandedFinalsColumns ? '' : 'none';
+            setElementHidden(top6Header, !showExpandedFinalsColumns);
         }
         if (top8Header) {
-            top8Header.style.display = showTop8Column ? '' : 'none';
+            setElementHidden(top8Header, !showTop8Column);
         }
         if (wildcardHeader) {
-            wildcardHeader.style.display = showExpandedFinalsColumns ? '' : 'none';
+            setElementHidden(wildcardHeader, !showExpandedFinalsColumns);
         }
         if (finalsWeekHeader) {
-            finalsWeekHeader.style.display = showExpandedFinalsColumns ? '' : 'none';
+            setElementHidden(finalsWeekHeader, !showExpandedFinalsColumns);
         }
 
         if (
@@ -380,14 +388,14 @@
         roundTabsContainer.innerHTML = '';
 
         if (roundSnapshots.length <= 1) {
-            roundSnapshotNav.style.display = 'none';
+            setElementHidden(roundSnapshotNav, true);
             if (roundSnapshotContext && activeSnapshot) {
                 roundSnapshotContext.textContent = activeSnapshot.round_label;
             }
             return;
         }
 
-        roundSnapshotNav.style.display = 'block';
+        setElementHidden(roundSnapshotNav, false);
         const currentRoundKey = getDefaultRoundSnapshotKey();
         const currentSnapshot = roundSnapshots.find(snapshot => snapshot.round_key === currentRoundKey) ||
             roundSnapshots[roundSnapshots.length - 1] ||
@@ -450,8 +458,8 @@
         document.getElementById('remaining-matches').textContent =
             activeSnapshot.remaining_matches;
 
-        summaryStats.style.display = 'grid';
-        tableContainer.style.display = 'block';
+        setElementHidden(summaryStats, false);
+        setElementHidden(tableContainer, false);
 
         populateTable();
         populateLadderPositionMatrix();
@@ -573,12 +581,12 @@
         if (!activeSnapshot || !activeSnapshot.results || !activeSnapshot.results[0] ||
             !activeSnapshot.results[0].ladder_position_probabilities) {
             // Hide the ladder position card if data is not available
-            ladderPositionCard.style.display = 'none';
+            setElementHidden(ladderPositionCard, true);
             return;
         }
 
         // Show the ladder position card
-        ladderPositionCard.style.display = 'block';
+        setElementHidden(ladderPositionCard, false);
 
         // Get the number of teams
         const numTeams = activeSnapshot.results.length;
@@ -756,13 +764,13 @@
      * Show loading indicator
      */
     function showLoading() {
-        loadingIndicator.style.display = 'block';
-        errorMessage.style.display = 'none';
-        summaryStats.style.display = 'none';
-        tableContainer.style.display = 'none';
-        ladderPositionCard.style.display = 'none';
+        setElementHidden(loadingIndicator, false);
+        setElementHidden(errorMessage, true);
+        setElementHidden(summaryStats, true);
+        setElementHidden(tableContainer, true);
+        setElementHidden(ladderPositionCard, true);
         if (roundSnapshotNav) {
-            roundSnapshotNav.style.display = 'none';
+            setElementHidden(roundSnapshotNav, true);
         }
     }
 
@@ -770,7 +778,7 @@
      * Hide loading indicator
      */
     function hideLoading() {
-        loadingIndicator.style.display = 'none';
+        setElementHidden(loadingIndicator, true);
     }
 
     /**
@@ -779,12 +787,12 @@
     function showError(message) {
         hideLoading();
         errorText.textContent = message;
-        errorMessage.style.display = 'block';
-        summaryStats.style.display = 'none';
-        tableContainer.style.display = 'none';
-        ladderPositionCard.style.display = 'none';
+        setElementHidden(errorMessage, false);
+        setElementHidden(summaryStats, true);
+        setElementHidden(tableContainer, true);
+        setElementHidden(ladderPositionCard, true);
         if (roundSnapshotNav) {
-            roundSnapshotNav.style.display = 'none';
+            setElementHidden(roundSnapshotNav, true);
         }
     }
 
@@ -792,7 +800,7 @@
      * Hide error message
      */
     function hideError() {
-        errorMessage.style.display = 'none';
+        setElementHidden(errorMessage, true);
     }
 
     // Initialize on page load

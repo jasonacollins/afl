@@ -1,6 +1,6 @@
 <%- include('partials/header') %>
 
-<div class="container">
+<div class="container stats-page">
   <h1>AFL Prediction Statistics</h1>
   
   <div class="tab-navigation">
@@ -126,7 +126,10 @@
     </div>
     <% } %>
     
-    <div id="round-stats-container" style="<%= selectedRound && roundPredictorStats && roundPredictorStats.length > 0 ? '' : 'display: none;' %>">
+    <div
+      id="round-stats-container"
+      class="<%= selectedRound && roundPredictorStats && roundPredictorStats.length > 0 ? '' : 'is-hidden' %>"
+    >
       <div class="stats-card round-leaderboard">
         <h2 class="stats-heading" id="round-stats-heading">
           Round Performance - <%= selectedYear %> 
@@ -187,168 +190,5 @@
   </div>
 </div>
 
-<style>
-  .round-selector {
-    margin: 0;
-    background-color: white;
-    padding: 1rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  }
-  
-  .round-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  
-  .round-button {
-    display: inline-block;
-    padding: 0.4rem 0.75rem;
-    background-color: var(--background-light);
-    color: var(--text-color);
-    text-decoration: none;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 0.8rem;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  
-  .round-button:hover {
-    background-color: var(--background-hover);
-    color: var(--text-color);
-    text-decoration: none;
-  }
-  
-  .round-button.selected {
-    background-color: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-  }
-  
-  .round-leaderboard {
-    margin-top: 0;
-  }
-
-  .table-scroll {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .table-scroll .stats-table:not(.stack-mobile) {
-    min-width: 760px;
-  }
-  
-  .loading {
-    text-align: center;
-    padding: 2rem;
-    color: #666;
-  }
-  
-  .metrics-explanation {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: #f5f5f5;
-    border-radius: 8px;
-  }
-  
-  .metrics-explanation h3 {
-    margin-bottom: 10px;
-    font-size: 16px;
-  }
-  
-  .metrics-explanation ul {
-    padding-left: 20px;
-  }
-  
-  .metrics-explanation li {
-    margin-bottom: 5px;
-    font-size: 14px;
-  }
-  
-  .metrics-details {
-    margin-top: 8px;
-    font-size: 13px;
-    color: #666;
-  }
-  
-  .partial {
-    color: #ff9800;
-  }
-  
-  .admin-controls {
-    margin-bottom: 20px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #dee2e6;
-  }
-  
-  .admin-controls h3 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: #495057;
-    font-size: 16px;
-  }
-  
-  .exclude-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .exclude-controls span {
-    font-weight: 500;
-    color: #495057;
-  }
-  
-  .predictor-checkboxes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin: 10px 0;
-  }
-  
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 14px;
-    cursor: pointer;
-  }
-  
-  .exclude-checkbox {
-    cursor: pointer;
-  }
-  
-  
-  .excluded-predictor {
-    opacity: 0.5;
-    background-color: #f8f9fa;
-  }
-
-  @media (max-width: 768px) {
-    .stats-heading {
-      font-size: 1.1rem;
-    }
-
-    .metrics-explanation {
-      padding: 12px;
-    }
-
-    .predictor-checkboxes {
-      gap: 10px;
-    }
-
-    .table-scroll .stats-table:not(.stack-mobile) {
-      min-width: 680px;
-    }
-  }
-</style>
-
-<%- include('partials/footer') %>
-
 <script src="/js/stats.js"></script>
+<%- include('partials/footer') %>

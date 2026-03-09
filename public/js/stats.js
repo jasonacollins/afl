@@ -134,7 +134,7 @@ function loadRoundStats(roundNumber) {
   const roundDisplay = document.getElementById('round-display');
 
   // Show container and update round display
-  roundContainer.style.display = 'block';
+  roundContainer.classList.remove('is-hidden');
   roundDisplay.textContent = formatRoundDisplay(roundNumber);
 
   // Show loading

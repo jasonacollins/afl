@@ -62,6 +62,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Event handlers use data attributes with event delegation, not inline `onclick` handlers
 - CSRF tokens passed via `window.csrfToken` (set in header partial) for all fetch requests
 - CSP configuration in `app.js` blocks `'unsafe-inline'` for scripts
+- Shared mobile header navigation behavior is in `public/js/mobile-nav.js` and is loaded globally from `views/partials/footer.ejs`
 - Admin dashboard uses `public/js/admin.js` for user/admin management interactions
 - Admin scripts runner page (`/admin/scripts`) uses `public/js/admin-scripts.js`
 - Homepage uses `public/js/home.js` for featured predictor functionality
@@ -74,8 +75,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - `/simulation` is the dedicated season simulation page
 - Primary nav labels are `Model predictions` (`/`), `ELO` (`/elo`), and `Simulation` (`/simulation`)
 - Logged-in users see `Predictor page` (`/predictions`) in nav; admins additionally see `Admin panel` (`/admin`)
+- On narrow viewports the primary nav collapses behind a toggle button and expands as a vertical menu
 - `/admin/scripts` is the admin-only scripts runner for operational and training jobs
 - Homepage uses one featured predictor selected in admin (no model selector on `/`).
+- Homepage season and round selectors are stacked vertically (do not present them side-by-side)
 - Round selectors merge `Elimination Final` + `Qualifying Final` into one grouped label across `/elo`, `/`, `/predictions`, and `/matches/stats`:
   - pre-2026 seasons: `Finals Week 1`
   - 2026 onward: `Finals Week 2`
@@ -171,7 +174,7 @@ All client-side JavaScript must comply with strict CSP:
 - No inline `<script>` blocks - all code must be in external files in `public/js/`
 - No inline event handlers (`onclick`, `onchange`, etc.) - use event delegation with data attributes
 - CSRF tokens for all POST/PUT/DELETE requests via `window.csrfToken`
-- When adding new JavaScript, place in appropriate file: `admin.js` (admin only), `home.js` (homepage), or `main.js` (shared)
+- When adding new JavaScript, place in an appropriate file: `admin.js` (admin only), `home.js` (homepage), `main.js` (shared prediction pages), or `mobile-nav.js` (global header navigation behavior)
 
 ## AI/LLM Specific Instructions
 

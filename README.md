@@ -44,6 +44,8 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - `/admin/scripts` - Admin-only scripts runner for operational and training workflows
 - Primary nav labels are `Model predictions` (`/`), `ELO` (`/elo`), and `Simulation` (`/simulation`)
 - When logged in, nav also includes `Predictor page` (`/predictions`); admins also see `Admin panel` (`/admin`)
+- On mobile/laptop breakpoints, homepage season and round selectors are intentionally stacked vertically for readability
+- Primary navigation uses a mobile collapsible menu (`public/js/mobile-nav.js`) with keyboard support (`Escape` to close)
 
 Homepage model selection is controlled from the admin dashboard as a single featured predictor (no homepage model selector).
 
@@ -230,6 +232,7 @@ afl-predictions/
 - **Session Authentication**: Simple session management with SQLite store
 - **Startup Schema Guard**: Server startup runs database initialization/migrations before binding the HTTP listener
 - **Strict CSP**: All client-side JavaScript in external files with no inline scripts for enhanced security
+- **Responsive UI Strategy**: Most prediction/stat tables use stacked card rows on small screens; dense simulation tables remain horizontally scrollable with a swipe hint
 - **Scheduled Sync**: Daily API synchronization rather than real-time
 - **Monolithic Deployment**: Single container for operational simplicity
 

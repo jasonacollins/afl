@@ -242,8 +242,8 @@ class EloChart {
     
     if (mode === 'year') {
       // Show year controls, hide year range controls
-      yearControls.style.display = 'block';
-      yearRangeControls.style.display = 'none';
+      yearControls.classList.remove('is-hidden');
+      yearRangeControls.classList.add('is-hidden');
       
       // Automatically switch to current year if needed
       if (this.currentMode !== 'year') {
@@ -253,8 +253,8 @@ class EloChart {
       }
     } else {
       // Show year range controls, hide year controls
-      yearControls.style.display = 'none';
-      yearRangeControls.style.display = 'block';
+      yearControls.classList.add('is-hidden');
+      yearRangeControls.classList.remove('is-hidden');
       
       // Automatically switch to year range if needed
       if (this.currentMode !== 'yearRange') {

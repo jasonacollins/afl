@@ -1,6 +1,6 @@
 <%- include('partials/header') %>
 
-<div class="container">
+<div class="container simulation-page">
     <div class="simulation-header">
         <h1 id="simulation-title">Season Simulation</h1>
     </div>
@@ -18,7 +18,7 @@
             </div>
         </div>
 
-        <div id="round-snapshot-nav" class="round-selector simulation-round-selector" style="display: none;">
+        <div id="round-snapshot-nav" class="round-selector simulation-round-selector is-hidden">
             <h2>Before-Round Snapshots</h2>
             <div id="round-snapshot-context" class="simulation-round-context"></div>
             <div id="round-tabs" class="round-buttons simulation-round-buttons" role="tablist" aria-label="Simulation rounds">
@@ -33,12 +33,12 @@
         </div>
 
         <!-- Error message -->
-        <div id="error-message" class="error-message" style="display: none;">
+        <div id="error-message" class="error-message is-hidden">
             <p id="error-text"></p>
         </div>
 
         <!-- Summary stats -->
-        <div class="summary-stats" id="summary-stats" style="display: none;">
+        <div class="summary-stats is-hidden" id="summary-stats">
             <div class="stat-box">
                 <div class="stat-label">Simulations Run</div>
                 <div class="stat-value" id="num-simulations">-</div>
@@ -57,7 +57,8 @@
         </div>
 
         <!-- Results table -->
-        <div class="table-container" id="table-container" style="display: none;">
+        <div class="table-scroll-hint" aria-hidden="true">Swipe horizontally to view all columns.</div>
+        <div class="table-container simulation-results-table-container is-hidden" id="table-container">
             <table id="simulation-table">
                 <thead>
                     <tr>
@@ -68,34 +69,29 @@
                         <th class="sortable" data-sort="projected-wins">Projected Wins</th>
                         <th
                             id="top10-header"
-                            class="sortable probability-col"
+                            class="<%= Number(selectedYear) >= 2026 ? 'sortable probability-col' : 'sortable probability-col is-hidden' %>"
                             data-sort="top10"
-                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         >Top 10</th>
                         <th
                             id="wildcard-header"
-                            class="sortable probability-col"
+                            class="<%= Number(selectedYear) >= 2026 ? 'sortable probability-col' : 'sortable probability-col is-hidden' %>"
                             data-sort="wildcard"
-                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         >Wildcard</th>
                         <th
                             id="top6-header"
-                            class="sortable probability-col"
+                            class="<%= Number(selectedYear) >= 2026 ? 'sortable probability-col' : 'sortable probability-col is-hidden' %>"
                             data-sort="top6"
-                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         >Top 6</th>
                         <th
                             id="top8-header"
-                            class="sortable probability-col"
+                            class="<%= Number(selectedYear) >= 2026 ? 'sortable probability-col is-hidden' : 'sortable probability-col' %>"
                             data-sort="top8"
-                            style="<%= Number(selectedYear) >= 2026 ? 'display: none;' : '' %>"
                         >Top 8</th>
                         <th class="sortable probability-col" data-sort="top4">Top 4</th>
                         <th
                             id="finals-week-header"
-                            class="sortable probability-col"
+                            class="<%= Number(selectedYear) >= 2026 ? 'sortable probability-col' : 'sortable probability-col is-hidden' %>"
                             data-sort="finals-week-2"
-                            style="<%= Number(selectedYear) >= 2026 ? '' : 'display: none;' %>"
                         ><%= Number(selectedYear) >= 2026 ? 'Finals Week 2' : 'Finals Week 1' %></th>
                         <th class="sortable probability-col" data-sort="prelim">Prelim</th>
                         <th class="sortable probability-col" data-sort="grand-final">Grand Final</th>
@@ -110,11 +106,12 @@
 
     </div>
 
-    <div class="card ladder-card" id="ladder-position-card" style="display: none;">
+    <div class="card ladder-card is-hidden" id="ladder-position-card">
         <div class="card-title">Ladder Position Probabilities</div>
-        <div style="font-size: 13px; color: var(--light-text); margin: 15px 0 20px;">
+        <div class="ladder-description">
             Probability (%) of each team finishing in each ladder position
         </div>
+        <div class="table-scroll-hint" aria-hidden="true">Swipe horizontally to view all columns.</div>
         <div class="table-container">
             <table class="matrix-table" id="matrix-table">
                 <thead>
@@ -131,11 +128,11 @@
 
     <div class="card info-card">
         <div class="card-title">Understanding the Simulation</div>
-        <div style="font-size: 14px; color: var(--light-text); margin-top: 15px;">
-            <p style="margin-bottom: 12px;"><strong>Methodology:</strong> Monte Carlo simulation using current ELO ratings and remaining fixture. Each simulation randomly determines game outcomes based on win probabilities derived from ELO ratings and home ground advantages.</p>
-            <p style="margin-bottom: 12px;"><strong>Win Range:</strong> Shows 10th to 90th percentile outcomes from simulations, representing realistic season trajectories.</p>
-            <p style="margin-bottom: 12px;"><strong>Finals Progression:</strong> Probabilities account for both qualifying for finals and the path through the finals series based on ladder position (top 4 advantage, etc.)</p>
-            <p style="margin-bottom: 12px;"><strong>Updates:</strong> Simulation data is regenerated after each completed round with updated ELO ratings.</p>
+        <div class="simulation-info-content">
+            <p><strong>Methodology:</strong> Monte Carlo simulation using current ELO ratings and remaining fixture. Each simulation randomly determines game outcomes based on win probabilities derived from ELO ratings and home ground advantages.</p>
+            <p><strong>Win Range:</strong> Shows 10th to 90th percentile outcomes from simulations, representing realistic season trajectories.</p>
+            <p><strong>Finals Progression:</strong> Probabilities account for both qualifying for finals and the path through the finals series based on ladder position (top 4 advantage, etc.)</p>
+            <p><strong>Updates:</strong> Simulation data is regenerated after each completed round with updated ELO ratings.</p>
         </div>
     </div>
 </div>

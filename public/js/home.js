@@ -44,7 +44,7 @@ function fetchRoundPredictions(round) {
   
   // Show loading state
   document.getElementById('predictions-table-container').innerHTML = 
-    '<div style="text-align: center; padding: 2rem;">Loading predictions...</div>';
+    '<div class="table-status-message">Loading predictions...</div>';
   
   const selectedPredictorId = getFeaturedPredictorId();
   
@@ -65,7 +65,7 @@ function fetchRoundPredictions(round) {
     .catch(error => {
       console.error('Error fetching predictions:', error);
       document.getElementById('predictions-table-container').innerHTML = 
-        '<div style="text-align: center; padding: 2rem; color: #666;">Error loading predictions</div>';
+        '<div class="table-status-message table-status-error">Error loading predictions</div>';
     });
 }
 
@@ -74,12 +74,12 @@ function renderPredictionsTable(matches, predictions) {
     <table class="predictions-table stack-mobile">
       <thead>
         <tr>
-        <th style="text-align: left;">Match</th>
-        <th style="text-align: center;">Result</th>
-        <th style="text-align: center;">Prediction</th>
-        <th style="text-align: center;">Win accuracy</th>
-        <th style="text-align: center;">Predicted margin</th>
-        <th style="text-align: center;">Margin error</th>
+        <th>Match</th>
+        <th>Result</th>
+        <th>Prediction</th>
+        <th>Win accuracy</th>
+        <th>Predicted margin</th>
+        <th>Margin error</th>
         </tr>
       </thead>
       <tbody>
@@ -169,24 +169,24 @@ function renderPredictionsTable(matches, predictions) {
       
       tableHtml += `
         <tr>
-          <td class="stack-primary" data-label="Match" style="text-align: left;">
+          <td class="team-names stack-primary" data-label="Match">
             <div class="match-info">
               <div class="teams">${match.home_team} vs ${match.away_team}</div>
               <div class="match-details">${matchDate} • ${match.venue}</div>
             </div>
           </td>
-          <td data-label="Result" style="text-align: center;">${resultHtml}</td>
-          <td data-label="Prediction" style="text-align: center;">${predictionHtml}</td>
-          <td data-label="Win Accuracy" style="text-align: center;">${winAccuracyHtml}</td>
-          <td data-label="Predicted Margin" style="text-align: center;">${predictedMarginHtml}</td>
-          <td data-label="Margin Error" style="text-align: center;">${marginErrorHtml}</td>
+          <td class="score" data-label="Result">${resultHtml}</td>
+          <td class="prediction" data-label="Prediction">${predictionHtml}</td>
+          <td class="win-accuracy" data-label="Win Accuracy">${winAccuracyHtml}</td>
+          <td class="margin" data-label="Predicted Margin">${predictedMarginHtml}</td>
+          <td class="margin-accuracy" data-label="Margin Error">${marginErrorHtml}</td>
         </tr>
       `;
     });
   } else {
     tableHtml += `
       <tr>
-        <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">
+        <td colspan="6" class="table-empty-row">
           No matches available for this round
         </td>
       </tr>
