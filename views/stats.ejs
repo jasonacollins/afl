@@ -57,41 +57,43 @@
           <p>No prediction results available.</p>
         </div>
       <% } else { %>
-        <table class="stats-table">
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Name</th>
-              <th>Brier Score</th>
-              <th>Bits Score</th>
-              <th>Correct Tips</th>
-              <th>Total Tips</th>
-              <th>Tip Accuracy</th>
-              <th>Margin MAE</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% 
-              let rank = 1;
-              predictorStats.forEach(stats => {
-                if (stats.totalPredictions > 0) {
-            %>
-              <tr class="<%= stats.id === currentUser.id ? 'current-user' : '' %>">
-                <td><%= rank++ %></td>
-                <td><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
-                <td><%= stats.brierScore %></td>
-                <td><%= stats.bitsScore %></td>
-                <td><%= stats.tipPoints %></td>
-                <td><%= stats.totalPredictions %></td>
-                <td><%= stats.tipAccuracy %>%</td>
-                <td><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
+        <div class="table-scroll">
+          <table class="stats-table stack-mobile">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Name</th>
+                <th>Brier Score</th>
+                <th>Bits Score</th>
+                <th>Correct Tips</th>
+                <th>Total Tips</th>
+                <th>Tip Accuracy</th>
+                <th>Margin MAE</th>
               </tr>
-            <% 
-                }
-              });
-            %>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              <% 
+                let rank = 1;
+                predictorStats.forEach(stats => {
+                  if (stats.totalPredictions > 0) {
+              %>
+                <tr class="<%= stats.id === currentUser.id ? 'current-user' : '' %>">
+                  <td data-label="Rank"><%= rank++ %></td>
+                  <td class="stack-primary" data-label="Name"><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
+                  <td data-label="Brier Score"><%= stats.brierScore %></td>
+                  <td data-label="Bits Score"><%= stats.bitsScore %></td>
+                  <td data-label="Correct Tips"><%= stats.tipPoints %></td>
+                  <td data-label="Total Tips"><%= stats.totalPredictions %></td>
+                  <td data-label="Tip Accuracy"><%= stats.tipAccuracy %>%</td>
+                  <td data-label="Margin MAE"><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
+                </tr>
+              <% 
+                  }
+                });
+              %>
+            </tbody>
+          </table>
+        </div>
         
         <div class="metrics-explanation">
           <h3>Understanding the Metrics</h3>
@@ -135,14 +137,14 @@
           </span>
         </h2>
         
-        <div id="round-stats-content">
+        <div id="round-stats-content" class="table-scroll">
           <% if (selectedRound && roundPredictorStats && roundPredictorStats.length > 0) { %>
             <% if (roundPredictorStats.every(stat => stat.totalPredictions === 0)) { %>
               <div class="no-stats">
                 <p>No prediction results available for this round.</p>
               </div>
             <% } else { %>
-              <table class="stats-table">
+              <table class="stats-table stack-mobile">
                 <thead>
                   <tr>
                     <th>Rank</th>
@@ -162,14 +164,14 @@
                       if (stats.totalPredictions > 0) {
                   %>
                     <tr class="<%= stats.id === currentUser.id ? 'current-user' : '' %>">
-                      <td><%= roundRank++ %></td>
-                      <td><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
-                      <td><%= stats.brierScore %></td>
-                      <td><%= stats.bitsScore %></td>
-                      <td><%= stats.tipPoints %></td>
-                      <td><%= stats.totalPredictions %></td>
-                      <td><%= stats.tipAccuracy %>%</td>
-                      <td><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
+                      <td data-label="Rank"><%= roundRank++ %></td>
+                      <td class="stack-primary" data-label="Name"><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
+                      <td data-label="Brier Score"><%= stats.brierScore %></td>
+                      <td data-label="Bits Score"><%= stats.bitsScore %></td>
+                      <td data-label="Correct Tips"><%= stats.tipPoints %></td>
+                      <td data-label="Total Tips"><%= stats.totalPredictions %></td>
+                      <td data-label="Tip Accuracy"><%= stats.tipAccuracy %>%</td>
+                      <td data-label="Margin MAE"><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
                     </tr>
                   <% 
                       }
@@ -228,6 +230,16 @@
   
   .round-leaderboard {
     margin-top: 0;
+  }
+
+  .table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-scroll .stats-table:not(.stack-mobile) {
+    min-width: 760px;
   }
   
   .loading {
@@ -316,6 +328,24 @@
   .excluded-predictor {
     opacity: 0.5;
     background-color: #f8f9fa;
+  }
+
+  @media (max-width: 768px) {
+    .stats-heading {
+      font-size: 1.1rem;
+    }
+
+    .metrics-explanation {
+      padding: 12px;
+    }
+
+    .predictor-checkboxes {
+      gap: 10px;
+    }
+
+    .table-scroll .stats-table:not(.stack-mobile) {
+      min-width: 680px;
+    }
   }
 </style>
 

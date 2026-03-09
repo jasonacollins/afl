@@ -71,7 +71,7 @@ function fetchRoundPredictions(round) {
 
 function renderPredictionsTable(matches, predictions) {
   let tableHtml = `
-    <table class="predictions-table">
+    <table class="predictions-table stack-mobile">
       <thead>
         <tr>
         <th style="text-align: left;">Match</th>
@@ -169,17 +169,17 @@ function renderPredictionsTable(matches, predictions) {
       
       tableHtml += `
         <tr>
-          <td style="text-align: left;">
+          <td class="stack-primary" data-label="Match" style="text-align: left;">
             <div class="match-info">
               <div class="teams">${match.home_team} vs ${match.away_team}</div>
               <div class="match-details">${matchDate} • ${match.venue}</div>
             </div>
           </td>
-          <td style="text-align: center;">${resultHtml}</td>
-          <td style="text-align: center;">${predictionHtml}</td>
-          <td style="text-align: center;">${winAccuracyHtml}</td>
-          <td style="text-align: center;">${predictedMarginHtml}</td>
-          <td style="text-align: center;">${marginErrorHtml}</td>
+          <td data-label="Result" style="text-align: center;">${resultHtml}</td>
+          <td data-label="Prediction" style="text-align: center;">${predictionHtml}</td>
+          <td data-label="Win Accuracy" style="text-align: center;">${winAccuracyHtml}</td>
+          <td data-label="Predicted Margin" style="text-align: center;">${predictedMarginHtml}</td>
+          <td data-label="Margin Error" style="text-align: center;">${marginErrorHtml}</td>
         </tr>
       `;
     });

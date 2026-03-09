@@ -82,8 +82,8 @@
         </div>
       </div>
       
-      <div id="predictions-table-container">
-        <table class="predictions-table">
+      <div id="predictions-table-container" class="table-scroll">
+        <table class="predictions-table stack-mobile">
             <thead>
                 <tr>
                 <th style="text-align: left;">Match</th>
@@ -98,18 +98,18 @@
             <% if (matches && matches.length > 0) { %>
               <% matches.forEach(match => { %>
                 <tr>
-                  <td class="team-names">
+                  <td class="team-names stack-primary" data-label="Match">
                     <div><%= match.home_team %> vs <%= match.away_team %></div>
                     <div style="font-size: 0.8rem; color: var(--light-text);"><%= match.venue %>, <%= match.match_date %></div>
                   </td>
-                  <td class="score">
+                  <td class="score" data-label="Result">
                     <% if (match.hscore !== null && match.ascore !== null) { %>
                       <%= match.hscore %> - <%= match.ascore %>
                     <% } else { %>
                       Upcoming
                     <% } %>
                   </td>
-                  <td class="prediction">
+                  <td class="prediction" data-label="Prediction">
                     <% if (predictions[match.match_id]) { %>
                         <% const prediction = predictions[match.match_id] %>
                         <% if (typeof prediction === 'object') { %>
@@ -133,7 +133,7 @@
                         No prediction
                     <% } %>
                   </td>
-                  <td class="win-accuracy">
+                  <td class="win-accuracy" data-label="Win Accuracy">
                     <% if (match.hscore !== null && match.ascore !== null && predictions[match.match_id] && match.metrics) { %>
                       <% if (match.metrics.correct) { %>
                         <div class="correct">✓ Correct</div>
@@ -149,7 +149,7 @@
                       -
                     <% } %>
                   </td>
-                  <td class="margin">
+                  <td class="margin" data-label="Predicted Margin">
                     <% if (predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && predictions[match.match_id].predicted_margin !== undefined) { %>
                         <% const margin = predictions[match.match_id].predicted_margin %>
                         <% if (margin > 0) { %>
@@ -163,7 +163,7 @@
                         -
                     <% } %>
                   </td>
-                  <td class="margin-accuracy">
+                  <td class="margin-accuracy" data-label="Margin Error">
                     <% if (match.hscore !== null && match.ascore !== null && predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null && predictions[match.match_id].predicted_margin !== undefined) { %>
                         <% const actualMargin = match.hscore - match.ascore %>
                         <% const predictedMargin = predictions[match.match_id].predicted_margin %>
@@ -243,6 +243,11 @@
     align-items: center;
     margin-bottom: 1rem;
   }
+
+  .header-controls > .year-selector,
+  .header-controls > .round-selector {
+    flex: 1 1 320px;
+  }
   
   .predictor-name {
     font-weight: bold;
@@ -307,8 +312,15 @@
     color: white !important;
   }
   
+  #predictions-table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .predictions-table {
     width: 100%;
+    min-width: 760px;
     border-collapse: collapse;
     margin-bottom: 1rem;
     font-size: 0.9rem;
@@ -474,6 +486,29 @@
   }
   
   @media (max-width: 768px) {
+    .welcome-section {
+      padding: 1.25rem;
+    }
+
+    .predictions-viewer {
+      padding: 1rem;
+    }
+
+    .header-controls {
+      align-items: stretch;
+    }
+
+    .header-controls > .year-selector,
+    .header-controls > .round-selector {
+      flex-basis: 100%;
+      margin-bottom: 0;
+    }
+
+    .predictions-table th,
+    .predictions-table td {
+      padding: 0.6rem;
+    }
+
     .performance-metrics {
       grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
@@ -489,6 +524,20 @@
   }
   
   @media (max-width: 480px) {
+    .welcome-section h1 {
+      font-size: 1.4rem;
+    }
+
+    .login-buttons .button {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .predictions-table {
+      min-width: 680px;
+      font-size: 0.82rem;
+    }
+
     .performance-metrics {
       grid-template-columns: 1fr;
       gap: 0.8rem;

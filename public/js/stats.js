@@ -166,7 +166,7 @@ function updateRoundStatsTable(data) {
   }
 
   let tableHTML = `
-    <table class="stats-table">
+    <table class="stats-table stack-mobile">
       <thead>
         <tr>
           <th>Rank</th>
@@ -187,14 +187,14 @@ function updateRoundStatsTable(data) {
       const isCurrentUser = stats.id === currentUserId;
       tableHTML += `
         <tr class="${isCurrentUser ? 'current-user' : ''}">
-          <td>${rank++}</td>
-          <td>${stats.display_name} ${isCurrentUser ? '(You)' : ''}</td>
-          <td>${stats.brierScore}</td>
-          <td>${stats.bitsScore}</td>
-          <td>${stats.tipPoints}</td>
-          <td>${stats.totalPredictions}</td>
-          <td>${stats.tipAccuracy}%</td>
-          <td>${stats.marginMAE !== null ? stats.marginMAE : '-'}</td>
+          <td data-label="Rank">${rank++}</td>
+          <td class="stack-primary" data-label="Name">${stats.display_name} ${isCurrentUser ? '(You)' : ''}</td>
+          <td data-label="Brier Score">${stats.brierScore}</td>
+          <td data-label="Bits Score">${stats.bitsScore}</td>
+          <td data-label="Correct Tips">${stats.tipPoints}</td>
+          <td data-label="Total Tips">${stats.totalPredictions}</td>
+          <td data-label="Tip Accuracy">${stats.tipAccuracy}%</td>
+          <td data-label="Margin MAE">${stats.marginMAE !== null ? stats.marginMAE : '-'}</td>
         </tr>`;
     }
   });
