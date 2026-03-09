@@ -2581,8 +2581,8 @@ main {
   .simulation-page #simulation-table td:nth-child(2) {
     position: sticky;
     left: 3.25rem;
-    min-width: 7rem;
-    width: 7rem;
+    min-width: 6rem;
+    width: 6rem;
     z-index: 3;
     background-color: white;
   }
@@ -2606,6 +2606,12 @@ main {
   .simulation-page .matrix-table td.team-name {
     position: sticky;
     left: 0;
+    width: 1%;
+    min-width: 0;
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
     z-index: 2;
     background-color: white;
   }
