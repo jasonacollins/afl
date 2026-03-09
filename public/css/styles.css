@@ -2581,7 +2581,8 @@ main {
   .simulation-page #simulation-table td:nth-child(2) {
     position: sticky;
     left: 3.25rem;
-    min-width: 9rem;
+    min-width: 7rem;
+    width: 7rem;
     z-index: 3;
     background-color: white;
   }
