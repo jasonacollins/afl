@@ -277,4 +277,97 @@ describe('EloService season start chart points', () => {
     );
     expect(openingRoundBeforePoint.Adelaide_match.opponent).toBe('Brisbane Lions');
   });
+
+  test('single-year mode excludes defunct historical teams from modern season start values', () => {
+    const rawData = [
+      ...createMatchPair({
+        matchId: 90,
+        date: '1996-08-01 08:00:00+00:00',
+        year: 1996,
+        round: '18',
+        homeTeam: 'Fitzroy',
+        awayTeam: 'University',
+        homeBefore: 1400,
+        homeAfter: 1390,
+        awayBefore: 1300,
+        awayAfter: 1310
+      }),
+      ...createMatchPair({
+        matchId: 91,
+        date: '2025-03-01 08:00:00+00:00',
+        year: 2025,
+        round: 'OR',
+        homeTeam: 'Adelaide',
+        awayTeam: 'Brisbane Lions',
+        homeBefore: 1500,
+        homeAfter: 1510,
+        awayBefore: 1500,
+        awayAfter: 1490
+      })
+    ];
+
+    const result = eloService.processEloData(rawData, 2025, [
+      'Adelaide',
+      'Brisbane Lions',
+      'Carlton'
+    ]);
+
+    expect(result.teams).toEqual(['Adelaide', 'Brisbane Lions', 'Carlton']);
+    expect(result.data[0].Fitzroy).toBeUndefined();
+    expect(result.data[0].University).toBeUndefined();
+    expect(result.data[0].Carlton).toBeUndefined();
+  });
+
+  test('year-range mode excludes teams outside the selected season range', () => {
+    const rawData = [
+      ...createMatchPair({
+        matchId: 95,
+        date: '1996-08-01 08:00:00+00:00',
+        year: 1996,
+        round: '18',
+        homeTeam: 'Fitzroy',
+        awayTeam: 'University',
+        homeBefore: 1400,
+        homeAfter: 1390,
+        awayBefore: 1300,
+        awayAfter: 1310
+      }),
+      ...createMatchPair({
+        matchId: 96,
+        date: '2025-03-01 08:00:00+00:00',
+        year: 2025,
+        round: 'OR',
+        homeTeam: 'Adelaide',
+        awayTeam: 'Brisbane Lions',
+        homeBefore: 1500,
+        homeAfter: 1510,
+        awayBefore: 1500,
+        awayAfter: 1490
+      }),
+      ...createMatchPair({
+        matchId: 97,
+        date: '2026-03-01 08:00:00+00:00',
+        year: 2026,
+        round: 'OR',
+        homeTeam: 'Carlton',
+        awayTeam: 'Essendon',
+        homeBefore: 1495,
+        homeAfter: 1502,
+        awayBefore: 1505,
+        awayAfter: 1498
+      })
+    ];
+
+    const result = eloService.processEloDataForYearRange(rawData, 2025, 2026, [
+      'Adelaide',
+      'Brisbane Lions',
+      'Carlton',
+      'Essendon'
+    ]);
+
+    expect(result.teams).toEqual(['Adelaide', 'Brisbane Lions', 'Carlton', 'Essendon']);
+    const seasonStart2025 = result.data.find(point => point.type === 'season_start' && point.year === 2025);
+    expect(seasonStart2025.Fitzroy).toBeUndefined();
+    expect(seasonStart2025.University).toBeUndefined();
+  });
 });

@@ -38,6 +38,47 @@ function getFinalsWeekDisplayLabel(year) {
  */
 class EloService {
   /**
+   * Get the set of teams that participate in a chart year or year range.
+   * This avoids leaking defunct historical clubs into modern charts.
+   * @param {number} startYear - First chart year
+   * @param {number} endYear - Last chart year
+   * @returns {Promise<Array>} Sorted team names
+   */
+  async getChartTeamsForYearRange(startYear, endYear) {
+    try {
+      const teams = await getQuery(
+        `
+          SELECT DISTINCT name
+          FROM (
+            SELECT ht.name AS name
+            FROM matches m
+            JOIN teams ht ON m.home_team_id = ht.team_id
+            WHERE m.year BETWEEN ? AND ?
+            UNION
+            SELECT at.name AS name
+            FROM matches m
+            JOIN teams at ON m.away_team_id = at.team_id
+            WHERE m.year BETWEEN ? AND ?
+          )
+          ORDER BY name
+        `,
+        [startYear, endYear, startYear, endYear]
+      );
+
+      return teams
+        .map(row => row.name)
+        .filter(Boolean);
+    } catch (error) {
+      logger.error('Error loading chart teams for year range', {
+        startYear,
+        endYear,
+        error: error.message
+      });
+      return [];
+    }
+  }
+
+  /**
    * Get team colors from database
    * @param {Array} teams - Array of team names
    * @returns {Promise<Object>} Object mapping team names to hex colors
@@ -89,12 +130,14 @@ class EloService {
       }
 
       const rawData = await this.readEloCSV(csvPath);
+      const chartTeams = await this.getChartTeamsForYearRange(year, year);
       logger.info(`Raw CSV data loaded for year ${year}`, {
         csvPath,
-        rawDataLength: rawData.length
+        rawDataLength: rawData.length,
+        chartTeamsCount: chartTeams.length
       });
       
-      const processedData = this.processEloData(rawData, year);
+      const processedData = this.processEloData(rawData, year, chartTeams);
       
       // Add team colors to the response
       const teamColors = await this.getTeamColors(processedData.teams);
@@ -140,12 +183,14 @@ class EloService {
       }
 
       const rawData = await this.readEloCSV(csvPath);
+      const chartTeams = await this.getChartTeamsForYearRange(startYear, endYear);
       logger.info(`Loaded complete CSV data for year range`, {
         csvPath,
-        totalRecords: rawData.length
+        totalRecords: rawData.length,
+        chartTeamsCount: chartTeams.length
       });
       
-      const processedData = this.processEloDataForYearRange(rawData, startYear, endYear);
+      const processedData = this.processEloDataForYearRange(rawData, startYear, endYear, chartTeams);
       
       // Add team colors to the response
       const teamColors = await this.getTeamColors(processedData.teams);
@@ -348,7 +393,7 @@ class EloService {
    * @param {number} endYear - End year
    * @returns {Object} Processed data with teams and step-pattern rating progression
    */
-  processEloDataForYearRange(rawData, startYear, endYear) {
+  processEloDataForYearRange(rawData, startYear, endYear, participantTeams = null) {
     const normalizedRawData = this.normalizeHistoryRows(rawData);
 
     // Filter for the year range (no event column anymore)
@@ -377,7 +422,9 @@ class EloService {
       .sort((a, b) => this.compareHistoryRows(a, b));
 
     // Include teams with carryover ratings even if they have not played in the selected range yet.
-    const teams = [...new Set(historicalDataUpToEndYear.map(row => row.team))].sort();
+    const teams = Array.isArray(participantTeams) && participantTeams.length > 0
+      ? [...participantTeams].sort()
+      : [...new Set(historicalDataUpToEndYear.map(row => row.team))].sort();
 
     logger.info(`Processing step-pattern ELO data for year range ${startYear}-${endYear}: ${teams.length} teams, ${filteredData.length} match records`);
 
@@ -677,7 +724,7 @@ class EloService {
    * @param {number} year - The year being processed
    * @returns {Object} Processed data with teams and step-pattern rating progression
    */
-  processEloData(rawData, year) {
+  processEloData(rawData, year, participantTeams = null) {
     const normalizedRawData = this.normalizeHistoryRows(rawData);
 
     // Filter for the specific year (no event column anymore)
@@ -697,7 +744,9 @@ class EloService {
       .sort((a, b) => this.compareHistoryRows(a, b));
 
     // Include teams with carryover ratings even if they have not played in this season yet.
-    const teams = [...new Set(historicalDataUpToYear.map(row => row.team))].sort();
+    const teams = Array.isArray(participantTeams) && participantTeams.length > 0
+      ? [...participantTeams].sort()
+      : [...new Set(historicalDataUpToYear.map(row => row.team))].sort();
 
     logger.info(`Processing step-pattern ELO data for ${year}: ${teams.length} teams, ${yearData.length} match records`);
 
