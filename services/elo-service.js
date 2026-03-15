@@ -198,6 +198,150 @@ class EloService {
   }
 
   /**
+   * Return a numeric timestamp for a row date, or null when the date is unusable.
+   * @param {string} value - Raw CSV date value
+   * @returns {number|null} Parsed timestamp
+   */
+  getRowTimestamp(value) {
+    if (typeof value !== 'string' || value.trim() === '') {
+      return null;
+    }
+
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  /**
+   * Prefer the most complete copy when duplicate history rows exist.
+   * This protects chart rendering from historical CSV append issues.
+   * @param {Object} existingRow - Current retained row
+   * @param {Object} candidateRow - New row for the same match/team
+   * @returns {Object} Preferred row
+   */
+  selectPreferredHistoryRow(existingRow, candidateRow) {
+    const existingTimestamp = this.getRowTimestamp(existingRow.date);
+    const candidateTimestamp = this.getRowTimestamp(candidateRow.date);
+
+    if (existingTimestamp === null && candidateTimestamp !== null) {
+      return candidateRow;
+    }
+
+    if (existingTimestamp !== null && candidateTimestamp === null) {
+      return existingRow;
+    }
+
+    const existingCompleteness = Object.values(existingRow)
+      .filter(value => value !== undefined && value !== null && String(value).trim() !== '')
+      .length;
+    const candidateCompleteness = Object.values(candidateRow)
+      .filter(value => value !== undefined && value !== null && String(value).trim() !== '')
+      .length;
+
+    if (candidateCompleteness > existingCompleteness) {
+      return candidateRow;
+    }
+
+    return existingRow;
+  }
+
+  /**
+   * Sort ELO history rows chronologically, falling back to round + match id when needed.
+   * @param {Object} rowA - First history row
+   * @param {Object} rowB - Second history row
+   * @returns {number} Comparison result
+   */
+  compareHistoryRows(rowA, rowB) {
+    const yearA = parseInt(rowA.year, 10);
+    const yearB = parseInt(rowB.year, 10);
+    if (!Number.isNaN(yearA) && !Number.isNaN(yearB) && yearA !== yearB) {
+      return yearA - yearB;
+    }
+
+    const timestampA = this.getRowTimestamp(rowA.date);
+    const timestampB = this.getRowTimestamp(rowB.date);
+    if (timestampA !== null && timestampB !== null && timestampA !== timestampB) {
+      return timestampA - timestampB;
+    }
+    if (timestampA !== null && timestampB === null) {
+      return -1;
+    }
+    if (timestampA === null && timestampB !== null) {
+      return 1;
+    }
+
+    const roundCompare = this.compareRounds(rowA.round || '', rowB.round || '');
+    if (roundCompare !== 0) {
+      return roundCompare;
+    }
+
+    const matchIdA = parseInt(rowA.match_id, 10);
+    const matchIdB = parseInt(rowB.match_id, 10);
+    if (!Number.isNaN(matchIdA) && !Number.isNaN(matchIdB) && matchIdA !== matchIdB) {
+      return matchIdA - matchIdB;
+    }
+
+    return String(rowA.team || '').localeCompare(String(rowB.team || ''));
+  }
+
+  /**
+   * Remove duplicate team-match rows from the historical CSV, preferring rows with valid dates.
+   * @param {Array} rawData - Raw parsed CSV rows
+   * @returns {Array} Normalized rows
+   */
+  normalizeHistoryRows(rawData) {
+    if (!Array.isArray(rawData) || rawData.length === 0) {
+      return [];
+    }
+
+    const dedupedRows = new Map();
+    const passthroughRows = [];
+
+    rawData.forEach((row, index) => {
+      const keyParts = [row.year, row.match_id, row.team];
+      if (keyParts.some(part => !part)) {
+        passthroughRows.push({ ...row, __sourceIndex: index });
+        return;
+      }
+
+      const key = keyParts.join('|');
+      const candidateRow = { ...row, __sourceIndex: index };
+      const existingRow = dedupedRows.get(key);
+
+      if (!existingRow) {
+        dedupedRows.set(key, candidateRow);
+        return;
+      }
+
+      dedupedRows.set(key, this.selectPreferredHistoryRow(existingRow, candidateRow));
+    });
+
+    const normalizedRows = [
+      ...Array.from(dedupedRows.values()),
+      ...passthroughRows
+    ].sort((rowA, rowB) => {
+      const chronologicalCompare = this.compareHistoryRows(rowA, rowB);
+      if (chronologicalCompare !== 0) {
+        return chronologicalCompare;
+      }
+
+      return rowA.__sourceIndex - rowB.__sourceIndex;
+    }).map(row => {
+      const normalizedRow = { ...row };
+      delete normalizedRow.__sourceIndex;
+      return normalizedRow;
+    });
+
+    const duplicateCount = rawData.length - normalizedRows.length;
+    if (duplicateCount > 0) {
+      logger.warn('Removed duplicate ELO history rows before chart processing', {
+        duplicateCount
+      });
+    }
+
+    return normalizedRows;
+  }
+
+  /**
    * Process raw ELO data for year range into step-pattern chart format
    * @param {Array} rawData - Raw CSV data
    * @param {number} startYear - Start year
@@ -205,8 +349,10 @@ class EloService {
    * @returns {Object} Processed data with teams and step-pattern rating progression
    */
   processEloDataForYearRange(rawData, startYear, endYear) {
+    const normalizedRawData = this.normalizeHistoryRows(rawData);
+
     // Filter for the year range (no event column anymore)
-    const filteredData = rawData.filter(row => {
+    const filteredData = normalizedRawData.filter(row => {
       if (!row.year) return false;
 
       const year = parseInt(row.year, 10);
@@ -224,11 +370,11 @@ class EloService {
     }
 
     // Sort by date to ensure chronological order
-    filteredData.sort((a, b) => new Date(a.date) - new Date(b.date));
+    filteredData.sort((a, b) => this.compareHistoryRows(a, b));
 
-    const historicalDataUpToEndYear = rawData
+    const historicalDataUpToEndYear = normalizedRawData
       .filter(row => row.year && parseInt(row.year, 10) <= endYear)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+      .sort((a, b) => this.compareHistoryRows(a, b));
 
     // Include teams with carryover ratings even if they have not played in the selected range yet.
     const teams = [...new Set(historicalDataUpToEndYear.map(row => row.team))].sort();
@@ -532,8 +678,10 @@ class EloService {
    * @returns {Object} Processed data with teams and step-pattern rating progression
    */
   processEloData(rawData, year) {
+    const normalizedRawData = this.normalizeHistoryRows(rawData);
+
     // Filter for the specific year (no event column anymore)
-    const yearData = rawData.filter(row =>
+    const yearData = normalizedRawData.filter(row =>
       row.year == year
     );
 
@@ -542,11 +690,11 @@ class EloService {
     }
 
     // Sort by date to ensure chronological order within rounds
-    yearData.sort((a, b) => new Date(a.date) - new Date(b.date));
+    yearData.sort((a, b) => this.compareHistoryRows(a, b));
 
-    const historicalDataUpToYear = rawData
+    const historicalDataUpToYear = normalizedRawData
       .filter(row => row.year && parseInt(row.year, 10) <= year)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+      .sort((a, b) => this.compareHistoryRows(a, b));
 
     // Include teams with carryover ratings even if they have not played in this season yet.
     const teams = [...new Set(historicalDataUpToYear.map(row => row.team))].sort();

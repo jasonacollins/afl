@@ -45,6 +45,20 @@ DEFAULT_SEED_START_YEAR = 1990
 DEFAULT_OUTPUT_START_YEAR = 2000
 
 
+def parse_history_dates(date_series):
+    """Parse mixed SQLite/CSV datetime formats into UTC timestamps."""
+    def parse_single(value):
+        if pd.isna(value):
+            return pd.NaT
+
+        if isinstance(value, str) and value.strip() == '':
+            return pd.NaT
+
+        return pd.to_datetime(value, errors='coerce', utc=True)
+
+    return date_series.apply(parse_single)
+
+
 class AFLEloHistoryGenerator:
     """Rating engine for both win and margin model history replay."""
 
@@ -317,7 +331,7 @@ class AFLEloHistoryGenerator:
             return pd.DataFrame()
 
         df = pd.DataFrame(self.rating_history)
-        df['date'] = pd.to_datetime(df['date'], errors='coerce', utc=True)
+        df['date'] = parse_history_dates(df['date'])
         df['match_id'] = pd.to_numeric(df['match_id'], errors='coerce')
         df['year'] = pd.to_numeric(df['year'], errors='coerce')
         return df.sort_values(['date', 'match_id', 'team'])
@@ -486,7 +500,7 @@ def load_existing_history(csv_path):
     if df.empty:
         return df
 
-    df['_parsed_date'] = pd.to_datetime(df['date'], errors='coerce', utc=True)
+    df['_parsed_date'] = parse_history_dates(df['date'])
     df['match_id'] = pd.to_numeric(df['match_id'], errors='coerce')
     df['year'] = pd.to_numeric(df['year'], errors='coerce')
     df['rating_after'] = pd.to_numeric(df['rating_after'], errors='coerce')
@@ -511,6 +525,40 @@ def get_checkpoint_from_history(existing_df):
         'match_id': int(last_row['match_id']),
         'year': int(last_row['year'])
     }
+
+
+def get_history_integrity_issues(existing_df):
+    if existing_df.empty:
+        return []
+
+    issues = []
+
+    invalid_date_rows = existing_df[
+        existing_df['match_id'].notna()
+        & existing_df['year'].notna()
+        & existing_df['_parsed_date'].isna()
+    ]
+    if not invalid_date_rows.empty:
+        issues.append(
+            f"found {len(invalid_date_rows)} rows with invalid or missing dates"
+        )
+
+    duplicate_keys = (
+        existing_df[
+            existing_df['match_id'].notna()
+            & existing_df['year'].notna()
+            & existing_df['team'].notna()
+        ]
+        .groupby(['year', 'match_id', 'team'])
+        .size()
+    )
+    duplicate_count = int((duplicate_keys > 1).sum())
+    if duplicate_count > 0:
+        issues.append(
+            f"found {duplicate_count} duplicate year/match/team history rows"
+        )
+
+    return issues
 
 
 def build_team_ratings_from_history(existing_df):
@@ -610,6 +658,14 @@ def run_incremental_update(model_config, db_path, output_csv_path, year_bounds):
     existing_df = load_existing_history(output_csv_path)
     if existing_df.empty:
         print('Existing history CSV is empty; performing full rebuild bootstrap instead.')
+        return run_full_rebuild(model_config, db_path, output_csv_path, year_bounds)
+
+    integrity_issues = get_history_integrity_issues(existing_df)
+    if integrity_issues:
+        print(
+            'Existing history CSV failed integrity checks; performing full rebuild instead: '
+            + '; '.join(integrity_issues)
+        )
         return run_full_rebuild(model_config, db_path, output_csv_path, year_bounds)
 
     checkpoint = get_checkpoint_from_history(existing_df)

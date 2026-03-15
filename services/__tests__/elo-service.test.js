@@ -220,4 +220,61 @@ describe('EloService season start chart points', () => {
     expect(finalsWeek1BeforePoints).toHaveLength(2);
     expect(finalsWeek1BeforePoints[0].x).toBe(finalsWeek1BeforePoints[1].x);
   });
+
+  test('single-year mode deduplicates duplicate team-match history rows', () => {
+    const duplicateOpeningRound = createMatchPair({
+      matchId: 1,
+      date: '',
+      year: 2025,
+      round: 'OR',
+      homeTeam: 'Adelaide',
+      awayTeam: 'Brisbane Lions',
+      homeBefore: 1500,
+      homeAfter: 1512,
+      awayBefore: 1500,
+      awayAfter: 1488
+    });
+    const datedOpeningRound = createMatchPair({
+      matchId: 1,
+      date: '2025-03-01 08:00:00+00:00',
+      year: 2025,
+      round: 'OR',
+      homeTeam: 'Adelaide',
+      awayTeam: 'Brisbane Lions',
+      homeBefore: 1500,
+      homeAfter: 1512,
+      awayBefore: 1500,
+      awayAfter: 1488
+    });
+    const roundOne = createMatchPair({
+      matchId: 2,
+      date: '2025-03-08 08:00:00+00:00',
+      year: 2025,
+      round: '1',
+      homeTeam: 'Carlton',
+      awayTeam: 'Essendon',
+      homeBefore: 1495,
+      homeAfter: 1501,
+      awayBefore: 1505,
+      awayAfter: 1499
+    });
+
+    const result = eloService.processEloData([
+      ...duplicateOpeningRound,
+      ...datedOpeningRound,
+      ...roundOne
+    ], 2025);
+
+    expect(result.totalMatches).toBe(2);
+
+    const openingRoundAfterGames = result.data.filter(
+      point => point.type === 'after_game' && point.round === 'OR'
+    );
+    expect(openingRoundAfterGames).toHaveLength(1);
+
+    const openingRoundBeforePoint = result.data.find(
+      point => point.type === 'before' && point.round === 'OR'
+    );
+    expect(openingRoundBeforePoint.Adelaide_match.opponent).toBe('Brisbane Lions');
+  });
 });
