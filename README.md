@@ -321,6 +321,7 @@ Production is served from a single VM origin behind Cloudflare:
 - Domain: `https://afl.jcx.au`
 - GCP project: `afl-predictions-jc`
 - VM instance: `afl-predictions-vm` (`34.40.253.178`)
+- VM zone: `australia-southeast1-a`
 - App path on VM: `/var/www/afl-predictions`
 
 Important guardrail:
@@ -338,23 +339,24 @@ Pre-deploy safety check for model work:
 - Confirm only explicitly requested model artifacts/predictors are modified.
 - Confirm automation model paths used by `daily-sync` are unchanged unless explicitly intended.
 
-1. Pull latest changes:
+1. SSH to the VM:
    ```bash
-   cd /var/www/afl-predictions
-   git pull origin main
+   gcloud compute ssh afl-predictions-vm --project afl-predictions-jc --zone australia-southeast1-a
    ```
 
-2. Rebuild and restart the Docker containers:
+2. Pull latest changes and restart the Docker containers:
    ```bash
-   docker compose down
-   docker compose build
-   docker compose up -d
+   sudo sh -lc 'cd /var/www/afl-predictions && git pull origin main && docker compose down && docker compose build && docker compose up -d'
    ```
 
-3. Verify deployment:
+3. If `git pull` is blocked by VM-local tracked-file changes, inspect and stash them before retrying:
    ```bash
-   git rev-parse --short HEAD
-   docker compose ps
+   sudo sh -lc 'cd /var/www/afl-predictions && git status --short && git stash push -u -m "pre-deploy-YYYY-MM-DD"'
+   ```
+
+4. Verify deployment:
+   ```bash
+   gcloud compute ssh afl-predictions-vm --project afl-predictions-jc --zone australia-southeast1-a --command "sudo sh -lc 'cd /var/www/afl-predictions && git rev-parse --short HEAD && docker compose ps'"
    curl -sS "https://afl.jcx.au/js/main.js?v=$(date +%s)" | shasum -a 256
    ```
 
