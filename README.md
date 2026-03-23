@@ -346,17 +346,23 @@ Pre-deploy safety check for model work:
 
 2. Pull latest changes and restart the Docker containers:
    ```bash
-   sudo sh -lc 'cd /var/www/afl-predictions && git pull origin main && docker compose down && docker compose build && docker compose up -d'
+   cd /var/www/afl-predictions
+   git pull origin main
+   docker compose down
+   docker compose build
+   docker compose up -d
    ```
 
 3. If `git pull` is blocked by VM-local tracked-file changes, inspect and stash them before retrying:
    ```bash
-   sudo sh -lc 'cd /var/www/afl-predictions && git status --short && git stash push -u -m "pre-deploy-YYYY-MM-DD"'
+   cd /var/www/afl-predictions
+   git status --short
+   git stash push -u -m "pre-deploy-YYYY-MM-DD"
    ```
 
 4. Verify deployment:
    ```bash
-   gcloud compute ssh afl-predictions-vm --project afl-predictions-jc --zone australia-southeast1-a --command "sudo sh -lc 'cd /var/www/afl-predictions && git rev-parse --short HEAD && docker compose ps'"
+   gcloud compute ssh afl-predictions-vm --project afl-predictions-jc --zone australia-southeast1-a --command "cd /var/www/afl-predictions && git rev-parse --short HEAD && docker compose ps"
    curl -sS "https://afl.jcx.au/js/main.js?v=$(date +%s)" | shasum -a 256
    ```
 

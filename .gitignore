@@ -133,7 +133,11 @@ dist
 
 # Database files
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/database/*.db
+data/database/*.db-shm
+data/database/*.db-wal
 data/database/backups/*.db
 
 # Temporary data directories  

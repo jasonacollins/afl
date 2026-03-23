@@ -43,7 +43,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Do not deploy production with Cloud Run (`gcloud run deploy`).
 - For production updates, deploy on the VM with:
   - `gcloud compute ssh afl-predictions-vm --project afl-predictions-jc --zone australia-southeast1-a`
-  - `sudo sh -lc 'cd /var/www/afl-predictions && git pull origin main && docker compose down && docker compose build && docker compose up -d'`
+  - `cd /var/www/afl-predictions && git pull origin main && docker compose down && docker compose build && docker compose up -d`
 - Before production deploy, confirm local `HEAD` matches `origin/main`; if not, push first.
 - If `git pull` is blocked by VM-local tracked-file edits, inspect them first, then stash them on the VM before retrying the deploy.
 - After deployment, verify `https://afl.jcx.au/js/main.js` reflects the new build (hash/marker check).
