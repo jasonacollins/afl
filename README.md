@@ -137,12 +137,12 @@ The season simulator runs 50,000 Monte Carlo iterations of the remaining fixture
   Add `--from-scratch` to ignore actual results and simulate an entire season from the opening round (useful for demos).
   Add `--backfill-round-snapshots` to rebuild snapshots round-by-round for historical tabs. Important: backfill mode resets the target output JSON first, then repopulates snapshots in sequence.
 
-Note: `npm run daily-sync` runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and incremental ELO history updates when newly completed results are detected from either `sync-games` (completed inserts/state transitions) or `api-refresh` score updates.
+Note: live result updates are driven by the Squiggle games event stream. When a game ends, the app performs a targeted API reconciliation for the affected game, then queues the heavier prediction/simulation/ELO recompute work in the background. `npm run daily-sync` remains the scheduled fallback reconciliation: it runs fixture sync for the current season, API refresh, margin-only Dad's AI prediction updates, season simulation regeneration when fixture/result data changed or the current round snapshot is missing, and incremental ELO history updates when newly completed results are detected from either `sync-games` (completed inserts/state transitions) or `api-refresh` score updates.
 
 Maintenance cron (Sydney local time) is configured as:
 - `03:05` daily: `npm run db-maintenance -- --mode=cleanup`
 - `03:25` first Sunday monthly: `npm run db-maintenance -- --mode=vacuum`
-- `05:00` daily: `npm run daily-sync`
+- `03:40` daily: `npm run daily-sync`
 
 ## Architecture
 
@@ -202,7 +202,7 @@ The AFL Predictions application follows a layered architecture pattern built on 
 ### Data Flow
 
 **User Predictions**: Authentication → Prediction submission → Validation → Storage → Real-time scoring
-**Data Sync**: Daily cron job → Squiggle API → Database updates → ELO predictions → Score recalculation  
+**Data Sync**: Squiggle games event stream or scheduled fallback reconciliation → targeted API refresh → database updates → queued ELO/simulation/history recompute  
 **Maintenance**: Daily DB/log retention cleanup + incremental vacuum, plus monthly full SQLite vacuum
 **Admin Functions**: Role-based access to user management, database operations, and system monitoring
 
@@ -233,7 +233,7 @@ afl-predictions/
 - **Startup Schema Guard**: Server startup runs database initialization/migrations before binding the HTTP listener
 - **Strict CSP**: All client-side JavaScript in external files with no inline scripts for enhanced security
 - **Responsive UI Strategy**: Most prediction/stat tables use stacked card rows on small screens; dense simulation tables remain horizontally scrollable with a swipe hint
-- **Scheduled Sync**: Daily API synchronization rather than real-time
+- **Hybrid Sync**: Event-driven completed-game reconciliation with an early-morning daily fallback
 - **Monolithic Deployment**: Single container for operational simplicity
 
 

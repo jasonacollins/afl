@@ -13,6 +13,7 @@ const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const adminScriptRunner = require('../services/admin-script-runner');
+const resultUpdateService = require('../services/result-update-service');
 
 // Require authentication and admin for all admin routes
 router.use(isAuthenticated);
@@ -235,6 +236,15 @@ router.get('/api/script-runs/:runId/logs', catchAsync(async (req, res) => {
     runId,
     logs,
     lastSeq
+  });
+}));
+
+router.get('/api/event-sync-status', catchAsync(async (req, res) => {
+  const status = await resultUpdateService.getEventSyncStatus();
+
+  res.json({
+    success: true,
+    status
   });
 }));
 

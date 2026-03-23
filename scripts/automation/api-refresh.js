@@ -44,14 +44,18 @@ async function refreshAPIData(year, options = {}) {
   let existingMatchCount = 0;
   const skippedFixtureUpdates = [];
   const skippedScoreUpdates = [];
+  const updatedMatchNumbers = new Set();
+  const updatedCompletedMatchNumbers = new Set();
 
   const forceScoreUpdate = options.forceScoreUpdate || false;
+  const gameId = options.gameId || null;
+  const source = options.source || 'manual';
 
-  logger.info(`Starting API refresh process for year ${year}`, { forceScoreUpdate });
+  logger.info(`Starting API refresh process for year ${year}`, { forceScoreUpdate, gameId, source });
 
   try {
     // Fetching Games from Squiggle API
-    const apiUrl = `https://api.squiggle.com.au/?q=games;year=${year}`;
+    const apiUrl = `https://api.squiggle.com.au/?q=games;year=${year}${gameId ? `;game=${gameId}` : ''}`;
     const userAgent = 'AFL-Predictions-App/1.0 (your-email@example.com)';
     
     logger.debug('Fetching games from Squiggle API', { apiUrl });
@@ -119,6 +123,7 @@ async function refreshAPIData(year, options = {}) {
 
           if (result.changes > 0) {
             updateCount++;
+            updatedMatchNumbers.add(squiggleGameId);
             logger.debug(`Updated fixture info for match_number: ${squiggleGameId}`, {
               oldDate: currentMatch.match_date,
               newDate: apiDate,
@@ -201,6 +206,8 @@ async function refreshAPIData(year, options = {}) {
 
         if (result.changes > 0) {
           scoresUpdated++;
+          updatedMatchNumbers.add(squiggleGameId);
+          updatedCompletedMatchNumbers.add(squiggleGameId);
           logger.debug(`Updated final scores & completion for match_number: ${squiggleGameId}`);
         } else {
           const existing = await getOne(
@@ -240,7 +247,10 @@ async function refreshAPIData(year, options = {}) {
       insertCount,
       updateCount,
       scoresUpdated,
+      updatedMatchNumbers: Array.from(updatedMatchNumbers),
+      updatedCompletedMatchNumbers: Array.from(updatedCompletedMatchNumbers),
       forceUpdate: forceScoreUpdate,
+      source,
       skippedFixtureUpdateCount: skippedFixtureUpdates.length,
       skippedScoreUpdateCount: skippedScoreUpdates.length
     };

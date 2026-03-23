@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import re
+import tempfile
 from datetime import datetime
 from collections import defaultdict
 
@@ -1603,8 +1604,15 @@ class SeasonSimulator:
 
         # Save the file
         print(f"Saving results to: {abs_output_path}")
-        with open(abs_output_path, 'w') as f:
-            json.dump(output_data, f, indent=2)
+        fd, temp_path = tempfile.mkstemp(prefix='.tmp-', suffix='.json', dir=output_dir)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+                json.dump(output_data, f, indent=2)
+            os.replace(temp_path, abs_output_path)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
 
         print(f"Results saved successfully!")
         print(f"File size: {os.path.getsize(abs_output_path):,} bytes")

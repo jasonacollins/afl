@@ -1,5 +1,4 @@
 import json
-import sqlite3
 import pandas as pd
 import numpy as np
 from datetime import datetime, timezone
@@ -8,6 +7,7 @@ import argparse
 
 # Import core modules
 from core.data_io import (
+    connect_sqlite,
     fetch_matches_for_prediction,
     save_predictions_to_csv,
     save_predictions_to_database,
@@ -648,7 +648,7 @@ class AFLCombinedEloPredictor:
         Save predictions directly to the database
         Note: Using predictor_id=6 by default for combined ELO
         """
-        conn = sqlite3.connect(db_path)
+        conn = connect_sqlite(db_path)
         cursor = conn.cursor()
         
         try:

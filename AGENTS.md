@@ -92,10 +92,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Startup ensures SQLite incremental auto-vacuum mode (`PRAGMA auto_vacuum = INCREMENTAL`) is enabled.
 
 **Scheduled Maintenance (Sydney Time)**:
-- Cron runs with `CRON_TZ=Australia/Sydney`.
+- Cron runs in the container's configured Sydney local time.
 - `03:05` daily: `npm run db-maintenance -- --mode=cleanup`
 - `03:25` first Sunday monthly: `npm run db-maintenance -- --mode=vacuum`
-- `05:00` daily: `npm run daily-sync`
+- `03:40` daily: `npm run daily-sync`
 
 **Admin Scripts Runner Architecture**:
 - Service definitions are centralized in `services/admin-script-definitions.js` (allowlist + field metadata).

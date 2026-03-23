@@ -4,6 +4,8 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const { logger } = require('../utils/logger');
 
+const SQLITE_BUSY_TIMEOUT_MS = Number.parseInt(process.env.SQLITE_BUSY_TIMEOUT_MS || '10000', 10);
+
 // Database path
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database/afl_predictions.db');
 const projectRoot = path.join(__dirname, '..');
@@ -12,6 +14,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     logger.error('Error connecting to database', { error: err.message, path: dbPath });
   } else {
+    db.configure('busyTimeout', SQLITE_BUSY_TIMEOUT_MS);
     logger.info('Connected to SQLite database', { path: dbPath });
   }
 });
@@ -290,6 +293,15 @@ async function initializeDatabase() {
       await runQuery('VACUUM');
     };
 
+    const ensureWalMode = async () => {
+      const journalMode = await getOne('PRAGMA journal_mode = WAL');
+      const resolvedMode = journalMode ? Object.values(journalMode)[0] : null;
+      logger.info('Configured SQLite journal mode', { journalMode: resolvedMode });
+      await runQuery('PRAGMA synchronous = NORMAL');
+      await runQuery(`PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`);
+      await runQuery('PRAGMA foreign_keys = ON');
+    };
+
     const backfillMatchVenueIds = async () => {
       if (!(await tableExists('matches')) || !(await tableExists('venues')) || !(await tableExists('venue_aliases'))) {
         return;
@@ -410,6 +422,31 @@ async function initializeDatabase() {
       )
     `);
 
+    await runQuery(`
+      CREATE TABLE IF NOT EXISTS event_sync_state (
+        state_key TEXT PRIMARY KEY,
+        state_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+
+    await runQuery(`
+      CREATE TABLE IF NOT EXISTS result_update_jobs (
+        job_id INTEGER PRIMARY KEY,
+        year INTEGER NOT NULL,
+        match_number INTEGER,
+        status TEXT NOT NULL,
+        trigger_source TEXT NOT NULL,
+        trigger_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        error_message TEXT
+      )
+    `);
+
     // Venue reference data used by current ELO tooling
     await runQuery(`
       CREATE TABLE IF NOT EXISTS venues (
@@ -437,6 +474,9 @@ async function initializeDatabase() {
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venues_state ON venues(state)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_matches_venue_id ON matches(venue_id)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_admin_script_runs_status_created ON admin_script_runs(status, created_at)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_event_sync_state_updated_at ON event_sync_state(updated_at)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_result_update_jobs_status_created ON result_update_jobs(status, created_at)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_result_update_jobs_year_match_status ON result_update_jobs(year, match_number, status)');
 
     await migrateAdminScriptLoggingIfNeeded();
 
@@ -477,6 +517,7 @@ async function initializeDatabase() {
     }
 
     await ensureIncrementalAutoVacuum();
+    await ensureWalMode();
 
     logger.info('Database schema check completed');
   } catch (error) {
@@ -491,5 +532,6 @@ module.exports = {
   getOne,
   initializeDatabase,
   db,
-  dbPath
+  dbPath,
+  SQLITE_BUSY_TIMEOUT_MS
 };

@@ -32,6 +32,7 @@ import argparse
 import json
 import os
 import sqlite3
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -43,6 +44,31 @@ MODEL_TYPE_WIN = 'win_elo'
 MODEL_TYPE_MARGIN = 'margin_elo'
 DEFAULT_SEED_START_YEAR = 1990
 DEFAULT_OUTPUT_START_YEAR = 2000
+SQLITE_BUSY_TIMEOUT_MS = int(os.getenv('SQLITE_BUSY_TIMEOUT_MS', '10000'))
+
+
+def connect_sqlite(db_path):
+    conn = sqlite3.connect(db_path, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
+    conn.execute(f'PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}')
+    conn.execute('PRAGMA journal_mode = WAL')
+    conn.execute('PRAGMA synchronous = NORMAL')
+    return conn
+
+
+def atomic_write_csv(dataframe, output_csv_path):
+    abs_output_path = os.path.abspath(output_csv_path)
+    output_dir = os.path.dirname(abs_output_path)
+    os.makedirs(output_dir, exist_ok=True)
+
+    fd, temp_path = tempfile.mkstemp(prefix='.tmp-', suffix='.csv', dir=output_dir)
+    try:
+        os.close(fd)
+        dataframe.to_csv(temp_path, index=False)
+        os.replace(temp_path, abs_output_path)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
 
 
 def parse_history_dates(date_series):
@@ -398,7 +424,7 @@ def build_generator_from_config(model_config):
 
 
 def fetch_afl_data(db_path, start_year=None, end_year=None, after_date=None, after_match_id=None):
-    conn = sqlite3.connect(db_path)
+    conn = connect_sqlite(db_path)
     conditions = ['m.hscore IS NOT NULL', 'm.ascore IS NOT NULL']
     params = []
 
@@ -644,8 +670,7 @@ def run_full_rebuild(model_config, db_path, output_csv_path, year_bounds):
         output_end_year=year_bounds['output_end_year']
     )
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_csv_path)), exist_ok=True)
-    output_df.to_csv(output_csv_path, index=False)
+    atomic_write_csv(output_df, output_csv_path)
     print(f'Saved complete ELO rating history with {len(output_df)} records to {output_csv_path}')
     return len(output_df)
 
@@ -713,7 +738,9 @@ def run_incremental_update(model_config, db_path, output_csv_path, year_bounds):
         return 0
 
     append_df.drop(columns=['_parsed_date'], errors='ignore', inplace=True)
-    append_df.to_csv(output_csv_path, mode='a', header=False, index=False)
+    combined_df = pd.concat([existing_df, append_df], ignore_index=True)
+    combined_df.drop(columns=['_parsed_date'], errors='ignore', inplace=True)
+    atomic_write_csv(combined_df, output_csv_path)
     print(f'Appended {len(append_df)} records to {output_csv_path}')
     return len(append_df)
 

@@ -459,95 +459,218 @@ async function evaluateSimulationSnapshotState(year, outputPath) {
   };
 }
 
-async function dailySync() {
-  logger.info(`Running daily sync at ${new Date().toISOString()}`);
-  try {
-    // Get current year
-    const currentYear = new Date().getFullYear();
+async function runPostResultRecompute(year, options = {}) {
+  const source = options.source || 'manual';
+  const currentYear = new Date().getFullYear();
+  const isCurrentSeason = Number.parseInt(year, 10) === currentYear;
+  const projectRoot = path.join(__dirname, '../..');
+  const simulationOutputPath = path.join(projectRoot, `data/simulations/season_simulation_${year}.json`);
 
-    // Step 1: Ensure current season fixtures exist in DB
-    logger.info(`Syncing current season fixtures for ${currentYear}...`);
-    const fixtureSyncResults = await syncGamesFromAPI({ year: currentYear });
-    logger.info('Fixture sync complete', { results: fixtureSyncResults });
-    
-    // Step 2: API refresh (default options with forceScoreUpdate = false)
-    logger.info('Starting API data refresh...');
-    const apiResults = await refreshAPIData(currentYear, { forceScoreUpdate: false });
-    logger.info('API refresh complete', { results: apiResults });
+  logger.info('Starting post-result recompute', {
+    year,
+    source,
+    isCurrentSeason
+  });
 
-    const matchDataChanged = hasMatchDataChanges(fixtureSyncResults, apiResults);
-    const fixtureSyncUpdates = Number(fixtureSyncResults?.updateCount || 0);
-    const projectRoot = path.join(__dirname, '../..');
-    const simulationOutputPath = path.join(projectRoot, `data/simulations/season_simulation_${currentYear}.json`);
-    const snapshotState = await evaluateSimulationSnapshotState(currentYear, simulationOutputPath);
-    const snapshotMissing = !snapshotState.hasCurrentRoundSnapshot;
-
-    logger.info('Match data change evaluation complete', {
-      matchDataChanged,
-      fixtureSyncInserts: Number(fixtureSyncResults?.insertCount || 0),
-      fixtureSyncUpdates,
-      fixtureSyncCompletedInserts: Number(fixtureSyncResults?.completedInsertCount || 0),
-      fixtureSyncCompletedUpdates: Number(fixtureSyncResults?.completedUpdateCount || 0),
-      apiRefreshInserts: Number(apiResults?.insertCount || 0),
-      apiRefreshFixtureUpdates: Number(apiResults?.updateCount || 0),
-      apiRefreshScoreUpdates: Number(apiResults?.scoresUpdated || 0),
-      ignoredNoisySyncGameUpdates: fixtureSyncUpdates > 0 && !matchDataChanged
-    });
+  let snapshotState = null;
+  let snapshotMissing = false;
+  if (isCurrentSeason) {
+    snapshotState = await evaluateSimulationSnapshotState(year, simulationOutputPath);
+    snapshotMissing = !snapshotState.hasCurrentRoundSnapshot;
 
     logger.info('Season snapshot state evaluation complete', {
       currentRoundKey: snapshotState.currentRoundKey,
       currentRoundLabel: snapshotState.currentRoundLabel,
       hasCurrentRoundSnapshot: snapshotState.hasCurrentRoundSnapshot,
-      existingSnapshotCount: snapshotState.existingSnapshotCount
+      existingSnapshotCount: snapshotState.existingSnapshotCount,
+      source
     });
-    
-    // Step 3: ELO predictions (only if API refresh succeeded)
-    logger.info('Starting ELO predictions...');
+  }
+
+  logger.info('Starting ELO predictions...', { source, year });
+  const eloResults = await runEloPredictions();
+  logger.info('ELO predictions complete', {
+    source,
+    year,
+    message: eloResults.message,
+    predictionsCount: eloResults.predictionsCount
+  });
+
+  let simulationResults = null;
+  if (isCurrentSeason) {
+    logger.info('Regenerating season simulation...', {
+      source,
+      year,
+      reasons: snapshotMissing
+        ? ['completed_result_update', `missing_snapshot_${snapshotState.currentRoundKey}`]
+        : ['completed_result_update']
+    });
+    simulationResults = await regenerateSeasonSimulation(year);
+    logger.info('Season simulation regeneration complete', {
+      source,
+      year,
+      message: simulationResults.message,
+      outputPath: simulationResults.outputPath
+    });
+  } else {
+    logger.info('Skipping season simulation regeneration for non-current season', {
+      source,
+      year,
+      currentYear
+    });
+  }
+
+  const historyCsvPath = path.join(projectRoot, 'data/historical/afl_elo_complete_history.csv');
+  const hasHistoryFile = fs.existsSync(historyCsvPath);
+  const historyReasons = ['completed_result_update'];
+  if (!hasHistoryFile) {
+    historyReasons.push('history_file_missing_bootstrap');
+  }
+
+  logger.info('Updating ELO historical data incrementally...', {
+    source,
+    year,
+    reasons: historyReasons
+  });
+  const historyResults = await regenerateEloHistory({ mode: 'incremental' });
+  logger.info('ELO history regeneration complete', {
+    source,
+    year,
+    message: historyResults.message,
+    mode: 'incremental'
+  });
+
+  return {
+    year,
+    source,
+    eloResults,
+    simulationResults,
+    historyResults
+  };
+}
+
+async function runFallbackReconciliation(year, options = {}) {
+  const source = options.source || 'scheduled-fallback';
+  logger.info('Starting fallback reconciliation', { source, year });
+
+  logger.info(`Syncing current season fixtures for ${year}...`, { source });
+  const fixtureSyncResults = await syncGamesFromAPI({ year });
+  logger.info('Fixture sync complete', { source, results: fixtureSyncResults });
+
+  logger.info('Starting API data refresh...', { source, year });
+  const apiResults = await refreshAPIData(year, {
+    forceScoreUpdate: false,
+    source
+  });
+  logger.info('API refresh complete', { source, results: apiResults });
+
+  const matchDataChanged = hasMatchDataChanges(fixtureSyncResults, apiResults);
+  const fixtureSyncUpdates = Number(fixtureSyncResults?.updateCount || 0);
+  const resultChangesDetected = hasCompletedResultChanges(apiResults, fixtureSyncResults);
+  const projectRoot = path.join(__dirname, '../..');
+  const simulationOutputPath = path.join(projectRoot, `data/simulations/season_simulation_${year}.json`);
+  const snapshotState = await evaluateSimulationSnapshotState(year, simulationOutputPath);
+  const snapshotMissing = !snapshotState.hasCurrentRoundSnapshot;
+  const historyCsvPath = path.join(projectRoot, 'data/historical/afl_elo_complete_history.csv');
+  const hasHistoryFile = fs.existsSync(historyCsvPath);
+  let recomputeResults = null;
+
+  logger.info('Match data change evaluation complete', {
+    source,
+    year,
+    matchDataChanged,
+    fixtureSyncInserts: Number(fixtureSyncResults?.insertCount || 0),
+    fixtureSyncUpdates,
+    fixtureSyncCompletedInserts: Number(fixtureSyncResults?.completedInsertCount || 0),
+    fixtureSyncCompletedUpdates: Number(fixtureSyncResults?.completedUpdateCount || 0),
+    apiRefreshInserts: Number(apiResults?.insertCount || 0),
+    apiRefreshFixtureUpdates: Number(apiResults?.updateCount || 0),
+    apiRefreshScoreUpdates: Number(apiResults?.scoresUpdated || 0),
+    ignoredNoisySyncGameUpdates: fixtureSyncUpdates > 0 && !matchDataChanged
+  });
+
+  logger.info('Season snapshot state evaluation complete', {
+    source,
+    year,
+    currentRoundKey: snapshotState.currentRoundKey,
+    currentRoundLabel: snapshotState.currentRoundLabel,
+    hasCurrentRoundSnapshot: snapshotState.hasCurrentRoundSnapshot,
+    existingSnapshotCount: snapshotState.existingSnapshotCount
+  });
+
+  if (resultChangesDetected) {
+    recomputeResults = await runPostResultRecompute(year, { source });
+  } else if (matchDataChanged || snapshotMissing) {
+    logger.info('Refreshing predictions/simulation without completed result changes', {
+      source,
+      year,
+      matchDataChanged,
+      snapshotMissing
+    });
+
     const eloResults = await runEloPredictions();
-    logger.info('ELO predictions complete', { message: eloResults.message, predictionsCount: eloResults.predictionsCount });
+    logger.info('ELO predictions complete', {
+      source,
+      year,
+      message: eloResults.message,
+      predictionsCount: eloResults.predictionsCount
+    });
 
-    // Step 4: Regenerate season simulation when data changed OR current round snapshot is missing
-    const shouldRegenerateSimulation = matchDataChanged || snapshotMissing;
-    if (shouldRegenerateSimulation) {
-      const reasons = [];
-      if (matchDataChanged) {
-        reasons.push('match_data_changed');
-      }
-      if (snapshotMissing) {
-        reasons.push(`missing_snapshot_${snapshotState.currentRoundKey}`);
-      }
-
-      logger.info('Regenerating season simulation...', { reasons });
-      const simulationResults = await regenerateSeasonSimulation(currentYear);
+    let simulationResults = null;
+    if (matchDataChanged || snapshotMissing) {
+      simulationResults = await regenerateSeasonSimulation(year);
       logger.info('Season simulation regeneration complete', {
+        source,
+        year,
         message: simulationResults.message,
         outputPath: simulationResults.outputPath
       });
-    } else {
-      logger.info('Skipping season simulation regeneration (no match-data changes and snapshot already exists)');
     }
 
-    // Step 5: Update ELO history only when results complete (or when bootstrap file is missing)
-    const historyCsvPath = path.join(projectRoot, 'data/historical/afl_elo_complete_history.csv');
-    const hasHistoryFile = fs.existsSync(historyCsvPath);
-    const resultChangesDetected = hasCompletedResultChanges(apiResults, fixtureSyncResults);
-    const shouldUpdateHistory = resultChangesDetected || !hasHistoryFile;
-
-    if (shouldUpdateHistory) {
-      const reasons = [];
-      if (resultChangesDetected) {
-        reasons.push('completed_results_changed');
-      }
-      if (!hasHistoryFile) {
-        reasons.push('history_file_missing_bootstrap');
-      }
-
-      logger.info('Updating ELO historical data incrementally...', { reasons });
-      const historyResults = await regenerateEloHistory({ mode: 'incremental' });
-      logger.info('ELO history regeneration complete', { message: historyResults.message, mode: 'incremental' });
-    } else {
-      logger.info('Skipping ELO history update (no newly completed results and history file present)');
+    let historyResults = null;
+    if (!hasHistoryFile) {
+      historyResults = await regenerateEloHistory({ mode: 'incremental' });
+      logger.info('ELO history regeneration complete', {
+        source,
+        year,
+        message: historyResults.message,
+        mode: 'incremental'
+      });
     }
+
+    recomputeResults = {
+      year,
+      source,
+      eloResults,
+      simulationResults,
+      historyResults
+    };
+  } else {
+    logger.info('Skipping post-result recompute during fallback reconciliation', {
+      source,
+      year,
+      matchDataChanged,
+      resultChangesDetected
+    });
+  }
+
+  return {
+    source,
+    year,
+    fixtureSyncResults,
+    apiResults,
+    matchDataChanged,
+    resultChangesDetected,
+    recomputeResults
+  };
+}
+
+async function dailySync() {
+  logger.info(`Running daily sync at ${new Date().toISOString()}`);
+  try {
+    // Get current year
+    const currentYear = new Date().getFullYear();
+    await runFallbackReconciliation(currentYear, { source: 'daily-sync' });
     
     logger.info('Daily sync completed successfully');
     process.exit(0);
@@ -575,5 +698,9 @@ module.exports = {
   evaluateSimulationSnapshotState,
   hasMatchDataChanges,
   hasCompletedResultChanges,
+  regenerateEloHistory,
+  regenerateSeasonSimulation,
+  runPostResultRecompute,
+  runFallbackReconciliation,
   dailySync
 };

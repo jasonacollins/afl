@@ -10,8 +10,37 @@ import pandas as pd
 import sqlite3
 import json
 import os
+import tempfile
 from typing import Dict, List, Optional, Union
 from datetime import datetime, timezone
+
+SQLITE_BUSY_TIMEOUT_MS = int(os.getenv('SQLITE_BUSY_TIMEOUT_MS', '10000'))
+
+
+def connect_sqlite(db_path: str) -> sqlite3.Connection:
+    """Open a SQLite connection with WAL-compatible pragmas for mixed read/write load."""
+    conn = sqlite3.connect(db_path, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
+    conn.execute(f'PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}')
+    conn.execute('PRAGMA journal_mode = WAL')
+    conn.execute('PRAGMA synchronous = NORMAL')
+    return conn
+
+
+def atomic_write_text(filepath: str, content: str) -> None:
+    """Write a text file via temp file + atomic replace so readers never see partial output."""
+    abs_path = os.path.abspath(filepath)
+    directory = os.path.dirname(abs_path)
+    os.makedirs(directory, exist_ok=True)
+
+    fd, temp_path = tempfile.mkstemp(prefix='.tmp-', suffix='.swap', dir=directory)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+            handle.write(content)
+        os.replace(temp_path, abs_path)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
 
 
 def fetch_afl_data(db_path: str, start_year: Optional[int] = None, 
@@ -33,7 +62,7 @@ def fetch_afl_data(db_path: str, start_year: Optional[int] = None,
     pd.DataFrame
         Match data with required columns for ELO training
     """
-    conn = sqlite3.connect(db_path)
+    conn = connect_sqlite(db_path)
     
     year_clause = ""
     if start_year:
@@ -85,7 +114,7 @@ def fetch_matches_for_prediction(db_path: str, start_year: int) -> pd.DataFrame:
     pd.DataFrame
         All matches from start_year onwards (completed and future)
     """
-    conn = sqlite3.connect(db_path)
+    conn = connect_sqlite(db_path)
     
     query = f"""
     SELECT 
@@ -134,7 +163,7 @@ def get_team_states_map(db_path: str) -> Dict[str, str]:
     Dict[str, str]
         Mapping of team names to state codes (uppercased)
     """
-    conn = sqlite3.connect(db_path)
+    conn = connect_sqlite(db_path)
     try:
         query = """
         SELECT name, state
@@ -169,7 +198,7 @@ def get_all_teams(db_path: str) -> List[str]:
     List[str]
         List of all team names
     """
-    conn = sqlite3.connect(db_path)
+    conn = connect_sqlite(db_path)
     
     query = "SELECT name FROM teams ORDER BY name"
     teams_df = pd.read_sql_query(query, conn)
@@ -192,8 +221,7 @@ def save_model(model_data: Dict, filepath: str) -> None:
     # Ensure directory exists
     os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
     
-    with open(filepath, 'w') as f:
-        json.dump(model_data, f, indent=4)
+    atomic_write_text(filepath, json.dumps(model_data, indent=4))
     
     print(f"Model saved to: {filepath}")
 
@@ -240,7 +268,7 @@ def save_predictions_to_csv(predictions: List[Dict], filename: str) -> None:
     # Ensure directory exists
     os.makedirs(os.path.dirname(os.path.abspath(filename)), exist_ok=True)
     
-    df.to_csv(filename, index=False)
+    atomic_write_text(filename, df.to_csv(index=False))
     print(f"Saved {len(df)} predictions to {filename}")
 
 
@@ -263,7 +291,7 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
     override_completed : bool
         Whether to override predictions for completed/started matches (default: False)
     """
-    conn = sqlite3.connect(db_path)
+    conn = connect_sqlite(db_path)
     cursor = conn.cursor()
     
     try:
