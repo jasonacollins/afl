@@ -159,7 +159,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 Uses Jest with the following structure:
 - Test files: `**/__tests__/**/*.test.js` or `**/*.{spec,test}.js`
-- Coverage includes: `services/`, `routes/`, `models/`
+- Coverage includes: `services/`, `routes/`, `models/`, `utils/`
 - Environment: Node.js
 - Coverage reports: `coverage/` directory
 

@@ -120,11 +120,15 @@ function clearPredictionDirectly(matchId, userId, button) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'Accept': 'application/json',
       'X-CSRF-Token': getCsrfToken()
     },
     body: JSON.stringify({ matchId: matchId, probability: "" }), // Empty string for deletion
   })
-  .then(response => response.json())
+  .then(response => {
+    if (!response.ok) throw new Error(`Server error (${response.status})`);
+    return response.json();
+  })
   .then(data => {
     if (data.success) {
       if (input) input.value = '';
@@ -282,6 +286,7 @@ document.addEventListener('DOMContentLoaded', function() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'X-CSRF-Token': getCsrfToken()
       },
       body: JSON.stringify({
@@ -290,7 +295,10 @@ document.addEventListener('DOMContentLoaded', function() {
         tippedTeam: tippedTeamForPayload
       }),
     })
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) throw new Error(`Server error (${response.status})`);
+      return response.json();
+    })
     .then(data => {
       const inputElement = document.querySelector(`.home-prediction[data-match-id="${matchId}"]`);
       if (data.success) {
@@ -370,6 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'X-CSRF-Token': getCsrfToken()
         },
         body: JSON.stringify({
@@ -378,7 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }),
       })
       .then(response => {
-        console.log('Response status:', response.status);
+        if (!response.ok) throw new Error(`Server error (${response.status})`);
         return response.json();
       })
       .then(data => {
@@ -440,9 +449,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
       fetch('/admin/upload-database', {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json'
+        },
         body: formData
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) throw new Error(`Server error (${response.status})`);
+        return response.json();
+      })
       .then(data => {
         if (data.success) {
           statusDiv.innerHTML = '<p class="alert success">' + data.message + '</p>';

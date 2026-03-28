@@ -10,6 +10,7 @@ module.exports = {
     'services/**/*.js',
     'routes/**/*.js',
     'models/**/*.js',
+    'utils/**/*.js',
     '!**/node_modules/**'
   ],
   

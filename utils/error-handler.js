@@ -64,8 +64,14 @@ const errorMiddleware = (err, req, res, next) => {
   // Production error response (cleaned up)
   // Only show detailed messages for operational errors we expect
   if (err.isOperational) {
-    // For web requests that accept HTML, render an error page
-    if (req.accepts('html')) {
+    // Determine if caller expects JSON: explicit Accept header, JSON content-type,
+    // or XHR request.  fetch() with Accept: */* would otherwise match html first.
+    const wantsJson = req.is('json') ||
+      (req.headers.accept && req.headers.accept.includes('application/json')) ||
+      req.xhr;
+
+    if (!wantsJson && req.accepts('html')) {
+      // For web requests that accept HTML, render an error page
       return res.status(err.statusCode).render('error', {
         error: process.env.NODE_ENV === 'production'
           ? 'An unexpected error occurred'
