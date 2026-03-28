@@ -131,6 +131,9 @@ dist
 .pnp.*
 .DS_Store
 
+# Season simulation outputs (runtime-generated, not source-controlled)
+data/simulations/*.json
+
 # Database files
 data/*.db
 data/*.db-shm
