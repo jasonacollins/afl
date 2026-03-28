@@ -273,6 +273,10 @@ afl-predictions/
 
 - **After making code changes**, rebuild and restart:
   ```bash
+  ./drebuild.sh
+  ```
+  Or manually:
+  ```bash
   docker-compose down
   docker-compose build
   docker-compose up -d
