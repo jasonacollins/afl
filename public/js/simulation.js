@@ -545,7 +545,7 @@
      */
     function createProbabilityCell(probability) {
         const percentage = (probability * 100).toFixed(1);
-        const displayValue = probability < 0.01 && probability > 0 ? '<1%' : `${percentage}%`;
+        const displayValue = percentage === '0.0' ? '-' : `${percentage}%`;
         const { background, textColor } = buildCellStyle(probability, TABLE_COLOR_BLEND);
 
         return `
@@ -630,7 +630,7 @@
                 }
 
                 const percentage = (probability * 100).toFixed(0);
-                cell.textContent = probability < 0.01 ? '<1' : percentage;
+                cell.textContent = percentage === '0' ? '-' : percentage;
                 applyMatrixCellStyling(cell, probability);
                 row.appendChild(cell);
             }
