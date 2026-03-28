@@ -36,10 +36,5 @@ RUN chmod 600 /etc/crontabs/root
 # Expose port
 EXPOSE 3001
 
-# Attempt database initialization during build (non-fatal — the real DB is
-# volume-mounted at runtime, so a build-time failure when the Squiggle API
-# is unreachable is harmless).
-RUN npm run import || echo "WARNING: npm run import failed (Squiggle API may be down). Continuing build."
-
 # Start cron and the application with better logging
 CMD crond -f -d 8 & npm start
