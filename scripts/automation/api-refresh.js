@@ -3,6 +3,7 @@ const { runQuery, getOne } = require('../../models/db');
 const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 const { logger } = require('../../utils/logger');
 const { AppError } = require('../../utils/error-handler');
+const { buildSquiggleQueryUrl, getSquiggleRequestOptions } = require('../../utils/squiggle-request');
 
 async function resolveVenueId(venueName) {
   if (typeof venueName !== 'string' || venueName.trim() === '') {
@@ -55,12 +56,11 @@ async function refreshAPIData(year, options = {}) {
 
   try {
     // Fetching Games from Squiggle API
-    const apiUrl = `https://api.squiggle.com.au/?q=games;year=${year}${gameId ? `;game=${gameId}` : ''}`;
-    const userAgent = 'AFL-Predictions-App/1.0 (your-email@example.com)';
+    const apiUrl = buildSquiggleQueryUrl('games', { year, game: gameId });
     
     logger.debug('Fetching games from Squiggle API', { apiUrl });
     
-    const response = await fetch(apiUrl, { headers: { 'User-Agent': userAgent } });
+    const response = await fetch(apiUrl, getSquiggleRequestOptions());
 
     if (!response.ok) {
       throw new AppError(
@@ -269,7 +269,6 @@ async function refreshAPIData(year, options = {}) {
     );
   }
 }
-
 module.exports = { refreshAPIData };
 
 if (require.main === module) {

@@ -1,10 +1,9 @@
 // node-fetch v3 is ESM-only; use dynamic import for CommonJS services.
 const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 const { logger } = require('../utils/logger');
+const { getSquiggleGamesSseConfig } = require('../utils/squiggle-request');
 const resultUpdateService = require('./result-update-service');
 
-const SQUIGGLE_SSE_URL = 'https://api.squiggle.com.au/sse/games';
-const USER_AGENT = 'AFL-Predictions-App/1.0 (event-sync)';
 const BASE_RECONNECT_DELAY_MS = 5000;
 const MAX_RECONNECT_DELAY_MS = 60000;
 const RECONCILIATION_MIN_INTERVAL_MS = Number.parseInt(
@@ -116,10 +115,14 @@ class EventSyncService {
     }
 
     this.running = true;
-    await resultUpdateService.recordConnectionState('starting', { url: SQUIGGLE_SSE_URL });
+    const { url: sseUrl } = getSquiggleGamesSseConfig();
+    await resultUpdateService.recordConnectionState('starting', { url: sseUrl });
     resultUpdateService.scheduleWorker();
     this.connect().catch((error) => {
-      logger.error('Event sync service failed during startup connect', { error: error.message });
+      logger.error('Event sync service failed during startup connect', {
+        error: error.message,
+        url: sseUrl
+      });
       this.scheduleReconnect(error);
     });
   }
@@ -144,15 +147,12 @@ class EventSyncService {
     }
 
     this.abortController = new AbortController();
+    const { url: sseUrl, options } = getSquiggleGamesSseConfig();
 
-    await resultUpdateService.recordConnectionState('connecting', { url: SQUIGGLE_SSE_URL });
+    await resultUpdateService.recordConnectionState('connecting', { url: sseUrl });
 
-    const response = await fetch(SQUIGGLE_SSE_URL, {
-      headers: {
-        Accept: 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'User-Agent': USER_AGENT
-      },
+    const response = await fetch(sseUrl, {
+      ...options,
       signal: this.abortController.signal
     });
 
@@ -162,7 +162,7 @@ class EventSyncService {
 
     this.reconnectDelayMs = BASE_RECONNECT_DELAY_MS;
     await resultUpdateService.recordConnectionState('connected', {
-      url: SQUIGGLE_SSE_URL,
+      url: sseUrl,
       connected_at: new Date().toISOString()
     });
     await resultUpdateService.clearState(resultUpdateService.EVENT_SYNC_STATE_KEYS.LAST_ERROR);
@@ -414,8 +414,11 @@ class EventSyncService {
       return;
     }
 
+    const { url: sseUrl } = getSquiggleGamesSseConfig();
+
     if (error) {
       resultUpdateService.recordLastError(error, {
+        url: sseUrl,
         reconnect_in_ms: this.reconnectDelayMs
       }).catch((stateError) => {
         logger.error('Failed to record event sync error state', { error: stateError.message });
@@ -423,6 +426,7 @@ class EventSyncService {
     }
 
     resultUpdateService.recordConnectionState('reconnecting', {
+      url: sseUrl,
       reconnect_in_ms: this.reconnectDelayMs
     }).catch((stateError) => {
       logger.error('Failed to record event sync reconnect state', { error: stateError.message });
@@ -435,7 +439,10 @@ class EventSyncService {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((connectError) => {
-        logger.error('Event sync reconnect failed', { error: connectError.message });
+        logger.error('Event sync reconnect failed', {
+          error: connectError.message,
+          url: sseUrl
+        });
         this.scheduleReconnect(connectError);
       });
     }, this.reconnectDelayMs);

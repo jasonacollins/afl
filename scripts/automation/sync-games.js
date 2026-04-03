@@ -4,12 +4,7 @@ const { getQuery, getOne, runQuery, initializeDatabase } = require('../../models
 const fs = require('fs');
 const path = require('path');
 const { logger } = require('../../utils/logger');
-
-// Base API URL
-const BASE_API_URL = 'https://api.squiggle.com.au/';
-
-// Custom user agent
-const USER_AGENT = "jason@jasoncollins.me";
+const { buildSquiggleQueryUrl, getSquiggleRequestOptions } = require('../../utils/squiggle-request');
 
 // Cache directory
 const CACHE_DIR = path.join(__dirname, '../data/cache');
@@ -21,14 +16,8 @@ if (!fs.existsSync(CACHE_DIR)) {
 
 // Helper function for API requests with proper etiquette
 async function fetchAPI(endpoint, params = {}) {
-  // Build query string
-  const queryParams = Object.entries(params)
-    .filter(([_, value]) => value !== undefined)
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .join(';');
-    
-  const url = `${BASE_API_URL}?q=${endpoint}${queryParams ? ';' + queryParams : ''}`;
-  
+  const url = buildSquiggleQueryUrl(endpoint, params);
+
   // Create cache key from URL
   const cacheKey = url.replace(/[^a-zA-Z0-9]/g, '_');
   const cachePath = path.join(CACHE_DIR, `${cacheKey}.json`);
@@ -51,11 +40,7 @@ async function fetchAPI(endpoint, params = {}) {
   logger.info(`Fetching data from: ${url}`);
   
   try {
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': USER_AGENT
-      }
-    });
+    const response = await fetch(url, getSquiggleRequestOptions());
     
     if (!response.ok) {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);

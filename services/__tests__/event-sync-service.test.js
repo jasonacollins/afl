@@ -27,6 +27,7 @@ jest.mock('../result-update-service', () => ({
 
 const eventSyncService = require('../event-sync-service');
 const resultUpdateService = require('../result-update-service');
+const { getSquiggleGamesSseConfig } = require('../../utils/squiggle-request');
 
 describe('event-sync-service helpers', () => {
   const {
@@ -80,11 +81,26 @@ describe('event-sync-service helpers', () => {
       fingerprint: '38510:50:40:35:2026-03-21T19:30:00+11:00'
     });
   });
+
+  test('uses the migrated Squiggle SSE host and shared contactable user agent', () => {
+    expect(getSquiggleGamesSseConfig()).toEqual({
+      url: 'https://sse.squiggle.com.au/games',
+      options: {
+        headers: {
+          Accept: 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'AFL Predictions - jason@jasoncollins.me'
+        }
+      }
+    });
+  });
 });
 
 describe('event-sync-service snapshot handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resultUpdateService.recordConnectionState.mockResolvedValue();
+    resultUpdateService.recordLastError.mockResolvedValue();
   });
 
   test('reconciles previously tracked games that disappear from a snapshot', async () => {
@@ -129,5 +145,24 @@ describe('event-sync-service snapshot handling', () => {
         complete: 25
       })
     ]);
+  });
+
+  test('records reconnect state with the migrated SSE URL and failure metadata', () => {
+    eventSyncService.running = true;
+    eventSyncService.reconnectDelayMs = 5000;
+
+    const error = new Error('connect failed');
+    eventSyncService.scheduleReconnect(error);
+
+    expect(resultUpdateService.recordLastError).toHaveBeenCalledWith(error, {
+      url: 'https://sse.squiggle.com.au/games',
+      reconnect_in_ms: 5000
+    });
+    expect(resultUpdateService.recordConnectionState).toHaveBeenCalledWith('reconnecting', {
+      url: 'https://sse.squiggle.com.au/games',
+      reconnect_in_ms: 5000
+    });
+
+    eventSyncService.stop();
   });
 });

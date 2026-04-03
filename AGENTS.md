@@ -191,7 +191,7 @@ When working on this codebase, follow these comprehensive guidelines:
 - Follow systematic debugging approach
 - Add meaningful comments that explain "why" not just "what"
 - Include security considerations for any changes involving user input or external data
-- **ALWAYS ASK BEFORE testing or running any development commands** - user will handle testing
+- Run relevant tests and verification commands directly when they are needed to validate requested work, and report what was executed along with any failures or gaps.
 
 ### Code Quality Standards
 - Follow existing code conventions and patterns
@@ -212,7 +212,7 @@ When working on this codebase, follow these comprehensive guidelines:
 - Always distinguish between data generation issues vs data presentation issues
 
 ### File Modification Guidelines
-- **ALWAYS ASK BEFORE testing or running any development commands** - user will handle testing
+- Run relevant tests and verification commands directly when they are needed to validate requested work, and report what was executed along with any failures or gaps.
 - Do what has been asked; nothing more, nothing less
 - NEVER create files unless they're absolutely necessary for achieving your goal
 - ALWAYS prefer editing an existing file to creating a new one
