@@ -11,13 +11,23 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 TARGET_SOURCES = [
     REPO_ROOT / 'scripts' / 'core',
     REPO_ROOT / 'scripts' / 'elo_history_generator.py',
+    REPO_ROOT / 'scripts' / 'elo_margin_methods_optimize.py',
+    REPO_ROOT / 'scripts' / 'elo_margin_methods_predict.py',
+    REPO_ROOT / 'scripts' / 'elo_margin_optimize.py',
     REPO_ROOT / 'scripts' / 'elo_margin_predict.py',
     REPO_ROOT / 'scripts' / 'elo_margin_train.py',
+    REPO_ROOT / 'scripts' / 'elo_predict_combined.py',
+    REPO_ROOT / 'scripts' / 'elo_win_optimize.py',
     REPO_ROOT / 'scripts' / 'elo_win_predict.py',
     REPO_ROOT / 'scripts' / 'elo_win_train.py',
     REPO_ROOT / 'scripts' / 'season_simulator.py',
 ]
-COVERAGE_THRESHOLD = 70.0
+DEFAULT_FILE_COVERAGE_THRESHOLD = 40.0
+FILE_COVERAGE_THRESHOLDS = {
+    Path('scripts/core/optimise.py'): 58.0,
+    Path('scripts/elo_history_generator.py'): 64.0,
+    Path('scripts/season_simulator.py'): 73.0,
+}
 
 
 def iter_target_files():
@@ -53,9 +63,8 @@ def main():
     results = tracer.results()
     executed_lines = collect_counts(results)
 
-    total_executable = 0
-    total_covered = 0
     summary_rows = []
+    failures = []
 
     for path in iter_target_files():
         executable_lines = set(trace._find_executable_linenos(str(path)).keys())
@@ -63,26 +72,29 @@ def main():
         executable_count = len(executable_lines)
         covered_count = len(covered_lines)
         coverage_pct = 100.0 if executable_count == 0 else (covered_count / executable_count) * 100.0
-
-        total_executable += executable_count
-        total_covered += covered_count
-        summary_rows.append((coverage_pct, covered_count, executable_count, path.relative_to(REPO_ROOT)))
-
-    total_pct = 100.0 if total_executable == 0 else (total_covered / total_executable) * 100.0
+        rel_path = path.relative_to(REPO_ROOT)
+        threshold = FILE_COVERAGE_THRESHOLDS.get(rel_path, DEFAULT_FILE_COVERAGE_THRESHOLD)
+        summary_rows.append((coverage_pct, covered_count, executable_count, rel_path, threshold))
+        if coverage_pct < threshold:
+            failures.append((rel_path, coverage_pct, threshold))
 
     print('\nPython coverage summary')
-    for coverage_pct, covered_count, executable_count, rel_path in summary_rows:
-        print(f'  {rel_path}: {coverage_pct:5.1f}% ({covered_count}/{executable_count})')
-    print(f'  TOTAL: {total_pct:5.1f}% ({total_covered}/{total_executable})')
+    for coverage_pct, covered_count, executable_count, rel_path, threshold in summary_rows:
+        print(
+            f'  {rel_path}: {coverage_pct:5.1f}% ({covered_count}/{executable_count}) '
+            f'[min {threshold:.1f}%]'
+        )
 
     if exit_code != 0:
         return exit_code
 
-    if total_pct < COVERAGE_THRESHOLD:
-        print(
-            f'Coverage check failed: {total_pct:.1f}% is below required {COVERAGE_THRESHOLD:.1f}%',
-            file=sys.stderr,
-        )
+    if failures:
+        print('Coverage check failed:', file=sys.stderr)
+        for rel_path, coverage_pct, threshold in failures:
+            print(
+                f'  {rel_path}: {coverage_pct:.1f}% is below required {threshold:.1f}%',
+                file=sys.stderr,
+            )
         return 1
 
     return 0

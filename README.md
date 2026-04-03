@@ -244,7 +244,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 
 - Test files live under `**/__tests__/**/*.test.js` and `**/*.{spec,test}.js`
 - Python tests live under `scripts/tests` and are part of the default test workflow
-- The default Python test workflow enforces a coverage floor for the core model/training/prediction/simulation surfaces; treat Python coverage as a gate, not report-only output
+- The default Python test workflow enforces per-file coverage minimums through `scripts/tests/run_pytest_with_coverage.py` across the covered core/model/history/prediction/simulation scripts; treat Python coverage as a gate, not report-only output
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - Route and app integration tests use `supertest`

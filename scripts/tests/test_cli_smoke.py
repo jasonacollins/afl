@@ -163,6 +163,33 @@ def test_margin_optimize_cli_writes_results_json(afl_cli_workspace, monkeypatch)
     assert output_data['mae'] >= 0
 
 
+def test_margin_methods_optimize_cli_writes_compatibility_artifact(afl_cli_workspace, monkeypatch):
+    workspace = afl_cli_workspace['workspace']
+    output_path = workspace / 'artifacts' / 'margin-methods-optimize.json'
+
+    exit_code = run_script_cli(
+        'scripts/elo_margin_methods_optimize.py',
+        [
+            '--elo-params', afl_cli_workspace['win_model_path'],
+            '--db-path', afl_cli_workspace['db_path'],
+            '--start-year', '2024',
+            '--end-year', '2025',
+            '--n-calls', '2',
+            '--output-path', output_path,
+        ],
+        monkeypatch,
+        workspace,
+    )
+
+    assert exit_code == 0
+    assert output_path.exists()
+
+    output_data = json.loads(output_path.read_text(encoding='utf-8'))
+    assert output_data['artifact_type'] == 'win_margin_methods'
+    assert output_data['best_method'] in output_data['all_methods']
+    assert output_data['required_win_model']['model_type'] == 'win_elo'
+
+
 def test_win_predict_cli_saves_future_predictions_to_database(afl_cli_workspace, monkeypatch):
     workspace = afl_cli_workspace['workspace']
     predictor_id = 61
@@ -258,3 +285,28 @@ def test_season_simulator_cli_writes_results_json(afl_cli_workspace, monkeypatch
     assert output_data['model_mode'] == 'margin_only'
     assert output_data['current_round_key'] == 'round-2'
     assert len(output_data['results']) == 10
+
+
+def test_combined_predict_cli_saves_future_predictions_and_history(afl_cli_workspace, monkeypatch):
+    workspace = afl_cli_workspace['workspace']
+    output_dir = workspace / 'artifacts' / 'combined-predict'
+    predictor_id = 81
+
+    exit_code = run_script_cli(
+        'scripts/elo_predict_combined.py',
+        [
+            '--start-year', '2026',
+            '--win-model', afl_cli_workspace['win_model_path'],
+            '--margin-model', afl_cli_workspace['margin_model_path'],
+            '--db-path', afl_cli_workspace['db_path'],
+            '--output-dir', output_dir,
+            '--predictor-id', str(predictor_id),
+        ],
+        monkeypatch,
+        workspace,
+    )
+
+    assert exit_code == 0
+    assert fetch_prediction_count(afl_cli_workspace['db_path'], predictor_id) == 5
+    assert (workspace / 'data' / 'predictions' / 'combined' / 'combined_elo_predictions_2026_2026.csv').exists()
+    assert (output_dir / 'combined_elo_rating_history_from_2026.csv').exists()
