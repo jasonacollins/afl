@@ -231,7 +231,15 @@ def main():
     margin_model = None
     if args.margin_params:
         print(f"\nLoading margin parameters from {args.margin_params}...")
-        margin_data = load_parameters(args.margin_params)
+        with open(args.margin_params, 'r', encoding='utf-8') as handle:
+            raw_margin_data = json.load(handle)
+
+        # Margin optimizer artifacts need the wrapper metadata, while older
+        # parameter-only files can still be used as direct input.
+        if 'best_method' in raw_margin_data and 'parameters' in raw_margin_data:
+            margin_data = raw_margin_data
+        else:
+            margin_data = load_parameters(args.margin_params)
         
         print("Margin optimization results:")
         print(f"  Best method: {margin_data['best_method'].upper().replace('_', ' ')}")

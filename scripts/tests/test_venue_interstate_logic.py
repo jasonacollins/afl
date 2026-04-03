@@ -14,13 +14,9 @@ SCRIPTS_DIR = os.path.join(CURRENT_DIR, '..')
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
-from core.data_io import get_team_states_map  # noqa: E402
 from core.elo_core import AFLEloModel  # noqa: E402
 from core.home_advantage import select_contextual_home_advantage  # noqa: E402
 from core.optimise import evaluate_parameters_walkforward  # noqa: E402
-
-DB_PATH = os.path.join(os.path.dirname(__file__), '../../data/database/afl_predictions.db')
-TEAM_STATES = get_team_states_map(DB_PATH)
 
 
 class TestVenueBasedInterstateLogic:
@@ -41,8 +37,8 @@ class TestVenueBasedInterstateLogic:
             away_team_state='WA',
         ) == 20
 
-    def test_model_uses_venue_state_for_contextual_home_advantage(self):
-        model = AFLEloModel(default_home_advantage=20, interstate_home_advantage=60, team_states=TEAM_STATES)
+    def test_model_uses_venue_state_for_contextual_home_advantage(self, afl_team_states):
+        model = AFLEloModel(default_home_advantage=20, interstate_home_advantage=60, team_states=afl_team_states)
         model.initialize_ratings(['Richmond', 'Adelaide', 'West Coast'])
 
         mcg_advantage = model.get_contextual_home_advantage('Richmond', 'Adelaide', venue_state='VIC')
@@ -53,8 +49,8 @@ class TestVenueBasedInterstateLogic:
         assert adelaide_oval_advantage == 20
         assert sold_game_advantage == 20
 
-    def test_probability_changes_with_venue_state(self):
-        model = AFLEloModel(default_home_advantage=20, interstate_home_advantage=60, team_states=TEAM_STATES)
+    def test_probability_changes_with_venue_state(self, afl_team_states):
+        model = AFLEloModel(default_home_advantage=20, interstate_home_advantage=60, team_states=afl_team_states)
         model.initialize_ratings(['Richmond', 'Adelaide'])
 
         prob_no_venue = model.calculate_win_probability('Richmond', 'Adelaide', venue_state=None)

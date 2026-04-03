@@ -13,17 +13,13 @@ SCRIPTS_DIR = os.path.join(CURRENT_DIR, '..')
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
-from core.data_io import get_team_states_map  # noqa: E402
 from core.elo_core import AFLEloModel  # noqa: E402
 from core.optimise import get_elo_parameter_space  # noqa: E402
-
-DB_PATH = os.path.join(os.path.dirname(__file__), '../../data/database/afl_predictions.db')
-TEAM_STATES = get_team_states_map(DB_PATH)
 
 
 class TestHomeAdvantageApplication:
     @pytest.fixture
-    def test_model(self):
+    def test_model(self, afl_team_states):
         return AFLEloModel(
             base_rating=1500,
             k_factor=25,
@@ -33,7 +29,7 @@ class TestHomeAdvantageApplication:
             season_carryover=0.7,
             max_margin=100,
             beta=0.05,
-            team_states=TEAM_STATES,
+            team_states=afl_team_states,
         )
 
     def test_same_state_matches_use_default_advantage(self, test_model):
@@ -80,8 +76,14 @@ class TestHomeAdvantageApplication:
         ('West Coast', 'Carlton', True),
         ('Brisbane Lions', 'Sydney', True),
     ])
-    def test_team_state_mapping_supports_interstate_detection(self, home_team, away_team, expected_interstate):
-        assert (TEAM_STATES[home_team] != TEAM_STATES[away_team]) == expected_interstate
+    def test_team_state_mapping_supports_interstate_detection(
+        self,
+        afl_team_states,
+        home_team,
+        away_team,
+        expected_interstate
+    ):
+        assert (afl_team_states[home_team] != afl_team_states[away_team]) == expected_interstate
 
     def test_probability_calculations_match_elo_formula(self, test_model):
         test_model.initialize_ratings(['Richmond', 'Carlton', 'Adelaide'])
@@ -102,9 +104,9 @@ class TestHomeAdvantageParameterValidation:
         assert param_dict['interstate_home_advantage'].low > param_dict['default_home_advantage'].low
         assert param_dict['interstate_home_advantage'].high > param_dict['default_home_advantage'].high
 
-    def test_extreme_parameter_combinations_work(self):
-        minimum_model = AFLEloModel(default_home_advantage=0, interstate_home_advantage=20, team_states=TEAM_STATES)
-        maximum_model = AFLEloModel(default_home_advantage=80, interstate_home_advantage=120, team_states=TEAM_STATES)
+    def test_extreme_parameter_combinations_work(self, afl_team_states):
+        minimum_model = AFLEloModel(default_home_advantage=0, interstate_home_advantage=20, team_states=afl_team_states)
+        maximum_model = AFLEloModel(default_home_advantage=80, interstate_home_advantage=120, team_states=afl_team_states)
 
         minimum_model.initialize_ratings(['Richmond', 'Adelaide'])
         maximum_model.initialize_ratings(['Richmond', 'Carlton', 'Adelaide'])
@@ -116,8 +118,8 @@ class TestHomeAdvantageParameterValidation:
 
         assert interstate_prob > same_state_prob
 
-    def test_parameter_consistency_across_calculations(self):
-        model = AFLEloModel(default_home_advantage=15, interstate_home_advantage=45, team_states=TEAM_STATES)
+    def test_parameter_consistency_across_calculations(self, afl_team_states):
+        model = AFLEloModel(default_home_advantage=15, interstate_home_advantage=45, team_states=afl_team_states)
         model.initialize_ratings(['Richmond', 'Carlton', 'Adelaide', 'West Coast'])
 
         richmond_home_prob = model.calculate_win_probability('Richmond', 'Carlton', venue_state='VIC')

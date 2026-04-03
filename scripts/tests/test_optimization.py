@@ -16,17 +16,13 @@ SCRIPTS_DIR = os.path.join(CURRENT_DIR, '..')
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
-from core.data_io import get_team_states_map  # noqa: E402
 from core.elo_core import AFLEloModel  # noqa: E402
 from core.optimise import evaluate_parameters_walkforward, get_elo_parameter_space  # noqa: E402
-
-DB_PATH = os.path.join(os.path.dirname(__file__), '../../data/database/afl_predictions.db')
-TEAM_STATES = get_team_states_map(DB_PATH)
 ELO_SPACE = get_elo_parameter_space().dimensions
 
 
 @pytest.fixture
-def sample_matches_data():
+def sample_matches_data(afl_team_states):
     rows = []
     fixtures = [
         (2022, '2022-03-15', 'Richmond', 'Carlton', 100, 90, 'VIC'),
@@ -55,15 +51,15 @@ def sample_matches_data():
             'ascore': ascore,
             'venue': 'Test Venue',
             'venue_state': venue_state,
-            'home_team_state': TEAM_STATES[home_team],
-            'away_team_state': TEAM_STATES[away_team],
+            'home_team_state': afl_team_states[home_team],
+            'away_team_state': afl_team_states[away_team],
         })
 
     return pd.DataFrame(rows)
 
 
 class TestAFLEloModel:
-    def test_model_initialization(self):
+    def test_model_initialization(self, afl_team_states):
         model = AFLEloModel(
             k_factor=25,
             default_home_advantage=20,
@@ -72,7 +68,7 @@ class TestAFLEloModel:
             season_carryover=0.7,
             max_margin=100,
             beta=0.05,
-            team_states=TEAM_STATES,
+            team_states=afl_team_states,
         )
 
         assert model.k_factor == 25
@@ -80,8 +76,8 @@ class TestAFLEloModel:
         assert model.interstate_home_advantage == 60
         assert model.team_states['Richmond'] == 'VIC'
 
-    def test_dual_home_advantage_application(self):
-        model = AFLEloModel(default_home_advantage=20, interstate_home_advantage=60, team_states=TEAM_STATES)
+    def test_dual_home_advantage_application(self, afl_team_states):
+        model = AFLEloModel(default_home_advantage=20, interstate_home_advantage=60, team_states=afl_team_states)
         model.initialize_ratings(['Richmond', 'Carlton', 'Adelaide'])
 
         same_state_prob = model.calculate_win_probability('Richmond', 'Carlton', venue_state='VIC')
@@ -91,17 +87,23 @@ class TestAFLEloModel:
         assert abs(interstate_prob - (1 / (1 + 10 ** (-60 / 400)))) < 1e-10
         assert interstate_prob > same_state_prob
 
-    def test_team_state_mapping_coverage(self):
-        current_teams = [
-            'Adelaide', 'Brisbane Lions', 'Carlton', 'Collingwood', 'Essendon',
-            'Fremantle', 'Geelong', 'Gold Coast', 'Greater Western Sydney',
-            'Hawthorn', 'Melbourne', 'North Melbourne', 'Port Adelaide',
-            'Richmond', 'St Kilda', 'Sydney', 'West Coast', 'Western Bulldogs'
+    def test_team_state_mapping_coverage(self, afl_team_states):
+        expected_teams = [
+            'Adelaide',
+            'Brisbane Lions',
+            'Carlton',
+            'Collingwood',
+            'Fremantle',
+            'Geelong',
+            'Port Adelaide',
+            'Richmond',
+            'Sydney',
+            'West Coast',
         ]
 
-        for team in current_teams:
-            assert team in TEAM_STATES
-            assert TEAM_STATES[team] in ['VIC', 'SA', 'WA', 'QLD', 'NSW', 'TAS']
+        for team in expected_teams:
+            assert team in afl_team_states
+            assert afl_team_states[team] in ['VIC', 'SA', 'WA', 'QLD', 'NSW']
 
 
 class TestOptimizationParameterSpace:
@@ -175,7 +177,7 @@ class TestObjectiveFunction:
 
 
 class TestOptimizationIntegration:
-    def test_parameter_extraction_and_serialization(self):
+    def test_parameter_extraction_and_serialization(self, afl_team_states):
         best_params = {
             'k_factor': 25,
             'default_home_advantage': 15,
@@ -185,7 +187,7 @@ class TestOptimizationIntegration:
             'max_margin': 100,
             'beta': 0.05,
             'base_rating': 1500,
-            'team_states': TEAM_STATES,
+            'team_states': afl_team_states,
         }
 
         payload = {

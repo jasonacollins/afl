@@ -244,6 +244,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 
 - Test files live under `**/__tests__/**/*.test.js` and `**/*.{spec,test}.js`
 - Python tests live under `scripts/tests` and are part of the default test workflow
+- The default Python test workflow enforces a coverage floor for the core model/training/prediction/simulation surfaces; treat Python coverage as a gate, not report-only output
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - Route and app integration tests use `supertest`
@@ -251,6 +252,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - When adding a new standalone page script under `public/js/`, add it to `jest.config.js` coverage collection and keep its DOM interactions mockable in the lightweight harness
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
+- For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught
 
 Core commands:
 

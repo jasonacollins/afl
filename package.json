@@ -12,7 +12,7 @@
     "db-maintenance": "node scripts/automation/db-maintenance.js",
     "test": "npm run test:js && npm run test:python",
     "test:js": "jest --runInBand",
-    "test:python": "python3 -m pytest -q scripts/tests",
+    "test:python": "python3 scripts/tests/run_pytest_with_coverage.py",
     "test:watch": "npm run test:js -- --watch",
     "test:coverage": "npm run test:js -- --coverage && npm run test:python"
   },

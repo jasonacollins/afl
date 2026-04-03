@@ -127,6 +127,118 @@ describe('models/db initializeDatabase', () => {
         'venues'
       ]);
 
+      const expectedColumns = {
+        teams: ['team_id', 'name', 'abbrev', 'colour_hex', 'state'],
+        venues: ['venue_id', 'name', 'city', 'state'],
+        matches: [
+          'match_id',
+          'match_number',
+          'round_number',
+          'match_date',
+          'venue',
+          'home_team_id',
+          'away_team_id',
+          'hscore',
+          'hgoals',
+          'hbehinds',
+          'ascore',
+          'agoals',
+          'abehinds',
+          'year',
+          'complete',
+          'venue_id'
+        ],
+        predictors: [
+          'predictor_id',
+          'name',
+          'password',
+          'is_admin',
+          'year_joined',
+          'display_name',
+          'stats_excluded',
+          'homepage_available',
+          'is_default_featured',
+          'active'
+        ],
+        predictions: [
+          'prediction_id',
+          'match_id',
+          'predictor_id',
+          'home_win_probability',
+          'predicted_margin',
+          'prediction_time',
+          'tipped_team'
+        ]
+      };
+
+      for (const [tableName, columnNames] of Object.entries(expectedColumns)) {
+        const pragmaRows = await dbModule.getQuery(
+          `SELECT name FROM pragma_table_info('${tableName}') ORDER BY cid`
+        );
+
+        expect(pragmaRows.map((row) => row.name)).toEqual(columnNames);
+      }
+
+      await dbModule.runQuery(
+        'INSERT INTO teams (team_id, name, state) VALUES (?, ?, ?), (?, ?, ?)',
+        [1, 'Richmond', 'VIC', 2, 'Carlton', 'VIC']
+      );
+      await dbModule.runQuery(
+        'INSERT INTO venues (venue_id, name, city, state) VALUES (?, ?, ?, ?)',
+        [1, 'MCG', 'Melbourne', 'VIC']
+      );
+      await dbModule.runQuery(
+        `INSERT INTO matches (
+          match_id, match_number, round_number, match_date, venue,
+          home_team_id, away_team_id, year, complete, venue_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [1, 1, '1', '2026-03-15T19:20:00', 'MCG', 1, 2, 2026, 0, 1]
+      );
+      await dbModule.runQuery(
+        `INSERT INTO predictors (
+          predictor_id, name, password, display_name, active
+        ) VALUES (?, ?, ?, ?, ?)`,
+        [7, 'schema-smoke', 'hashed-password', 'Schema Smoke', 1]
+      );
+      await dbModule.runQuery(
+        `INSERT INTO predictions (
+          prediction_id, match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+        [1, 1, 7, 62, 12.5, 'home']
+      );
+
+      const insertedPrediction = await dbModule.getOne(
+        `SELECT
+           p.match_id,
+           p.predictor_id,
+           p.home_win_probability,
+           p.predicted_margin,
+           p.tipped_team,
+           m.complete,
+           t1.state AS home_state,
+           t2.state AS away_state,
+           v.state AS venue_state
+         FROM predictions p
+         JOIN matches m ON m.match_id = p.match_id
+         JOIN teams t1 ON t1.team_id = m.home_team_id
+         JOIN teams t2 ON t2.team_id = m.away_team_id
+         LEFT JOIN venues v ON v.venue_id = m.venue_id
+         WHERE p.prediction_id = ?`,
+        [1]
+      );
+
+      expect(insertedPrediction).toEqual({
+        match_id: 1,
+        predictor_id: 7,
+        home_win_probability: 62,
+        predicted_margin: 12.5,
+        tipped_team: 'home',
+        complete: 0,
+        home_state: 'VIC',
+        away_state: 'VIC',
+        venue_state: 'VIC'
+      });
+
       const autoVacuumRow = await dbModule.getOne('PRAGMA auto_vacuum');
       expect(Object.values(autoVacuumRow)[0]).toBe(2);
 
