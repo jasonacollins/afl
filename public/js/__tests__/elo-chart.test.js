@@ -85,6 +85,50 @@ describe('public/js/elo-chart.js', () => {
   let originalChart;
   let chartInstances;
 
+  async function initializeChart(overrides = {}) {
+    global.fetch.mockImplementation((url) => {
+      if (typeof overrides[url] === 'function') {
+        return overrides[url]();
+      }
+
+      if (url === '/api/elo/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026, 2025] })
+        });
+      }
+
+      if (url === '/api/elo/ratings/2026') {
+        return Promise.resolve({
+          json: async () => buildSingleYearResponse()
+        });
+      }
+
+      if (url === '/api/elo/ratings/2025') {
+        return Promise.resolve({
+          json: async () => ({
+            ...buildSingleYearResponse(),
+            data: [
+              { x: 0, round: 'Season start', year: 2025, Cats: 1490, Swans: 1475 }
+            ]
+          })
+        });
+      }
+
+      if (url === '/api/elo/ratings/range?startYear=2025&endYear=2026') {
+        return Promise.resolve({
+          json: async () => buildRangeResponse()
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('elo-chart.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+  }
+
   beforeEach(() => {
     jest.resetModules();
 
@@ -227,11 +271,74 @@ describe('public/js/elo-chart.js', () => {
   });
 
   test('shows an error when changing to an invalid year', async () => {
+    await initializeChart({
+      '/api/elo/years': () => Promise.resolve({
+        json: async () => ({ success: true, years: [2026] })
+      })
+    });
+
+    await window.eloChart.changeYear(Number.NaN);
+
+    expect(document.getElementById('elo-chart').textContent).toContain('Failed to load data for NaN');
+  });
+
+  test('supports switching back to single-year mode and toggling dataset visibility', async () => {
+    await initializeChart();
+
+    await window.eloChart.handleModeChange('yearRange');
+    await flushPromises();
+
+    document.getElementById('year-selector').value = '2025';
+    await window.eloChart.handleModeChange('year');
+    await flushPromises();
+
+    expect(window.eloChart.currentMode).toBe('year');
+    expect(global.fetch).toHaveBeenCalledWith('/api/elo/ratings/2025');
+    expect(document.getElementById('year-controls').classList.contains('is-hidden')).toBe(false);
+
+    window.eloChart.toggleTeamVisibility(0);
+    expect(chartInstances[chartInstances.length - 1].update).toHaveBeenCalled();
+  });
+
+  test('chart helper methods handle round labels, carryover gaps, and season dataset splitting', async () => {
+    await initializeChart();
+
+    const xAxisLabels = window.eloChart.buildXAxisLabelMap([
+      { x: 0, round: 'Season start' },
+      { x: 1, round: '1' },
+      { x: 2.4, round: 'ignored' }
+    ]);
+
+    expect(window.eloChart.getRoundLabelForX(1, xAxisLabels)).toBe('1');
+    expect(window.eloChart.getRoundLabelForX(2.4, xAxisLabels)).toBe('');
+    expect(window.eloChart.formatRoundTitle('Season start')).toBe('Season start');
+    expect(window.eloChart.formatRoundTitle('2')).toBe('Round 2');
+
+    window.eloChart.chartData = [
+      { x: 0, year: 2025, type: 'before' },
+      { x: 1, year: 2025, type: 'after_game' },
+      { x: 10, year: 2026, type: 'season_start' }
+    ];
+
+    expect(window.eloChart.isSeasonStart({ year: 2026 }, 2)).toBe(true);
+    expect(window.eloChart.shouldHideCarryoverSegment({ x: 1 }, { x: 10 })).toBe(true);
+    expect(window.eloChart.shouldHideCarryoverSegment({ x: 0 }, { x: 1 })).toBe(false);
+
+    const seasonDatasets = window.eloChart.createSeasonDatasets([
+      { x: 0, y: 1490 },
+      { x: 1, y: 1500 },
+      { x: 10, y: 1510 }
+    ], 'Cats', '#123456');
+
+    expect(seasonDatasets).toHaveLength(2);
+    expect(seasonDatasets[0].label).toBe('Cats');
+    expect(seasonDatasets[1].seasonYear).toBe(2026);
+  });
+
+  test('falls back cleanly when year loading fails and shows no-data errors', async () => {
     global.fetch.mockImplementation((url) => {
       if (url === '/api/elo/years') {
-        return Promise.resolve({
-          json: async () => ({ success: true, years: [2026] })
-        });
+        return Promise.reject(new Error('years down'));
       }
 
       if (url === '/api/elo/ratings/2026') {
@@ -248,8 +355,16 @@ describe('public/js/elo-chart.js', () => {
     await flushPromises();
     await flushPromises();
 
-    await window.eloChart.changeYear(Number.NaN);
+    expect(window.eloChart.availableYears).toEqual([2026]);
 
-    expect(document.getElementById('elo-chart').textContent).toContain('Failed to load data for NaN');
+    window.eloChart.chartData = [];
+    window.eloChart.teams = ['Cats'];
+    window.eloChart.createChart();
+    expect(document.getElementById('elo-chart').textContent).toContain('No data available for the selected period');
+
+    document.getElementById('start-year').value = '';
+    document.getElementById('end-year').value = '';
+    await window.eloChart.applyYearRange();
+    expect(global.alert).toHaveBeenCalledWith('Please select both start and end years');
   });
 });

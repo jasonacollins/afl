@@ -11,6 +11,14 @@ describe('public/js/admin.js', () => {
   let originalAlert;
   let originalFetch;
   let originalSetTimeout;
+  let originalFormData;
+
+  function setInputFiles(input, files) {
+    Object.defineProperty(input, 'files', {
+      value: files,
+      configurable: true
+    });
+  }
 
   beforeEach(() => {
     jest.resetModules();
@@ -18,11 +26,34 @@ describe('public/js/admin.js', () => {
     dom = createDom(`
       <meta name="csrf-token" content="admin-csrf-token">
       <input id="selected-user-id" value="7">
-      <div class="user-buttons"></div>
-      <div id="resetPasswordModal"></div>
-      <div id="refreshApiModal"></div>
-      <div id="uploadDatabaseModal"></div>
-      <div id="deleteUserModal"></div>
+      <div id="selected-user"></div>
+      <div class="user-buttons">
+        <button class="user-button" data-user-id="7" data-display-name="Selected User">Selected User</button>
+      </div>
+      <div id="resetPasswordModal" style="display:none">
+        <span id="resetUserName"></span>
+        <form id="resetPasswordForm"></form>
+        <input id="newPassword" value="existing">
+      </div>
+      <div id="refreshApiModal" style="display:none"></div>
+      <div id="uploadDatabaseModal" style="display:none"></div>
+      <div id="deleteUserModal" style="display:none">
+        <span id="deleteUserName"></span>
+        <form id="deleteUserForm"></form>
+      </div>
+      <button id="refreshApiButton">Refresh API</button>
+      <form id="refreshApiForm">
+        <input id="refreshYear" value="2026">
+        <input id="forceScoreUpdate" type="checkbox">
+        <div id="refreshStatus"></div>
+        <button type="submit">Run Refresh</button>
+      </form>
+      <button id="uploadDatabaseButton">Upload DB</button>
+      <form id="uploadDatabaseForm">
+        <input id="databaseFile" type="file">
+        <div id="uploadStatus"></div>
+        <button type="submit">Upload</button>
+      </form>
       <table>
         <tbody>
           <tr class="inactive-predictor">
@@ -46,6 +77,7 @@ describe('public/js/admin.js', () => {
     originalAlert = global.alert;
     originalFetch = global.fetch;
     originalSetTimeout = global.setTimeout;
+    originalFormData = global.FormData;
 
     global.alert = jest.fn();
     window.alert = global.alert;
@@ -59,6 +91,16 @@ describe('public/js/admin.js', () => {
     global.updateStoredPrediction = jest.fn();
     global.getMatchDataById = jest.fn(() => null);
     global.calculateAccuracy = jest.fn(() => '<p>metrics</p>');
+    global.FormData = class MockFormData {
+      constructor() {
+        this.entries = [];
+      }
+
+      append(key, value) {
+        this.entries.push([key, value]);
+      }
+    };
+    window.FormData = global.FormData;
     window.fetchMatchesForRound = jest.fn();
     window.savePrediction = jest.fn();
     window.location.reload = jest.fn();
@@ -81,6 +123,14 @@ describe('public/js/admin.js', () => {
 
     global.setTimeout = originalSetTimeout;
     window.setTimeout = originalSetTimeout;
+
+    if (typeof originalFormData === 'undefined') {
+      delete global.FormData;
+      delete window.FormData;
+    } else {
+      global.FormData = originalFormData;
+      window.FormData = originalFormData;
+    }
 
     delete global.updateStoredPrediction;
     delete global.getMatchDataById;
@@ -220,5 +270,130 @@ describe('public/js/admin.js', () => {
     clearButton.click();
 
     expect(window.savePrediction).toHaveBeenCalledWith('44', '', saveButton);
+  });
+
+  test('admin savePrediction rejects invalid probabilities and restores the saved value', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const input = document.querySelector('.home-prediction');
+    const button = document.querySelector('.save-prediction');
+
+    input.value = '120';
+    button.textContent = 'Saving...';
+    button.disabled = true;
+
+    window.savePrediction('44', '120', button);
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.alert).toHaveBeenCalledWith('Prediction must be a number between 0 and 100.');
+    expect(input.value).toBe('61');
+    expect(button.textContent).toBe('Update Prediction');
+    expect(button.disabled).toBe(false);
+  });
+
+  test('admin savePrediction requires a selected user before posting', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.getElementById('selected-user-id').value = '';
+    const button = document.querySelector('.save-prediction');
+
+    window.savePrediction('44', '61', button);
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.alert).toHaveBeenCalledWith('Please select a user first');
+    expect(button.disabled).toBe(false);
+  });
+
+  test('refresh form submits API refresh options and renders skipped games', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        message: 'Refresh complete',
+        skippedGames: ['Game A', 'Game B']
+      })
+    });
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.getElementById('forceScoreUpdate').checked = true;
+    document.getElementById('refreshApiForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/admin/api-refresh', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'X-CSRF-Token': 'admin-csrf-token'
+      })
+    }));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      year: '2026',
+      forceScoreUpdate: true
+    });
+    expect(document.getElementById('refreshStatus').innerHTML).toContain('Refresh complete');
+    expect(document.getElementById('refreshStatus').innerHTML).toContain('Skipped Games');
+  });
+
+  test('upload form requires a database file and reloads after a successful upload', async () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const fileInput = document.getElementById('databaseFile');
+    setInputFiles(fileInput, []);
+
+    document.getElementById('uploadDatabaseForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    expect(document.getElementById('uploadStatus').innerHTML).toContain('Please select a database file.');
+
+    const mockFile = { name: 'afl_predictions.db' };
+    setInputFiles(fileInput, [mockFile]);
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, message: 'Upload complete' })
+    });
+
+    document.getElementById('uploadDatabaseForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    const [, requestOptions] = global.fetch.mock.calls[0];
+    expect(global.fetch).toHaveBeenCalledWith('/admin/upload-database', expect.objectContaining({
+      method: 'POST',
+      headers: { Accept: 'application/json' }
+    }));
+    expect(requestOptions.body.entries).toEqual([
+      ['databaseFile', mockFile],
+      ['_csrf', 'admin-csrf-token']
+    ]);
+    expect(document.getElementById('uploadStatus').innerHTML).toContain('Upload complete');
+    expect(window.location.reload).toHaveBeenCalled();
+  });
+
+  test('modal helper functions and delegated actions update the modal state', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    window.showResetPasswordForm('12', 'Alice');
+    expect(document.getElementById('resetUserName').textContent).toBe('Alice');
+    expect(document.getElementById('resetPasswordForm').action).toContain('/admin/reset-password/12');
+    expect(document.getElementById('resetPasswordModal').style.display).toBe('block');
+
+    window.confirmDeleteUser('21', 'Bob');
+    expect(document.getElementById('deleteUserName').textContent).toBe('Bob');
+    expect(document.getElementById('deleteUserForm').action).toContain('/admin/delete-user/21');
+    expect(document.getElementById('deleteUserModal').style.display).toBe('block');
+
+    const delegatedButton = document.createElement('button');
+    delegatedButton.dataset.action = 'show-reset-password';
+    delegatedButton.dataset.userId = '33';
+    delegatedButton.dataset.userName = 'Carol';
+    document.body.appendChild(delegatedButton);
+    delegatedButton.click();
+
+    expect(document.getElementById('resetUserName').textContent).toBe('Carol');
+
+    window.onclick({ target: document.getElementById('deleteUserModal') });
+    expect(document.getElementById('deleteUserModal').style.display).toBe('none');
   });
 });

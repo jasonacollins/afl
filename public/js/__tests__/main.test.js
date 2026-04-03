@@ -16,6 +16,11 @@ describe('public/js/main.js', () => {
 
     dom = createDom(`
       <meta name="csrf-token" content="csrf-token-123">
+      <div id="selected-user"></div>
+      <input id="selected-user-id" value="">
+      <div class="user-buttons">
+        <button class="user-button" data-user-id="7">Selected User</button>
+      </div>
       <div class="round-buttons">
         <button class="round-button" data-round="1">Round 1</button>
         <button class="round-button" data-round="2">Round 2</button>
@@ -39,6 +44,10 @@ describe('public/js/main.js', () => {
     global.calculateBrierScore = jest.fn(() => 0.2);
     global.calculateBitsScore = jest.fn(() => 0.4);
     global.calculateTipPoints = jest.fn(() => 1);
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ([])
+    });
+    window.fetch = global.fetch;
   });
 
   afterEach(() => {
@@ -285,5 +294,137 @@ describe('public/js/main.js', () => {
     await flushPromises();
 
     expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
+  });
+
+  test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {
+    document.querySelector('.round-buttons').innerHTML = '';
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true })
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 30,
+        match_date: '2026-04-12T09:30:00.000Z',
+        venue: 'SCG',
+        home_team: 'Swans',
+        away_team: 'Cats',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const input = document.querySelector('.home-prediction[data-match-id="30"]');
+    const button = document.querySelector('.save-prediction[data-match-id="30"]');
+
+    input.value = '50';
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+    input.dispatchEvent(new window.Event('blur', { bubbles: true }));
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/save', expect.any(Object));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      matchId: '30',
+      probability: 50,
+      tippedTeam: 'home'
+    });
+    expect(button.textContent).toBe('Saved');
+  });
+
+  test('savePrediction restores the original value when the probability is invalid', () => {
+    document.querySelector('.round-buttons').innerHTML = '';
+    document.getElementById('matches-container').innerHTML = `
+      <div class="match-card">
+        <input class="home-prediction" data-match-id="44" data-original-value="61" value="abc">
+        <input class="away-prediction" data-match-id="44" value="39">
+        <button class="save-prediction" data-match-id="44">Update Prediction</button>
+      </div>
+    `;
+
+    global.fetch = jest.fn();
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('44', 'abc', button);
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.alert).toHaveBeenCalledWith('Prediction must be a number between 0 and 100, or empty to clear.');
+    expect(document.querySelector('.home-prediction').value).toBe('61');
+    expect(button.textContent).toBe('Update Prediction');
+    expect(button.disabled).toBe(false);
+  });
+
+  test('selectUser refreshes admin predictions and reloads the active round', async () => {
+    global.fetch = jest.fn((url) => {
+      if (url === '/admin/predictions/9') {
+        return Promise.resolve({
+          json: async () => ({
+            predictions: {
+              55: { probability: 72, tippedTeam: 'home' }
+            }
+          })
+        });
+      }
+
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.resolve({
+          json: async () => ([
+            {
+              match_id: 55,
+              match_date: '2026-04-14T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: null,
+              ascore: null,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      if (url === '/predictions/round/1?year=2026') {
+        return Promise.resolve({
+          json: async () => ([])
+        });
+      }
+
+      return Promise.resolve({
+        json: async () => ([
+          { match_id: 55, hscore: null, ascore: null }
+        ])
+      });
+    });
+    window.fetch = global.fetch;
+    window.location.pathname = '/admin';
+
+    loadBrowserScript('main.js');
+    document.querySelector('.round-button[data-round="2"]').classList.add('selected');
+    document.getElementById('matches-container').innerHTML = '<div class="match-card"></div>';
+
+    window.selectUser('9', 'Analyst');
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('selected-user').textContent).toBe('Analyst');
+    expect(document.getElementById('selected-user-id').value).toBe('9');
+    expect(window.userPredictions).toEqual({
+      55: { probability: 72, tippedTeam: 'home' }
+    });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9');
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026');
+  });
+
+  test('formatDateToLocalTimezone falls back to the original string for invalid dates', () => {
+    loadBrowserScript('main.js');
+
+    expect(window.formatDateToLocalTimezone('not-a-real-date')).toBe('not-a-real-date');
+    expect(window.formatDateToLocalTimezone('')).toBe('');
   });
 });
