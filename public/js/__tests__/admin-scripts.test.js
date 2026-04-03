@@ -426,4 +426,108 @@ describe('public/js/admin-scripts.js', () => {
     expect(document.getElementById('scriptLogsOutput').textContent).toContain('Finished successfully');
     expect(document.querySelector('.selected-run-row')).not.toBeNull();
   });
+
+  test('shows a page error when metadata loading fails', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({
+            success: false,
+            error: 'Metadata unavailable'
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('scriptsPageError').textContent).toBe('Metadata unavailable');
+    expect(document.getElementById('scriptsPageError').style.display).toBe('block');
+    expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), 2000);
+  });
+
+  test('renders no-option metadata safely and preserves custom optimize output paths', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            defaults: {
+              currentYear: 2026,
+              yearMax: 2026,
+              dbPath: 'data/database/afl_predictions.db'
+            },
+            modelFiles: {
+              win: [],
+              margin: [],
+              history: [],
+              winMarginMethods: []
+            },
+            activePredictors: []
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs?limit=30') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            runs: []
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('scriptRunHistoryBody').textContent).toContain('No runs yet.');
+    expect(document.getElementById('activeRunBanner').style.display).toBe('none');
+    expect(document.querySelector('.script-run-form button[type="submit"]').disabled).toBe(false);
+
+    expect(document.getElementById('optimizedWinModelPath').textContent).toContain('No options available');
+    expect(document.getElementById('combinedPredictorId').textContent).toContain('No options available');
+
+    const winTrainParams = document.getElementById('winTrainParamsFile');
+    expect(winTrainParams.options).toHaveLength(2);
+    expect(winTrainParams.options[0].textContent).toBe('None');
+    expect(winTrainParams.options[1].textContent).toBe('No options available');
+
+    const trainModeSelect = document.getElementById('trainOptimizationTarget');
+    trainModeSelect.value = 'margin';
+    trainModeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(document.getElementById('trainWinPanel').style.display).toBe('none');
+    expect(document.getElementById('trainMarginPanel').style.display).toBe('block');
+
+    const outputPathInput = document.getElementById('marginOptimizeOutputPath');
+    const endYearInput = document.getElementById('marginOptimizeEndYear');
+    expect(outputPathInput.value).toBe('data/models/margin/optimal_margin_only_elo_params_trained_to_2025.json');
+    expect(outputPathInput.dataset.autoManaged).toBe('true');
+
+    outputPathInput.value = 'data/models/margin/custom_margin_params.json';
+    outputPathInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    expect(outputPathInput.dataset.autoManaged).toBe('false');
+
+    endYearInput.value = '2024';
+    endYearInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    expect(outputPathInput.value).toBe('data/models/margin/custom_margin_params.json');
+
+    const modeSelect = document.getElementById('predictionsMode');
+    modeSelect.value = 'invalid-mode';
+    modeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(document.getElementById('optimizedPanel').style.display).toBe('block');
+    expect(document.getElementById('marginPanel').style.display).toBe('none');
+  });
 });

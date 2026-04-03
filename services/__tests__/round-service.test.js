@@ -32,7 +32,9 @@ const {
   ROUND_ORDER,
   ROUND_ORDER_SQL,
   getRoundsForYear,
+  getAvailableYears,
   getRoundDisplayName,
+  resolveYear,
   normalizeRoundForDisplay,
   expandRoundSelection,
   combineRoundsForDisplay
@@ -119,6 +121,44 @@ describe('Round Service', () => {
     });
   });
 
+  describe('getAvailableYears and resolveYear', () => {
+    test('getAvailableYears applies the optional minimum year filter', async () => {
+      getQuery.mockResolvedValue([{ year: 2026 }, { year: 2025 }]);
+
+      const result = await getAvailableYears({ minYear: 2025 });
+
+      expect(getQuery).toHaveBeenCalledWith(
+        'SELECT DISTINCT year FROM matches WHERE year >= ? ORDER BY year DESC',
+        [2025]
+      );
+      expect(result).toEqual([{ year: 2026 }, { year: 2025 }]);
+    });
+
+    test('resolveYear keeps a valid requested year without fallback', async () => {
+      getQuery.mockResolvedValue([{ year: 2026 }, { year: 2025 }]);
+
+      const result = await resolveYear('2025');
+
+      expect(result).toEqual({
+        selectedYear: 2025,
+        years: [{ year: 2026 }, { year: 2025 }],
+        usedFallback: false
+      });
+    });
+
+    test('resolveYear falls back to the newest available year when request is invalid', async () => {
+      getQuery.mockResolvedValue([{ year: 2026 }, { year: 2025 }]);
+
+      const result = await resolveYear('1999');
+
+      expect(result).toEqual({
+        selectedYear: 2026,
+        years: [{ year: 2026 }, { year: 2025 }],
+        usedFallback: true
+      });
+    });
+  });
+
   describe('Constants', () => {
     test('ROUND_ORDER should be exported correctly', () => {
       expect(ROUND_ORDER).toBeDefined();
@@ -164,6 +204,15 @@ describe('Round Service', () => {
       expect(expandRoundSelection('Semi Final')).toEqual(['Semi Final']);
     });
 
+    test('expandRoundSelection narrows grouped rounds to those present in available rounds', () => {
+      expect(
+        expandRoundSelection(FINALS_WEEK_2_LABEL, ['Qualifying Final', 'Semi Final'])
+      ).toEqual(['Qualifying Final']);
+      expect(
+        expandRoundSelection('Wildcard Finals', ['Wildcard Round'])
+      ).toEqual(['Wildcard Round']);
+    });
+
     test('combineRoundsForDisplay should merge elimination and qualifying finals for 2026+', () => {
       const rounds = [
         { round_number: '24', isCompleted: true },
@@ -182,6 +231,27 @@ describe('Round Service', () => {
           round_number: FINALS_WEEK_2_LABEL,
           isCompleted: false,
           source_round_numbers: FINALS_WEEK_1_ROUNDS
+        },
+        { round_number: 'Semi Final', isCompleted: false, source_round_numbers: ['Semi Final'] }
+      ]);
+    });
+
+    test('combineRoundsForDisplay deduplicates wildcard aliases and repeated display rounds', () => {
+      const rounds = [
+        { round_number: 'Wildcard Finals', isCompleted: true, isSynthetic: true },
+        { round_number: 'Wildcard Round', isCompleted: true, synthetic: false },
+        { round_number: 'Semi Final', isCompleted: false },
+        { round_number: 'Semi Final', isCompleted: true }
+      ];
+
+      const result = combineRoundsForDisplay(rounds, 2026);
+
+      expect(result).toEqual([
+        {
+          round_number: 'Wildcard Finals',
+          isCompleted: true,
+          source_round_numbers: ['Wildcard Finals', 'Wildcard Round'],
+          isSynthetic: true
         },
         { round_number: 'Semi Final', isCompleted: false, source_round_numbers: ['Semi Final'] }
       ]);

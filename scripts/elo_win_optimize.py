@@ -101,11 +101,13 @@ def optimize_elo_grid_search(db_path, start_year=1990, end_year=2024, max_combin
     
     # Get detailed evaluation of best parameters including BITS scores
     print(f"\nEvaluating best parameters with detailed metrics...")
+    default_home_advantage = best_params['default_home_advantage'] if 'default_home_advantage' in best_params else best_params['home_advantage']
+    interstate_home_advantage = best_params['interstate_home_advantage'] if 'interstate_home_advantage' in best_params else best_params['home_advantage']
     detailed_results = evaluate_parameters_walkforward(
         [
             best_params['k_factor'],
-            best_params.get('default_home_advantage', best_params['home_advantage']),
-            best_params.get('interstate_home_advantage', best_params['home_advantage']),
+            default_home_advantage,
+            interstate_home_advantage,
             best_params['margin_factor'],
             best_params['season_carryover'],
             best_params['max_margin'],

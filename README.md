@@ -408,7 +408,7 @@ The application includes an advanced ELO-based prediction system using a dual-mo
 - **Venue-Based Interstate Advantage**: Automatically detects when teams travel interstate based on actual venue location rather than team designation
 - **Dual Home Advantage System**: Different advantage levels for same-state matchups vs interstate travel
 - **Comprehensive Venue Database**: Supports venue aliases and location mapping for accurate interstate detection
-- **Bayesian Parameter Optimization**: Automated optimization of ELO parameters using walk-forward validation
+- **Automated Parameter Optimization**: ELO parameter search driven by walk-forward validation
 - **Consolidated Core Logic**: Centralized implementation ensuring consistency across training, optimization, and prediction
 
 ### Quick ELO Commands

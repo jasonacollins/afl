@@ -5,16 +5,19 @@ These tests ensure we retain fractional win intervals instead of snapping to
 whole numbers when summarising Monte Carlo outcomes.
 """
 
+import json
 import os
 import sys
 
 import numpy as np
 import pandas as pd
+import pytest
 
 # Add parent directory so we can import season_simulator module
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(CURRENT_DIR, '..'))
 
+import season_simulator as season_simulator_module  # noqa: E402
 from season_simulator import (  # noqa: E402
     SeasonSimulator,
     build_current_round_snapshot_metadata,
@@ -521,3 +524,267 @@ def test_remaining_match_counts_pre_2026_use_top8_finals_total():
     assert counts['remaining_regular_matches'] == 0
     assert counts['remaining_finals_matches'] == 5
     assert counts['remaining_matches'] == 5
+
+
+def test_load_existing_round_snapshots_filters_invalid_entries_and_infers_round_order(tmp_path):
+    """Snapshot loading should discard malformed rows and infer missing order metadata."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.year = 2026
+
+    output_path = tmp_path / 'season_simulation_2026.json'
+    output_path.write_text(json.dumps({
+        'year': 2026,
+        'round_snapshots': [
+            {
+                'round_key': 'round-1',
+                'round_number': '1',
+                'round_tab_label': 'R1',
+                'round_label': 'Before Round 1',
+                'results': [{'team': 'A'}]
+            },
+            {
+                'round_key': 'season-complete',
+                'round_order': 10000,
+                'round_label': 'Season Complete',
+                'results': [{'team': 'B'}]
+            },
+            {
+                'round_key': 'round-bad-results',
+                'results': 'invalid'
+            },
+            'not-a-dict'
+        ]
+    }), encoding='utf-8')
+
+    snapshots = simulator.load_existing_round_snapshots(str(output_path))
+
+    assert [snapshot['round_key'] for snapshot in snapshots] == ['round-1', 'season-complete']
+    assert snapshots[0]['round_order'] == 1
+    assert snapshots[1]['round_order'] == 10000
+
+
+def test_save_results_merges_snapshots_prunes_stale_current_and_writes_json(tmp_path, monkeypatch):
+    """Saving results should merge by round key and keep only the active current snapshot."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.year = 2026
+    simulator.num_simulations = 50000
+    simulator.model_mode = 'margin'
+    simulator.win_model_path = None
+    simulator.margin_model_path = 'data/models/margin/model.json'
+    simulator.from_scratch = False
+    simulator.snapshot_round_metadata = {
+        'round_key': 'round-2-current',
+        'round_label': 'Current Round 2',
+        'round_tab_label': 'Current',
+        'round_order': 2.5,
+        'round_number': '2'
+    }
+    simulator.completed_matches = pd.DataFrame({'match_id': [1, 2]})
+    simulator.get_remaining_match_counts = lambda: {
+        'remaining_regular_matches': 4,
+        'remaining_finals_matches': 9,
+        'remaining_matches': 13
+    }
+    simulator.load_existing_round_snapshots = lambda output_path: [
+        {
+            'round_key': 'round-1',
+            'round_label': 'Before Round 1',
+            'round_tab_label': 'R1',
+            'round_order': 1,
+            'round_number': '1',
+            'results': [{'team': 'A'}]
+        },
+        {
+            'round_key': 'round-1-current',
+            'round_label': 'Current Round 1',
+            'round_tab_label': 'Current',
+            'round_order': 1.5,
+            'round_number': '1',
+            'results': [{'team': 'A'}]
+        }
+    ]
+
+    class FixedDateTime:
+        @classmethod
+        def now(cls):
+            return cls()
+
+        def isoformat(self):
+            return '2026-04-04T12:00:00'
+
+    monkeypatch.setattr(season_simulator_module, 'datetime', FixedDateTime)
+
+    output_path = tmp_path / 'nested' / 'season_simulation_2026.json'
+    results = [{'team': 'Sydney', 'premiership_probability': 0.2}]
+
+    simulator.save_results(results, str(output_path))
+
+    saved = json.loads(output_path.read_text(encoding='utf-8'))
+
+    assert saved['year'] == 2026
+    assert saved['current_round_key'] == 'round-2-current'
+    assert saved['last_updated'] == '2026-04-04T12:00:00'
+    assert saved['remaining_matches'] == 13
+    assert [snapshot['round_key'] for snapshot in saved['round_snapshots']] == ['round-1', 'round-2-current']
+    assert saved['round_snapshots'][1]['results'] == results
+
+
+def test_run_backfill_round_snapshots_resets_existing_file_and_saves_each_context(tmp_path):
+    """Backfill mode should delete the old file and save once per context."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    contexts = [
+        {'round_metadata': {'round_label': 'Before Opening Round'}},
+        {'round_metadata': {'round_label': 'Before Round 1'}},
+    ]
+    applied = []
+    saved_results = []
+    run_counter = {'count': 0}
+
+    simulator.build_backfill_round_contexts = lambda: contexts
+    simulator.apply_backfill_context = lambda context: applied.append(context['round_metadata']['round_label'])
+
+    def fake_run_simulations():
+        run_counter['count'] += 1
+        return [{'team': f'Team {run_counter["count"]}'}]
+
+    simulator.run_simulations = fake_run_simulations
+    simulator.save_results = lambda results, output_path: saved_results.append((results, output_path))
+
+    output_path = tmp_path / 'season_simulation_2026.json'
+    output_path.write_text('old-data', encoding='utf-8')
+
+    latest_results = simulator.run_backfill_round_snapshots(str(output_path))
+
+    assert applied == ['Before Opening Round', 'Before Round 1']
+    assert saved_results == [
+        ([{'team': 'Team 1'}], str(output_path)),
+        ([{'team': 'Team 2'}], str(output_path)),
+    ]
+    assert latest_results == [{'team': 'Team 2'}]
+    assert not output_path.exists()
+
+
+def test_run_backfill_round_snapshots_rejects_empty_contexts():
+    """Backfill mode should fail fast when there is nothing to rebuild."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.build_backfill_round_contexts = lambda: []
+
+    with pytest.raises(ValueError, match='No round contexts available for backfill'):
+        simulator.run_backfill_round_snapshots('unused.json')
+
+
+def test_main_uses_default_output_path_for_standard_run(monkeypatch):
+    """CLI main should use the standard default output path and save one run."""
+    captured = {}
+
+    class FakeSimulator:
+        def __init__(self, model_path, db_path, year, num_simulations, from_scratch, win_model_path):
+            captured['init'] = {
+                'model_path': model_path,
+                'db_path': db_path,
+                'year': year,
+                'num_simulations': num_simulations,
+                'from_scratch': from_scratch,
+                'win_model_path': win_model_path
+            }
+
+        def run_simulations(self):
+            captured['ran'] = True
+            return [{
+                'team': 'Sydney',
+                'projected_wins': 14.5,
+                'finals_probability': 0.8,
+                'top4_probability': 0.5,
+                'premiership_probability': 0.2
+            }]
+
+        def save_results(self, results, output_path):
+            captured['save'] = {
+                'results': results,
+                'output_path': output_path
+            }
+
+    monkeypatch.setattr(season_simulator_module, 'SeasonSimulator', FakeSimulator)
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        ['season_simulator.py', '--year', '2026', '--model-path', 'margin-model.json']
+    )
+
+    season_simulator_module.main()
+
+    assert captured['init'] == {
+        'model_path': 'margin-model.json',
+        'db_path': '../data/database/afl_predictions.db',
+        'year': 2026,
+        'num_simulations': 50000,
+        'from_scratch': False,
+        'win_model_path': None
+    }
+    assert captured['save']['output_path'] == '../data/simulations/season_simulation_2026.json'
+    assert captured['save']['results'][0]['team'] == 'Sydney'
+
+
+def test_main_uses_from_scratch_suffix_and_preserves_win_model_arg(monkeypatch):
+    """CLI should choose the from-scratch suffix on the normal save path."""
+    captured = {}
+
+    class FakeSimulator:
+        def __init__(self, model_path, db_path, year, num_simulations, from_scratch, win_model_path):
+            captured['init'] = {
+                'model_path': model_path,
+                'db_path': db_path,
+                'year': year,
+                'num_simulations': num_simulations,
+                'from_scratch': from_scratch,
+                'win_model_path': win_model_path
+            }
+
+        def run_simulations(self):
+            return [{
+                'team': 'Carlton',
+                'projected_wins': 13.0,
+                'finals_probability': 0.7,
+                'top4_probability': 0.3,
+                'premiership_probability': 0.1
+            }]
+
+        def save_results(self, results, output_path):
+            captured['save_output'] = output_path
+
+    monkeypatch.setattr(season_simulator_module, 'SeasonSimulator', FakeSimulator)
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'season_simulator.py',
+            '--year', '2027',
+            '--model-path', 'margin-model.json',
+            '--win-model', 'win-model.json',
+            '--from-scratch'
+        ]
+    )
+
+    season_simulator_module.main()
+
+    assert captured['init']['from_scratch'] is True
+    assert captured['init']['win_model_path'] == 'win-model.json'
+    assert captured['save_output'] == '../data/simulations/season_simulation_2027_from_scratch.json'
+
+
+def test_main_rejects_incompatible_from_scratch_and_backfill_flags(monkeypatch):
+    """CLI should reject mutually exclusive snapshot modes."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'season_simulator.py',
+            '--year', '2026',
+            '--model-path', 'margin-model.json',
+            '--from-scratch',
+            '--backfill-round-snapshots'
+        ]
+    )
+
+    with pytest.raises(ValueError, match='cannot be combined'):
+        season_simulator_module.main()

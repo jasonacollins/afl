@@ -20,6 +20,10 @@ function buildSimulationDom() {
         <thead>
           <tr>
             <th class="sortable" data-sort="team">Team</th>
+            <th class="sortable" data-sort="projected-wins">Wins</th>
+            <th class="sortable" data-sort="top6">Top 6</th>
+            <th class="sortable" data-sort="top8">Top 8</th>
+            <th class="sortable" data-sort="finals-week-2">Finals Week 2</th>
             <th class="sortable" data-sort="premiership">Flag</th>
           </tr>
         </thead>
@@ -138,6 +142,12 @@ function buildSimulationResponse(year) {
       }
     ]
   };
+}
+
+function getRenderedTeams() {
+  return Array.from(document.querySelectorAll('#simulation-tbody tr')).map((row) =>
+    row.querySelector('td:nth-child(2) span').textContent
+  );
 }
 
 describe('public/js/simulation.js', () => {
@@ -275,5 +285,184 @@ describe('public/js/simulation.js', () => {
 
     expect(document.getElementById('error-message').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('error-text').textContent).toBe('Failed to load simulation data. Please try again later.');
+  });
+
+  test('infers the latest current snapshot and prunes stale current tabs when no explicit key is provided', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/simulation/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026] })
+        });
+      }
+
+      if (url === '/api/simulation/2026') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2026,
+            round_snapshots: [
+              {
+                round_key: 'round-1',
+                round_label: 'Before Round 1',
+                round_tab_label: 'R1',
+                round_order: 1,
+                completed_matches: 0,
+                remaining_matches: 207,
+                num_simulations: 50000,
+                results: [buildTeam('Cats')]
+              },
+              {
+                round_key: 'round-1-current',
+                round_label: 'Current Round 1',
+                round_tab_label: 'Current',
+                round_order: 1.5,
+                completed_matches: 4,
+                remaining_matches: 203,
+                num_simulations: 50000,
+                results: [buildTeam('Cats')]
+              },
+              {
+                round_key: 'round-2',
+                round_label: 'Before Round 2',
+                round_tab_label: 'R2',
+                round_order: 2,
+                completed_matches: 9,
+                remaining_matches: 198,
+                num_simulations: 50000,
+                results: [buildTeam('Cats')]
+              },
+              {
+                round_key: 'round-2-current',
+                round_label: 'Current Round 2',
+                round_tab_label: 'Current',
+                round_order: 2.5,
+                completed_matches: 12,
+                remaining_matches: 195,
+                num_simulations: 50000,
+                results: [buildTeam('Cats')]
+              }
+            ]
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('simulation.js');
+    if (document.readyState === 'loading') {
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    }
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.querySelector('[data-round-key="round-1-current"]')).toBeNull();
+    expect(document.querySelector('[data-round-key="round-2-current"]')).not.toBeNull();
+    expect(document.querySelectorAll('#round-tabs .simulation-round-button')).toHaveLength(3);
+    expect(document.getElementById('round-snapshot-context').textContent).toBe('Current Round 2');
+    expect(document.querySelector('[data-round-key="round-2-current"]').classList.contains('selected')).toBe(true);
+  });
+
+  test('sorts by probability columns using fallback logic and hides ladder matrix when matrix data is unavailable', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/simulation/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026, 2025] })
+        });
+      }
+
+      if (url === '/api/simulation/2026') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2026,
+            round_snapshots: [
+              {
+                round_key: 'round-2-current',
+                round_label: 'Current Round 2',
+                round_tab_label: 'Current',
+                round_order: 2.5,
+                completed_matches: 12,
+                remaining_matches: 195,
+                num_simulations: 50000,
+                results: [
+                  buildTeam('Cats', {
+                    projected_wins: 15.2,
+                    top6_probability: 0.2,
+                    finals_probability: 0.82,
+                    finals_week2_probability: 0.55,
+                    ladder_position_probabilities: { 1: 0.1, 2: 0.1 }
+                  }),
+                  buildTeam('Bombers', {
+                    projected_wins: 14.7,
+                    top6_probability: undefined,
+                    finals_probability: 0.9,
+                    wildcard_probability: 0.1,
+                    finals_week2_probability: undefined,
+                    ladder_position_probabilities: { 1: 0.2, 2: 0.2, 3: 0.2, 4: 0.1, 5: 0.1, 6: 0.1 }
+                  }),
+                  buildTeam('Dockers', {
+                    projected_wins: 13.4,
+                    top6_probability: undefined,
+                    finals_probability: 0.8,
+                    wildcard_probability: 0.5,
+                    finals_week2_probability: 0.25,
+                    ladder_position_probabilities: undefined
+                  })
+                ]
+              }
+            ]
+          })
+        });
+      }
+
+      if (url === '/api/simulation/2025') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2025,
+            current_round_label: 'Before Round 4',
+            num_simulations: 50000,
+            completed_matches: 24,
+            remaining_matches: 183,
+            results: [
+              buildTeam('Cats', { ladder_position_probabilities: undefined }),
+              buildTeam('Swans', { ladder_position_probabilities: undefined, projected_wins: 14.1 })
+            ]
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('simulation.js');
+    if (document.readyState === 'loading') {
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    }
+    await flushPromises();
+    await flushPromises();
+
+    expect(getRenderedTeams()).toEqual(['Cats', 'Bombers', 'Dockers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="top6"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Dockers', 'Cats']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="finals-week-2"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Cats', 'Dockers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="team"]').click();
+    document.querySelector('#simulation-table th.sortable[data-sort="team"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Cats', 'Dockers']);
+
+    const yearSelect = document.getElementById('year-select');
+    yearSelect.value = '2025';
+    yearSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flushPromises();
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('ladder-position-card').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('round-snapshot-nav').classList.contains('is-hidden')).toBe(true);
   });
 });
