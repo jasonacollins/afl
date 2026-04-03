@@ -167,6 +167,196 @@ describe('Admin Script Runner - win model file-type validation', () => {
   });
 });
 
+describe('Admin Script Runner - additional command builder coverage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getOne.mockResolvedValue({ predictor_id: 8, display_name: 'Testing Predictor' });
+  });
+
+  test('builds combined-predictions command with optional flags', async () => {
+    const commandSpec = await buildScriptCommand('combined-predictions', {
+      startYear: 2026,
+      winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+      marginModelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      predictorId: 8,
+      futureOnly: true,
+      saveToDb: false
+    });
+
+    expect(commandSpec.command).toBe('python3');
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      'scripts/elo_predict_combined.py',
+      '--start-year', '2026',
+      '--win-model', 'data/models/win/afl_elo_win_trained_to_2025.json',
+      '--margin-model', 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      '--predictor-id', '8',
+      '--no-save-to-db',
+      '--future-only'
+    ]));
+    expect(commandSpec.normalizedParams).toEqual(expect.objectContaining({
+      futureOnly: true,
+      saveToDb: false
+    }));
+  });
+
+  test('builds margin-predictions command with override-completed and no-save flags', async () => {
+    const commandSpec = await buildScriptCommand('margin-predictions', {
+      startYear: 2026,
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      predictorId: 8,
+      overrideCompleted: true,
+      saveToDb: false
+    });
+
+    expect(commandSpec.command).toBe('python3');
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      'scripts/elo_margin_predict.py',
+      '--start-year', '2026',
+      '--model-path', 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      '--predictor-id', '8',
+      '--no-save-to-db',
+      '--override-completed'
+    ]));
+  });
+
+  test('builds season-simulation command with win model and backfill flag', async () => {
+    const commandSpec = await buildScriptCommand('season-simulation', {
+      year: 2026,
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+      numSimulations: 75000,
+      backfillRoundSnapshots: true
+    });
+
+    expect(commandSpec.command).toBe('python3');
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      'scripts/season_simulator.py',
+      '--year', '2026',
+      '--model-path', 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      '--win-model', 'data/models/win/afl_elo_win_trained_to_2025.json',
+      '--num-simulations', '75000',
+      '--backfill-round-snapshots'
+    ]));
+    expect(commandSpec.normalizedParams.output).toBe('data/simulations/season_simulation_2026.json');
+  });
+
+  test('builds season-simulation from-scratch output path suffix', async () => {
+    const commandSpec = await buildScriptCommand('season-simulation', {
+      year: 2026,
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      fromScratch: true
+    });
+
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      '--from-scratch',
+      '--output', 'data/simulations/season_simulation_2026_from_scratch.json'
+    ]));
+  });
+
+  test('rejects incompatible season-simulation flags', async () => {
+    await expect(buildScriptCommand('season-simulation', {
+      year: 2026,
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      fromScratch: true,
+      backfillRoundSnapshots: true
+    })).rejects.toThrow('fromScratch cannot be combined with backfillRoundSnapshots');
+  });
+
+  test('rejects win params artifacts as season-simulation win models', async () => {
+    await expect(buildScriptCommand('season-simulation', {
+      year: 2026,
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      winModelPath: 'data/models/win/optimal_elo_params_win_trained_to_2025.json'
+    })).rejects.toThrow('winModelPath must reference a trained win model artifact');
+  });
+
+  test('builds elo-history command with explicit seed and output year windows', async () => {
+    const commandSpec = await buildScriptCommand('elo-history', {
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      mode: 'full',
+      seedStartYear: 1995,
+      seedEndYear: 2005,
+      outputStartYear: 2000,
+      outputEndYear: 2006,
+      outputPrefix: 'custom_history'
+    });
+
+    expect(commandSpec.command).toBe('python3');
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      'scripts/elo_history_generator.py',
+      '--model-path', 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      '--mode', 'full',
+      '--seed-start-year', '1995',
+      '--seed-end-year', '2005',
+      '--output-start-year', '2000',
+      '--output-end-year', '2006',
+      '--output-prefix', 'custom_history'
+    ]));
+  });
+
+  test('rejects invalid elo-history mode', async () => {
+    await expect(buildScriptCommand('elo-history', {
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      mode: 'delta'
+    })).rejects.toThrow('mode must be one of: full, incremental');
+  });
+
+  test('rejects inverted elo-history output year ranges', async () => {
+    await expect(buildScriptCommand('elo-history', {
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      outputStartYear: 2020,
+      outputEndYear: 2019
+    })).rejects.toThrow('outputStartYear cannot be greater than outputEndYear');
+  });
+
+  test('builds margin-optimize command using the trained-to-year output path', async () => {
+    const commandSpec = await buildScriptCommand('margin-optimize', {
+      startYear: 1990,
+      endYear: 2025,
+      maxCombinations: 250
+    });
+
+    expect(commandSpec.command).toBe('python3');
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      'scripts/elo_margin_optimize.py',
+      '--start-year', '1990',
+      '--end-year', '2025',
+      '--max-combinations', '250',
+      '--output-path', 'data/models/margin/optimal_margin_only_elo_params_trained_to_2025.json'
+    ]));
+  });
+
+  test('builds win-train command with optional params and margin methods artifacts', async () => {
+    const commandSpec = await buildScriptCommand('win-train', {
+      startYear: 1990,
+      endYear: 2025,
+      noTuneParameters: true,
+      cvFolds: 5,
+      maxCombinations: 1200,
+      paramsFile: 'data/models/win/optimal_elo_params_win_trained_to_2024.json',
+      marginParams: 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+    });
+
+    expect(commandSpec.command).toBe('python3');
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      'scripts/elo_win_train.py',
+      '--start-year', '1990',
+      '--end-year', '2025',
+      '--cv-folds', '5',
+      '--max-combinations', '1200',
+      '--no-tune-parameters',
+      '--params-file', 'data/models/win/optimal_elo_params_win_trained_to_2024.json',
+      '--margin-params', 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+    ]));
+  });
+
+  test('rejects non-margin-methods artifacts for win-train marginParams', async () => {
+    await expect(buildScriptCommand('win-train', {
+      marginParams: 'data/models/win/optimal_elo_params_win_trained_to_2025.json'
+    })).rejects.toThrow('marginParams must reference an optimal_margin_methods artifact');
+  });
+});
+
 describe('Admin Script Runner - persisted logs and recovery', () => {
   beforeEach(() => {
     jest.clearAllMocks();

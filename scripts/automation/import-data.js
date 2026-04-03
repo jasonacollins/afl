@@ -18,4 +18,10 @@ async function importData() {
   }
 }
 
-importData();
+if (require.main === module) {
+  importData();
+}
+
+module.exports = {
+  importData
+};

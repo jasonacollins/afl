@@ -246,6 +246,7 @@ The project uses Jest for unit and integration coverage.
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, and `utils/`
 - Route and app integration tests use `supertest`
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
+- Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 
 Core commands:
 

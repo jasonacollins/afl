@@ -163,6 +163,7 @@ Uses Jest with the following structure:
 - Environment: Node.js
 - Route and app integration tests use `supertest`
 - `app.js` exports `createApp()` / `startServer()` so tests can import the app without starting the production listener
+- Automation CLI scripts should prefer a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 - Coverage reports: `coverage/` directory
 
 ## Important Implementation Notes
