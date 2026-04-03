@@ -716,3 +716,17 @@ function formatDateToLocalTimezone(isoDateString) {
     return isoDateString;
   }
 }
+
+if (typeof window !== 'undefined') {
+  window.getCsrfToken = getCsrfToken;
+  window.fetchMatchesForRound = fetchMatchesForRound;
+  window.renderMatches = renderMatches;
+  window.updateRoundButtonStates = updateRoundButtonStates;
+  window.addTeamSelection = addTeamSelection;
+  window.removeTeamSelection = removeTeamSelection;
+  window.savePrediction = savePrediction;
+  window.updateStoredPrediction = updateStoredPrediction;
+  window.getMatchDataById = getMatchDataById;
+  window.selectUser = selectUser;
+  window.formatDateToLocalTimezone = formatDateToLocalTimezone;
+}

@@ -157,14 +157,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 ## Testing Framework
 
-Uses Jest with the following structure:
-- Test files: `**/__tests__/**/*.test.js` or `**/*.{spec,test}.js`
-- Coverage includes: `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`
-- Environment: Node.js
-- Route and app integration tests use `supertest`
-- `app.js` exports `createApp()` / `startServer()` so tests can import the app without starting the production listener
-- Automation CLI scripts should prefer a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
-- Coverage reports: `coverage/` directory
+Testing conventions are documented in `README.md`. Additional AI-specific expectations:
+- Keep client-side scripts under `public/js/` directly testable in the Node-based Jest harness; avoid browser-only assumptions that require a real browser runtime
+- When changing test scope meaningfully, update `jest.config.js` coverage thresholds intentionally rather than leaving them stale
+- Prefer `require.main === module` guards and exported entrypoints for automation scripts so tests can import them without triggering CLI side effects
 
 ## Important Implementation Notes
 

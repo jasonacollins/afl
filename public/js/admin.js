@@ -221,6 +221,20 @@ window.fetchMatchesForRound = function(round) {
   }
 };
 
+if (typeof window !== 'undefined') {
+  window.getCsrfToken = getCsrfToken;
+  window.showResetPasswordForm = showResetPasswordForm;
+  window.closeModal = closeModal;
+  window.closeRefreshModal = closeRefreshModal;
+  window.closeUploadModal = closeUploadModal;
+  window.confirmDeleteUser = confirmDeleteUser;
+  window.closeDeleteModal = closeDeleteModal;
+  window.toggleActiveStatus = toggleActiveStatus;
+  window.selectUserByData = selectUserByData;
+  window.clearPredictionDirectly = clearPredictionDirectly;
+  window.addClearButtons = addClearButtons;
+}
+
 // DOM Content Loaded event handler
 document.addEventListener('DOMContentLoaded', function() {
   // Override savePrediction for admin-specific behavior

@@ -243,8 +243,10 @@ afl-predictions/
 The project uses Jest for unit and integration coverage.
 
 - Test files live under `**/__tests__/**/*.test.js` and `**/*.{spec,test}.js`
-- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, and `utils/`
+- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and selected browser scripts under `public/js/`
+- Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - Route and app integration tests use `supertest`
+- Browser-oriented tests run in the standard Node Jest environment using a lightweight DOM harness, so client-side scripts should remain testable without depending on a real browser runtime
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 
