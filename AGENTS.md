@@ -159,8 +159,10 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 Uses Jest with the following structure:
 - Test files: `**/__tests__/**/*.test.js` or `**/*.{spec,test}.js`
-- Coverage includes: `services/`, `routes/`, `models/`, `utils/`
+- Coverage includes: `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `utils/`
 - Environment: Node.js
+- Route and app integration tests use `supertest`
+- `app.js` exports `createApp()` / `startServer()` so tests can import the app without starting the production listener
 - Coverage reports: `coverage/` directory
 
 ## Important Implementation Notes

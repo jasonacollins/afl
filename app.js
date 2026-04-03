@@ -6,12 +6,6 @@ const methodOverride = require('method-override');
 const helmet = require('helmet');
 require('dotenv').config();
 
-// Validate required environment variables
-if (!process.env.SESSION_SECRET) {
-  console.error('ERROR: SESSION_SECRET environment variable is required');
-  process.exit(1);
-}
-
 // Import utilities
 const { errorMiddleware, catchAsync } = require('./utils/error-handler');
 const { logger, requestLogger } = require('./utils/logger');
@@ -31,95 +25,45 @@ const adminRoutes = require('./routes/admin');
 const eloRoutes = require('./routes/elo');
 const simulationRoutes = require('./routes/simulation');
 
-// Initialize express app
-const app = express();
 const port = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:"],
-      connectSrc: ["'self'", "https://api.squiggle.com.au", "https://cdn.jsdelivr.net"]
-    }
-  },
-  crossOriginResourcePolicy: { policy: "same-site" }
-}));
-
-// Configure view engine
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
-// Serve the scoring service as a client-side script
-app.get('/js/scoring-service.js', (req, res) => {
-  res.sendFile(path.join(__dirname, 'services', 'scoring-service.js'));
-});
-
-// Middleware
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(methodOverride('_method'));
-
-// Trust proxy for secure cookies behind reverse proxy
-app.set('trust proxy', 1);
-
-// Session configuration
-app.use(session({
-  store: new SqliteStore({
+function createSessionStore() {
+  return new SqliteStore({
     db: 'sessions.db',
-    dir: path.join(__dirname, 'data/database')  // Use absolute path
-  }),
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    // 'auto' keeps secure cookies on HTTPS, but still allows local HTTP sessions.
-    secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
-    httpOnly: true,
-    sameSite: 'lax'
-  }
-}));
+    dir: path.join(__dirname, 'data/database')
+  });
+}
 
-// Make user data available to all templates
-app.use((req, res, next) => {
-  res.locals.user = req.session.user || null;
-  res.locals.isAdmin = req.session.isAdmin || false;
-  res.locals.currentPath = req.path;
-  next();
-});
+function getSessionSecret(explicitSecret) {
+  return explicitSecret || process.env.SESSION_SECRET;
+}
 
-// Add request logging middleware (before routes)
-app.use(requestLogger);
+function registerAppRoutes(app) {
+  // Serve the scoring service as a client-side script
+  app.get('/js/scoring-service.js', (req, res) => {
+    res.sendFile(path.join(__dirname, 'services', 'scoring-service.js'));
+  });
 
-// CSRF Protection
-app.use(csrfProtection);
+  // Favicon route to prevent 404 errors
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
 
-// Favicon route to prevent 404 errors
-app.get('/favicon.ico', (req, res) => res.status(204).end());
+  // Routes
+  app.use('/', authRoutes);
+  app.use('/predictions', predictionsRoutes);
+  app.use('/matches', matchesRoutes);
+  app.use('/admin', adminRoutes);
+  app.use('/api/elo', eloRoutes);
+  app.use('/api/simulation', simulationRoutes);
 
-// Routes
-app.use('/', authRoutes);
-app.use('/predictions', predictionsRoutes);
-app.use('/matches', matchesRoutes);
-app.use('/admin', adminRoutes);
-app.use('/api/elo', eloRoutes);
-app.use('/api/simulation', simulationRoutes);
+  // Global API endpoint for excluded predictors (accessible to all users)
+  app.get('/api/excluded-predictors', catchAsync(async (req, res) => {
+    const adminRoutes = require('./routes/admin');
+    const excludedPredictors = await adminRoutes.getExcludedPredictors();
+    res.json({ excludedPredictors });
+  }));
 
-// Global API endpoint for excluded predictors (accessible to all users)
-app.get('/api/excluded-predictors', catchAsync(async (req, res) => {
-  // Import admin routes to access the excluded predictors
-  const adminRoutes = require('./routes/admin');
-  const excludedPredictors = await adminRoutes.getExcludedPredictors();
-  res.json({ excludedPredictors });
-}));
-
-// Home route - updated to show featured predictions
-app.get('/', catchAsync(async (req, res) => {
+  // Home route - updated to show featured predictions
+  app.get('/', catchAsync(async (req, res) => {
   // Get default featured predictor for homepage
   const featuredPredictionsService = require('./services/featured-predictions');
   const defaultFeaturedPredictor = await featuredPredictionsService.getDefaultFeaturedPredictor();
@@ -341,7 +285,7 @@ app.get('/', catchAsync(async (req, res) => {
     }
   }
   
-  res.render('home', { 
+  res.render('home', {
     user: req.session.user,
     isAdmin: req.session.isAdmin,
     featuredPredictor: defaultFeaturedPredictor,
@@ -355,10 +299,10 @@ app.get('/', catchAsync(async (req, res) => {
     predictions,
     currentYear
   });
-}));
+  }));
 
-// API endpoint for predictor performance stats
-app.get('/api/predictor-stats', catchAsync(async (req, res) => {
+  // API endpoint for predictor performance stats
+  app.get('/api/predictor-stats', catchAsync(async (req, res) => {
   const { selectedYear } = await roundService.resolveYear(req.query.year);
   const predictorId = req.query.predictorId;
   
@@ -441,10 +385,10 @@ app.get('/api/predictor-stats', catchAsync(async (req, res) => {
   };
   
   res.json({ success: true, stats: stats });
-}));
+  }));
 
-// Season simulation page route
-app.get('/simulation', catchAsync(async (req, res) => {
+  // Season simulation page route
+  app.get('/simulation', catchAsync(async (req, res) => {
   const currentYear = new Date().getFullYear();
   const selectedYear = req.query.year ? parseInt(req.query.year) : currentYear;
 
@@ -454,21 +398,89 @@ app.get('/simulation', catchAsync(async (req, res) => {
     selectedYear: selectedYear,
     currentYear: currentYear
   });
-}));
+  }));
 
-// ELO model page route
-app.get('/elo', catchAsync(async (req, res) => {
-  res.render('elo', {
-    user: req.session.user,
-    isAdmin: req.session.isAdmin
+  // ELO model page route
+  app.get('/elo', catchAsync(async (req, res) => {
+    res.render('elo', {
+      user: req.session.user,
+      isAdmin: req.session.isAdmin
+    });
+  }));
+}
+
+function createApp(options = {}) {
+  const sessionSecret = getSessionSecret(options.sessionSecret);
+  if (!sessionSecret) {
+    throw new Error('SESSION_SECRET environment variable is required');
+  }
+
+  const app = express();
+  const sessionStore = options.sessionStore || createSessionStore();
+
+  // Security middleware
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:"],
+        connectSrc: ["'self'", "https://api.squiggle.com.au", "https://cdn.jsdelivr.net"]
+      }
+    },
+    crossOriginResourcePolicy: { policy: 'same-site' }
+  }));
+
+  // Configure view engine
+  app.set('view engine', 'ejs');
+  app.set('views', path.join(__dirname, 'views'));
+
+  // Middleware
+  app.use(express.static(path.join(__dirname, 'public')));
+  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json());
+  app.use(methodOverride('_method'));
+
+  // Trust proxy for secure cookies behind reverse proxy
+  app.set('trust proxy', 1);
+
+  // Session configuration
+  app.use(session({
+    store: sessionStore,
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
+      httpOnly: true,
+      sameSite: 'lax'
+    }
+  }));
+
+  // Make user data available to all templates
+  app.use((req, res, next) => {
+    res.locals.user = req.session.user || null;
+    res.locals.isAdmin = req.session.isAdmin || false;
+    res.locals.currentPath = req.path;
+    next();
   });
-}));
 
-// Add global error handler (after routes)
-app.use(errorMiddleware);
+  app.use(requestLogger);
+  app.use(csrfProtection);
 
-async function startServer() {
+  registerAppRoutes(app);
+
+  // Add global error handler (after routes)
+  app.use(errorMiddleware);
+
+  return app;
+}
+
+async function startServer(options = {}) {
   try {
+    const app = createApp(options);
     await initializeDatabase();
     await adminScriptRunner.recoverInterruptedRuns();
     await eventSyncService.start();
@@ -482,4 +494,18 @@ async function startServer() {
   }
 }
 
-startServer();
+if (require.main === module) {
+  const sessionSecret = getSessionSecret();
+  if (!sessionSecret) {
+    console.error('ERROR: SESSION_SECRET environment variable is required');
+    process.exit(1);
+  }
+
+  startServer({ sessionSecret });
+}
+
+module.exports = {
+  createApp,
+  createSessionStore,
+  startServer
+};

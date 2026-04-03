@@ -7,9 +7,11 @@ module.exports = {
   
   // Which files to collect coverage from
   collectCoverageFrom: [
+    'app.js',
     'services/**/*.js',
     'routes/**/*.js',
     'models/**/*.js',
+    'middleware/**/*.js',
     'utils/**/*.js',
     '!**/node_modules/**'
   ],

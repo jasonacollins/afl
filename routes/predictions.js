@@ -207,6 +207,10 @@ router.post('/save', catchAsync(async (req, res) => {
         throw createValidationError('This match has started and predictions are locked');
       }
     } catch (error) {
+      if (error.isOperational) {
+        throw error;
+      }
+
       logger.error('Error parsing match date', { 
         matchId, 
         date: match.match_date, 

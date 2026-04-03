@@ -238,6 +238,20 @@ afl-predictions/
 - **Hybrid Sync**: Event-driven completed-game reconciliation with an early-morning daily fallback
 - **Monolithic Deployment**: Single container for operational simplicity
 
+## Testing
+
+The project uses Jest for unit and integration coverage.
+
+- Test files live under `**/__tests__/**/*.test.js` and `**/*.{spec,test}.js`
+- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, and `utils/`
+- Route and app integration tests use `supertest`
+- `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
+
+Core commands:
+
+- `npm test` - run the test suite
+- `npm run test:watch` - run tests in watch mode
+- `npm run test:coverage` - generate a coverage report in `coverage/`
 
 ## Docker Setup
 
