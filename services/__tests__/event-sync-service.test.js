@@ -25,8 +25,10 @@ jest.mock('../result-update-service', () => ({
   setTrackedActiveGames: jest.fn()
 }));
 
+const { EventEmitter } = require('events');
 const eventSyncService = require('../event-sync-service');
 const resultUpdateService = require('../result-update-service');
+const { logger } = require('../../utils/logger');
 const { getSquiggleGamesSseConfig } = require('../../utils/squiggle-request');
 
 describe('event-sync-service helpers', () => {
@@ -101,6 +103,13 @@ describe('event-sync-service snapshot handling', () => {
     jest.clearAllMocks();
     resultUpdateService.recordConnectionState.mockResolvedValue();
     resultUpdateService.recordLastError.mockResolvedValue();
+    resultUpdateService.recordHeartbeat.mockResolvedValue();
+    resultUpdateService.recordLastEvent.mockResolvedValue();
+    resultUpdateService.setTrackedActiveGames.mockResolvedValue();
+    resultUpdateService.getTrackedActiveGames.mockResolvedValue([]);
+    resultUpdateService.getLastFingerprintForGame.mockResolvedValue(null);
+    resultUpdateService.setLastFingerprintForGame.mockResolvedValue();
+    resultUpdateService.ingestCompletedGameResult.mockResolvedValue();
   });
 
   test('reconciles previously tracked games that disappear from a snapshot', async () => {
@@ -164,5 +173,291 @@ describe('event-sync-service snapshot handling', () => {
     });
 
     eventSyncService.stop();
+  });
+
+  test('maybeReconcileCurrentSeason skips reconciliation when the last run was recent', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-04-03T01:00:00.000Z'));
+    resultUpdateService.getStateValue = jest.fn().mockResolvedValue({
+      updatedAt: '2026-04-03T00:45:00.000Z'
+    });
+
+    try {
+      await eventSyncService.maybeReconcileCurrentSeason('startup');
+
+      expect(resultUpdateService.reconcileSeasonResults).not.toHaveBeenCalled();
+      expect(logger.info).toHaveBeenCalledWith(
+        'Skipping event-sync reconciliation because it ran recently',
+        expect.objectContaining({
+          source: 'startup',
+          currentYear: 2026,
+          ageMs: 15 * 60 * 1000
+        })
+      );
+    } finally {
+      nowSpy.mockRestore();
+      delete resultUpdateService.getStateValue;
+    }
+  });
+
+  test('maybeReconcileCurrentSeason triggers reconciliation when the prior run is stale', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-04-03T03:00:00.000Z'));
+    resultUpdateService.getStateValue = jest.fn().mockResolvedValue({
+      updatedAt: '2026-04-03T00:00:00.000Z'
+    });
+
+    try {
+      await eventSyncService.maybeReconcileCurrentSeason('startup');
+
+      expect(resultUpdateService.reconcileSeasonResults).toHaveBeenCalledWith({
+        year: 2026,
+        source: 'startup'
+      });
+    } finally {
+      nowSpy.mockRestore();
+      delete resultUpdateService.getStateValue;
+    }
+  });
+
+  test('updateTrackedGameState removes completed games from tracked state', async () => {
+    resultUpdateService.getTrackedActiveGames.mockResolvedValue([
+      {
+        gameId: 38514,
+        year: 2026,
+        complete: 90,
+        fingerprint: '38514:90:80:72:2026-03-22T19:25:00+11:00'
+      },
+      {
+        gameId: 38515,
+        year: 2026,
+        complete: 40,
+        fingerprint: 'keep-me'
+      }
+    ]);
+
+    const trackedGame = await eventSyncService.updateTrackedGameState({
+      id: 38514,
+      year: 2026,
+      complete: 100,
+      hscore: 88,
+      ascore: 80,
+      localtime: '2026-03-22T19:25:00+11:00'
+    }, { remove: true });
+
+    expect(trackedGame).toEqual(expect.objectContaining({
+      gameId: 38514,
+      year: 2026,
+      complete: 100
+    }));
+    expect(resultUpdateService.setTrackedActiveGames).toHaveBeenCalledWith([
+      expect.objectContaining({
+        gameId: 38515,
+        year: 2026
+      })
+    ]);
+  });
+
+  test('treats events without data payloads as keepalive heartbeats', async () => {
+    await eventSyncService.handleRawEvent('event: keepalive');
+
+    expect(resultUpdateService.recordHeartbeat).toHaveBeenCalledWith({
+      type: 'stream-keepalive'
+    });
+    expect(resultUpdateService.recordLastEvent).not.toHaveBeenCalled();
+  });
+
+  test('ignores invalid JSON payloads after recording the event heartbeat', async () => {
+    await eventSyncService.handleRawEvent('event: updateGame\ndata: {not-json}');
+
+    expect(resultUpdateService.recordHeartbeat).toHaveBeenCalledWith({
+      type: 'event',
+      eventName: 'updateGame'
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Ignoring Squiggle SSE event with invalid JSON payload',
+      { eventName: 'updateGame' }
+    );
+    expect(resultUpdateService.ingestCompletedGameResult).not.toHaveBeenCalled();
+  });
+
+  test('updates tracked active games for non-terminal game events without ingesting results', async () => {
+    await eventSyncService.handleRawEvent(
+      `event: updateGame\ndata: ${JSON.stringify({
+        id: 38512,
+        year: 2026,
+        complete: 55,
+        hscore: 41,
+        ascore: 38,
+        localtime: '2026-03-22T15:20:00+11:00'
+      })}`
+    );
+
+    expect(resultUpdateService.recordLastEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventName: 'updateGame',
+      eventType: 'game',
+      gameId: 38512,
+      year: 2026
+    }));
+    expect(resultUpdateService.setTrackedActiveGames).toHaveBeenCalledWith([
+      expect.objectContaining({
+        gameId: 38512,
+        year: 2026,
+        complete: 55
+      })
+    ]);
+    expect(resultUpdateService.ingestCompletedGameResult).not.toHaveBeenCalled();
+  });
+
+  test('deduplicates repeated completed-game fingerprints', async () => {
+    const fingerprint = '38513:100:88:80:2026-03-22T19:25:00+11:00';
+    resultUpdateService.getLastFingerprintForGame.mockResolvedValue({
+      value: { fingerprint }
+    });
+
+    await eventSyncService.handleRawEvent(
+      `event: updateGame\ndata: ${JSON.stringify({
+        id: 38513,
+        year: 2026,
+        complete: 100,
+        hscore: 88,
+        ascore: 80,
+        localtime: '2026-03-22T19:25:00+11:00'
+      })}`
+    );
+
+    expect(resultUpdateService.setTrackedActiveGames).toHaveBeenCalledWith([]);
+    expect(resultUpdateService.setLastFingerprintForGame).not.toHaveBeenCalled();
+    expect(resultUpdateService.ingestCompletedGameResult).not.toHaveBeenCalled();
+  });
+
+  test('records snapshot events and forwards the games to snapshot sync', async () => {
+    const syncSpy = jest.spyOn(eventSyncService, 'syncTrackedGamesFromSnapshot').mockResolvedValue();
+
+    try {
+      await eventSyncService.handleRawEvent(
+        `event: games\ndata: ${JSON.stringify({
+          games: [
+            { id: 1, year: 2026 },
+            { id: 2, year: 2026 },
+            { id: 'bad' }
+          ]
+        })}`
+      );
+
+      expect(resultUpdateService.recordLastEvent).toHaveBeenCalledWith({
+        eventName: 'games',
+        eventType: 'snapshot',
+        snapshotCount: 3,
+        activeGameIds: [1, 2]
+      });
+      expect(syncSpy).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 1, year: 2026 }),
+          expect.objectContaining({ id: 2, year: 2026 })
+        ]),
+        'games'
+      );
+      expect(logger.debug).toHaveBeenCalledWith(
+        'Received Squiggle SSE snapshot payload',
+        { eventName: 'games', snapshotCount: 3 }
+      );
+    } finally {
+      syncSpy.mockRestore();
+    }
+  });
+
+  test('ignores payloads without a trackable game id or year', async () => {
+    await eventSyncService.handleRawEvent(
+      `event: updateGame\ndata: ${JSON.stringify({
+        id: 'bad',
+        hscore: 88,
+        ascore: 80
+      })}`
+    );
+
+    expect(resultUpdateService.recordLastEvent).not.toHaveBeenCalled();
+    expect(logger.debug).toHaveBeenCalledWith(
+      'Ignoring Squiggle SSE payload without a trackable game',
+      expect.objectContaining({
+        eventName: 'updateGame',
+        payloadKeys: ['id', 'hscore', 'ascore']
+      })
+    );
+  });
+
+  test('processes completed-game events by storing the fingerprint and ingesting results', async () => {
+    await eventSyncService.handleRawEvent(
+      `event: removeGame\ndata: ${JSON.stringify({
+        id: 38516,
+        year: 2026,
+        complete: 100,
+        hscore: 92,
+        ascore: 77,
+        localtime: '2026-03-22T19:25:00+11:00'
+      })}`
+    );
+
+    expect(resultUpdateService.setLastFingerprintForGame).toHaveBeenCalledWith(
+      38516,
+      '38516:100:92:77:2026-03-22T19:25:00+11:00'
+    );
+    expect(resultUpdateService.ingestCompletedGameResult).toHaveBeenCalledWith({
+      year: 2026,
+      gameId: 38516,
+      source: 'event-sync:removeGame'
+    });
+    expect(logger.info).toHaveBeenCalledWith(
+      'Processing completed-game Squiggle event',
+      expect.objectContaining({
+        eventName: 'removeGame',
+        gameId: 38516,
+        year: 2026
+      })
+    );
+  });
+
+  test('consumeStream processes buffered events and schedules reconnect on end', async () => {
+    const stream = new EventEmitter();
+    const rawEvents = [];
+    const handleSpy = jest.spyOn(eventSyncService, 'handleRawEvent').mockImplementation(async (rawEvent) => {
+      rawEvents.push(rawEvent);
+    });
+    const reconnectSpy = jest.spyOn(eventSyncService, 'scheduleReconnect').mockImplementation(() => {});
+    eventSyncService.running = true;
+
+    try {
+      const consumePromise = eventSyncService.consumeStream(stream);
+      stream.emit('data', Buffer.from('event: updateGame\ndata: {"id":1}\n\n'));
+      stream.emit('data', Buffer.from('event: removeGame\ndata: {"id":2}\n\n'));
+      stream.emit('end');
+      await consumePromise;
+
+      expect(rawEvents).toEqual([
+        'event: updateGame\ndata: {"id":1}',
+        'event: removeGame\ndata: {"id":2}'
+      ]);
+      expect(reconnectSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      eventSyncService.stop();
+      handleSpy.mockRestore();
+      reconnectSpy.mockRestore();
+    }
+  });
+
+  test('consumeStream rejects stream errors and still schedules reconnect while running', async () => {
+    const stream = new EventEmitter();
+    const reconnectSpy = jest.spyOn(eventSyncService, 'scheduleReconnect').mockImplementation(() => {});
+    eventSyncService.running = true;
+
+    try {
+      const consumePromise = eventSyncService.consumeStream(stream);
+      const streamError = new Error('socket closed');
+      stream.emit('error', streamError);
+
+      await expect(consumePromise).rejects.toThrow('socket closed');
+      expect(reconnectSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      eventSyncService.stop();
+      reconnectSpy.mockRestore();
+    }
   });
 });

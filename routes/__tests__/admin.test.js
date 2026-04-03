@@ -69,6 +69,10 @@ jest.mock('../../services/result-update-service', () => ({
   getEventSyncStatus: jest.fn()
 }));
 
+jest.mock('../../services/featured-predictions', () => ({
+  getDefaultFeaturedPredictorId: jest.fn()
+}));
+
 jest.mock('../../scripts/automation/api-refresh', () => ({
   refreshAPIData: jest.fn()
 }));
@@ -94,6 +98,7 @@ const predictionService = require('../../services/prediction-service');
 const passwordService = require('../../services/password-service');
 const adminScriptRunner = require('../../services/admin-script-runner');
 const resultUpdateService = require('../../services/result-update-service');
+const featuredPredictionsService = require('../../services/featured-predictions');
 const { refreshAPIData } = require('../../scripts/automation/api-refresh');
 const adminRouter = require('../admin');
 const { createRouterTestApp } = require('./test-app');
@@ -115,6 +120,11 @@ describe('admin routes', () => {
     jest.clearAllMocks();
     adminScriptRunner.getExistingActiveRun.mockResolvedValue(null);
     predictorService.getPredictorById.mockResolvedValue({ predictor_id: 5, active: 1 });
+    featuredPredictionsService.getDefaultFeaturedPredictorId.mockResolvedValue(6);
+    passwordService.validatePassword.mockReturnValue({
+      isValid: true,
+      errors: []
+    });
   });
 
   test('redirects anonymous users to login', async () => {
@@ -152,6 +162,55 @@ describe('admin routes', () => {
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
     expect(response.body.scripts).toEqual([{ key: 'sync-games' }]);
+  });
+
+  test('GET / renders the admin dashboard with grouped rounds and featured predictor', async () => {
+    predictorService.getAllPredictors.mockResolvedValue([{ predictor_id: 5, name: 'Dad' }]);
+    require('../../services/round-service').resolveYear.mockResolvedValue({
+      selectedYear: 2026,
+      years: [2026, 2025]
+    });
+    require('../../services/round-service').getRoundsForYear.mockResolvedValue([
+      { round_number: '1' }
+    ]);
+    require('../../services/round-service').combineRoundsForDisplay.mockReturnValue([
+      { round_number: 'Round 1' }
+    ]);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(response.body.view).toBe('admin');
+    expect(response.body.locals).toEqual(expect.objectContaining({
+      predictors: [{ predictor_id: 5, name: 'Dad' }],
+      rounds: [{ round_number: 'Round 1' }],
+      years: [2026, 2025],
+      selectedYear: 2026,
+      featuredPredictorId: 6,
+      isAdmin: true
+    }));
+  });
+
+  test('GET /scripts renders the admin scripts page', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/scripts');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      view: 'admin-scripts',
+      locals: {
+        isAdmin: true,
+        success: null,
+        error: null
+      }
+    });
   });
 
   test('POST /api/script-runs validates missing scriptKey', async () => {
@@ -336,6 +395,39 @@ describe('admin routes', () => {
     expect(response.headers.location).toBe('/admin?error=User%20already%20exists');
   });
 
+  test('POST /predictors redirects when required fields are missing', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictors')
+      .type('form')
+      .send({ username: '', password: '' });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=Username%20and%20password%20are%20required');
+  });
+
+  test('POST /predictors redirects when password validation fails', async () => {
+    passwordService.validatePassword.mockReturnValue({
+      isValid: false,
+      errors: ['Too weak']
+    });
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictors')
+      .type('form')
+      .send({ username: 'dad', password: 'badpass' });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=Too%20weak');
+  });
+
   test('POST /predictors creates a new predictor and redirects to success', async () => {
     predictorService.getPredictorByName.mockResolvedValue(null);
 
@@ -357,6 +449,91 @@ describe('admin routes', () => {
     expect(response.status).toBe(302);
     expect(predictorService.createPredictor).toHaveBeenCalledWith('dad', 'secret123', 'Dad', true, '2026');
     expect(response.headers.location).toBe('/admin?success=Predictor%20added%20successfully');
+  });
+
+  test('POST /predictors redirects operational validation errors from the service', async () => {
+    predictorService.getPredictorByName.mockResolvedValue(null);
+    const validationError = new Error('Username is invalid');
+    validationError.isOperational = true;
+    validationError.errorCode = 'VALIDATION_ERROR';
+    predictorService.createPredictor.mockRejectedValue(validationError);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictors')
+      .type('form')
+      .send({ username: 'dad', password: 'secret123' });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=Username%20is%20invalid');
+  });
+
+  test('GET /predictions/:userId redirects when the user does not exist', async () => {
+    predictorService.getPredictorById.mockResolvedValue(null);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/predictions/5');
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=User%20not%20found');
+  });
+
+  test('GET /predictions/:userId returns predictions as a match map', async () => {
+    predictionService.getPredictionsForUser.mockResolvedValue([
+      { match_id: 11, home_win_probability: 65 },
+      { match_id: 12, home_win_probability: 40 }
+    ]);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/predictions/5');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      success: true,
+      predictions: {
+        11: 65,
+        12: 40
+      }
+    });
+  });
+
+  test('POST /predictions/:userId/save validates missing required fields', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictions/5/save')
+      .set('Accept', 'application/json')
+      .send({ probability: 70 });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('Missing required fields');
+  });
+
+  test('POST /predictions/:userId/save returns not found when the target user does not exist', async () => {
+    predictorService.getPredictorById.mockResolvedValue(null);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictions/5/save')
+      .set('Accept', 'application/json')
+      .send({ matchId: 11, probability: 70 });
+
+    expect(response.status).toBe(404);
+    expect(response.body.message).toBe('User not found');
   });
 
   test('POST /predictions/:userId/save deletes a prediction for empty probability', async () => {
@@ -389,6 +566,54 @@ describe('admin routes', () => {
     expect(response.body).toEqual({ success: true });
   });
 
+  test('GET /stats renders predictor accuracy stats', async () => {
+    getQuery
+      .mockResolvedValueOnce([
+        { predictor_id: 1, name: 'Dad' },
+        { predictor_id: 2, name: 'Model' }
+      ])
+      .mockResolvedValueOnce([
+        { predictor_id: 1, count: 3 },
+        { predictor_id: 2, count: 1 }
+      ])
+      .mockResolvedValueOnce([
+        { match_id: 10, hscore: 80, ascore: 70, home_team: 'Cats', away_team: 'Swans' },
+        { match_id: 11, hscore: 60, ascore: 75, home_team: 'Lions', away_team: 'Dockers' }
+      ])
+      .mockResolvedValueOnce([
+        { match_id: 10, predictor_id: 1, home_win_probability: 55 },
+        { match_id: 11, predictor_id: 1, home_win_probability: 45 },
+        { match_id: 10, predictor_id: 2, home_win_probability: 20 }
+      ]);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/stats');
+
+    expect(response.status).toBe(200);
+    expect(response.body.view).toBe('admin-stats');
+    expect(response.body.locals.predictorStats).toEqual([
+      {
+        id: 1,
+        name: 'Dad',
+        totalPredictions: 3,
+        correct: 2,
+        incorrect: 0,
+        accuracy: '100.0'
+      },
+      {
+        id: 2,
+        name: 'Model',
+        totalPredictions: 1,
+        correct: 0,
+        incorrect: 1,
+        accuracy: '0.0'
+      }
+    ]);
+  });
+
   test('POST /reset-password/:userId redirects when password validation fails', async () => {
     passwordService.validatePassword.mockReturnValue({
       isValid: false,
@@ -408,6 +633,37 @@ describe('admin routes', () => {
     expect(response.headers.location).toBe('/admin?error=Password%20must%20be%20longer');
   });
 
+  test('POST /reset-password/:userId redirects when the user does not exist', async () => {
+    predictorService.getPredictorById.mockResolvedValue(null);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/reset-password/5')
+      .type('form')
+      .send({ newPassword: 'secret123' });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=User%20not%20found');
+  });
+
+  test('POST /reset-password/:userId resets the password and redirects to success', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/reset-password/5')
+      .type('form')
+      .send({ newPassword: 'secret123' });
+
+    expect(response.status).toBe(302);
+    expect(predictorService.resetPassword).toHaveBeenCalledWith('5', 'secret123');
+    expect(response.headers.location).toBe('/admin?success=Password%20reset%20successfully');
+  });
+
   test('POST /delete-user/:userId blocks deleting the current admin account', async () => {
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 5 }, isAdmin: true }
@@ -420,6 +676,37 @@ describe('admin routes', () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe('/admin?error=You%20cannot%20delete%20your%20own%20account');
+  });
+
+  test('POST /delete-user/:userId redirects when the user does not exist', async () => {
+    predictorService.getPredictorById.mockResolvedValue(null);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/delete-user/8')
+      .type('form')
+      .send({});
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=User%20not%20found');
+  });
+
+  test('POST /delete-user/:userId deletes the target user and redirects to success', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/delete-user/8')
+      .type('form')
+      .send({});
+
+    expect(response.status).toBe(302);
+    expect(predictorService.deletePredictor).toHaveBeenCalledWith('8');
+    expect(response.headers.location).toBe('/admin?success=User%20deleted%20successfully');
   });
 
   test('POST /api-refresh returns refresh results', async () => {
@@ -584,6 +871,20 @@ describe('admin routes', () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.location).toBe('/admin?error=Selected%20predictor%20must%20be%20active');
+  });
+
+  test('POST /set-featured-predictors requires a selected predictor', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/set-featured-predictors')
+      .type('form')
+      .send({});
+
+    expect(response.status).toBe(302);
+    expect(response.headers.location).toBe('/admin?error=Please%20select%20a%20featured%20predictor');
   });
 
   test('POST /set-featured-predictors updates the featured predictor', async () => {

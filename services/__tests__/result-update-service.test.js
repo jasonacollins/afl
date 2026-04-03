@@ -35,6 +35,7 @@ const { getOne, getQuery, runQuery } = require('../../models/db');
 const { refreshAPIData } = require('../../scripts/automation/api-refresh');
 const { runEloPredictions } = require('../../scripts/automation/elo-predictions');
 const {
+  runPostResultRecompute,
   regenerateSeasonSimulation,
   regenerateEloHistory,
   evaluateSimulationSnapshotState,
@@ -186,6 +187,149 @@ describe('result-update-service state and queue behavior', () => {
         triggerSource: 'event-sync'
       })
     ).rejects.toThrow('year must be an integer');
+  });
+
+  test('enqueuePostResultRecompute reuses an existing active job and backfills the match number', async () => {
+    getOne
+      .mockResolvedValueOnce({
+        job_id: 7,
+        year: 2026,
+        match_number: null,
+        status: 'queued'
+      })
+      .mockResolvedValueOnce({
+        job_id: 7,
+        year: 2026,
+        match_number: 88,
+        status: 'queued'
+      });
+    runQuery.mockResolvedValue({});
+
+    const job = await resultUpdateService.enqueuePostResultRecompute({
+      year: 2026,
+      matchNumber: 88,
+      triggerSource: 'event-sync'
+    });
+
+    expect(runQuery).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE result_update_jobs'),
+      [88, expect.any(String), 7]
+    );
+    expect(job).toEqual({
+      job_id: 7,
+      year: 2026,
+      match_number: 88,
+      status: 'queued'
+    });
+  });
+
+  test('enqueuePostResultRecompute runs the queued worker and marks the job succeeded', async () => {
+    getOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        job_id: 21,
+        year: 2026,
+        match_number: 77,
+        status: 'queued',
+        attempt_count: 0
+      })
+      .mockResolvedValueOnce({
+        job_id: 21,
+        year: 2026,
+        match_number: 77,
+        status: 'queued',
+        attempt_count: 0
+      })
+      .mockResolvedValueOnce({
+        job_id: 21,
+        year: 2026,
+        match_number: 77,
+        status: 'running',
+        attempt_count: 1
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ lastID: 21 })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    runPostResultRecompute.mockResolvedValue();
+
+    const job = await resultUpdateService.enqueuePostResultRecompute({
+      year: 2026,
+      matchNumber: 77,
+      triggerSource: 'event-sync',
+      triggerReason: 'completed_game_event'
+    });
+    await resultUpdateService.scheduleWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(job).toEqual({
+      job_id: 21,
+      year: 2026,
+      match_number: 77,
+      status: 'queued',
+      attempt_count: 0
+    });
+    expect(runPostResultRecompute).toHaveBeenCalledWith(2026, {
+      source: 'result-update-job:21'
+    });
+    expect(runQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('INSERT INTO result_update_jobs'),
+      [2026, 77, 'queued', 'event-sync', 'completed_game_event', expect.any(String), expect.any(String)]
+    );
+    expect(runQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('UPDATE result_update_jobs'),
+      ['running', expect.any(String), expect.any(String), 21]
+    );
+    expect(runQuery).toHaveBeenNthCalledWith(
+      3,
+      expect.stringContaining('UPDATE result_update_jobs'),
+      ['succeeded', expect.any(String), expect.any(String), null, 21]
+    );
+  });
+
+  test('reconcileSeasonResults queues recompute work when completed results changed', async () => {
+    refreshAPIData.mockResolvedValue({
+      updatedCompletedMatchNumbers: [91],
+      scoresUpdated: 1
+    });
+    hasCompletedResultChanges.mockReturnValue(true);
+    hasMatchDataChanges.mockReturnValue(false);
+    getOne
+      .mockResolvedValueOnce({
+        job_id: 12,
+        year: 2026,
+        match_number: null,
+        status: 'queued'
+      })
+      .mockResolvedValueOnce({
+        job_id: 12,
+        year: 2026,
+        match_number: 91,
+        status: 'queued'
+      });
+    runQuery.mockResolvedValue({});
+
+    const result = await resultUpdateService.reconcileSeasonResults({
+      year: 2026,
+      source: 'event-sync'
+    });
+
+    expect(result).toMatchObject({
+      resultChangesDetected: true,
+      matchDataChanged: false,
+      jobQueued: true,
+      job: {
+        job_id: 12,
+        match_number: 91,
+        status: 'queued'
+      }
+    });
+    expect(runEloPredictions).not.toHaveBeenCalled();
+    expect(regenerateSeasonSimulation).not.toHaveBeenCalled();
   });
 
   test('reconcileSeasonResults runs fallback refresh when only non-final match data changed', async () => {

@@ -13,12 +13,44 @@ jest.mock('../../utils/logger', () => ({
   }
 }));
 
+jest.mock('child_process', () => ({
+  spawn: jest.fn()
+}));
+
+const { EventEmitter } = require('events');
 const fs = require('fs').promises;
 const path = require('path');
 const { getOne } = require('../../models/db');
+const { spawn } = require('child_process');
 const adminScriptRunner = require('../admin-script-runner');
 
 const { buildScriptCommand } = adminScriptRunner.__testables;
+
+function createMockChildProcess() {
+  const child = new EventEmitter();
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.killed = false;
+  child.kill = jest.fn(() => {
+    child.killed = true;
+    return true;
+  });
+  return child;
+}
+
+async function waitFor(assertion, timeoutMs = 1000) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (assertion()) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error('Timed out waiting for async condition');
+}
 
 describe('Admin Script Runner - win margin methods command builder', () => {
   beforeEach(() => {
@@ -136,6 +168,205 @@ describe('Admin Script Runner - win model file-type validation', () => {
 });
 
 describe('Admin Script Runner - persisted logs and recovery', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('startScriptRun rejects when an active run already exists in the database', async () => {
+    const { runQuery } = require('../../models/db');
+
+    getOne.mockResolvedValue({
+      run_id: 99,
+      script_key: 'sync-games',
+      status: 'running'
+    });
+
+    await expect(
+      adminScriptRunner.startScriptRun('sync-games', { year: 2026 }, 9)
+    ).rejects.toMatchObject({
+      code: 'ACTIVE_RUN_EXISTS',
+      message: 'An admin script is already running'
+    });
+
+    expect(spawn).not.toHaveBeenCalled();
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('startScriptRun spawns the script, persists streamed logs, and marks the run succeeded', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+    spawn.mockReturnValue(child);
+    getOne.mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ lastID: 41 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    const run = await adminScriptRunner.startScriptRun('sync-games', { year: 2026 }, 9);
+    const logPath = runQuery.mock.calls[1][1][2];
+    const absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+    child.stdout.emit('data', Buffer.from('synced fixture\n'));
+    child.stderr.emit('data', Buffer.from('warning line\n'));
+    child.emit('close', 0);
+
+    await waitFor(() => runQuery.mock.calls.length >= 3);
+
+    const logLines = (await fs.readFile(absoluteLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line).message);
+
+    try {
+      expect(run).toEqual({
+        runId: 41,
+        scriptKey: 'sync-games',
+        status: 'running',
+        startedAt: expect.any(String)
+      });
+      expect(spawn).toHaveBeenCalledWith(
+        'node',
+        ['scripts/automation/sync-games.js', 'year', '2026'],
+        expect.objectContaining({
+          cwd: expect.stringContaining('/afl'),
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      );
+      expect(runQuery).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('INSERT INTO admin_script_runs'),
+        ['sync-games', 'queued', 9, expect.any(String)]
+      );
+      expect(runQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('UPDATE admin_script_runs'),
+        ['running', expect.any(String), logPath, 41]
+      );
+      expect(runQuery).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('UPDATE admin_script_runs'),
+        ['succeeded', 0, null, expect.any(String), 41]
+      );
+      expect(logLines).toEqual(expect.arrayContaining([
+        'Starting command: node scripts/automation/sync-games.js year 2026',
+        'synced fixture',
+        'warning line',
+        'Run completed successfully (exit code 0)'
+      ]));
+    } finally {
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
+  test('startScriptRun records heartbeat progress snapshots for long-running python jobs', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+    let heartbeatCallback = null;
+    let nowMs = 0;
+    const setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation((callback) => {
+      heartbeatCallback = callback;
+      return 123;
+    });
+    const clearIntervalSpy = jest.spyOn(global, 'clearInterval').mockImplementation(() => {});
+    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => nowMs);
+
+    spawn.mockReturnValue(child);
+    getOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ predictor_id: 8, display_name: 'Testing Predictor' });
+    runQuery
+      .mockResolvedValueOnce({ lastID: 42 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    const run = await adminScriptRunner.startScriptRun('win-margin-methods-predictions', {
+      startYear: 2026,
+      winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+      marginMethodsPath: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+      predictorId: 8
+    }, 9);
+    const logPath = runQuery.mock.calls[1][1][2];
+    const absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+    child.stdout.emit('data', Buffer.from('progress 3/10\n'));
+    nowMs = 15000;
+    heartbeatCallback();
+    child.emit('close', 0);
+    await waitFor(() => runQuery.mock.calls.length >= 3);
+
+    const logLines = (await fs.readFile(absoluteLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line).message);
+
+    try {
+      expect(run.runId).toBe(42);
+      expect(spawn).toHaveBeenCalledWith(
+        'python3',
+        expect.arrayContaining([
+          '-u',
+          'scripts/elo_margin_methods_predict.py',
+          '--start-year',
+          '2026'
+        ]),
+        expect.any(Object)
+      );
+      expect(logLines).toEqual(expect.arrayContaining([
+        'progress 3/10',
+        expect.stringContaining('Progress snapshot: elapsed 15s'),
+        expect.stringContaining('latest progress 3/10 (30%)')
+      ]));
+    } finally {
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+      dateNowSpy.mockRestore();
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
+  test('startScriptRun marks the run failed when the child process emits a startup error', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+
+    spawn.mockReturnValue(child);
+    getOne.mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ lastID: 43 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    const run = await adminScriptRunner.startScriptRun('sync-games', { year: 2026 }, 9);
+    const logPath = runQuery.mock.calls[1][1][2];
+    const absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+    child.emit('error', new Error('spawn EACCES'));
+    await waitFor(() => runQuery.mock.calls.length >= 3);
+
+    const logLines = (await fs.readFile(absoluteLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line).message);
+
+    try {
+      expect(run.runId).toBe(43);
+      expect(runQuery).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('UPDATE admin_script_runs'),
+        ['failed', null, 'Process failed to start: spawn EACCES', expect.any(String), 43]
+      );
+      expect(logLines).toEqual(expect.arrayContaining([
+        'Starting command: node scripts/automation/sync-games.js year 2026',
+        'Process failed to start: spawn EACCES'
+      ]));
+    } finally {
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
   test('getRunLogs parses structured log lines and falls back to system messages for plain text', async () => {
     const runId = 401;
     const relativeLogPath = path.posix.join(
