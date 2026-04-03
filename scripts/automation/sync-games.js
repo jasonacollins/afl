@@ -558,10 +558,15 @@ module.exports = {
   syncGamesFromAPI,
   syncTeams,
   __testables: {
+    fetchAPI,
+    resolveVenueId,
     resolveSquiggleTeamIds,
     resolveRoundNumber,
     resolveMatchDate,
     normalizeCompletion,
-    normalizeScorePayload
+    normalizeScorePayload,
+    resetDatabase,
+    monitorLiveGames,
+    main
   }
 };

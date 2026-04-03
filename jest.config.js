@@ -15,10 +15,13 @@ module.exports = {
     'scripts/automation/**/*.js',
     'utils/**/*.js',
     'public/js/admin.js',
+    'public/js/admin-scripts.js',
+    'public/js/elo-chart.js',
     'public/js/home.js',
     'public/js/main.js',
     'public/js/mobile-nav.js',
     'public/js/predictions.js',
+    'public/js/simulation.js',
     'public/js/stats.js',
     '!**/__tests__/**',
     '!**/node_modules/**'
