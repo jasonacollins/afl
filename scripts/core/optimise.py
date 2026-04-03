@@ -15,7 +15,7 @@ import json
 
 try:
     from skopt import gp_minimize
-    from skopt.space import Real, Integer
+    from skopt.space import Real, Integer, Space
     from skopt.utils import use_named_args
     SKOPT_AVAILABLE = True
 except ImportError:
@@ -34,6 +34,7 @@ def _unpack_standard_params(
     Supported layouts:
     - [k_factor, home_advantage, margin_factor, season_carryover, max_margin]
     - [k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin]
+    - [k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin, beta]
     """
     if len(params) == 5:
         k_factor, home_advantage, margin_factor, season_carryover, max_margin = params
@@ -50,11 +51,55 @@ def _unpack_standard_params(
             max_margin,
         )
 
+    if len(params) == 7:
+        (
+            k_factor,
+            default_home_advantage,
+            interstate_home_advantage,
+            margin_factor,
+            season_carryover,
+            max_margin,
+            _beta,
+        ) = params
+        return (
+            k_factor,
+            default_home_advantage,
+            interstate_home_advantage,
+            margin_factor,
+            season_carryover,
+            max_margin,
+        )
+
     raise ValueError(
-        "Standard ELO params must have length 5 or 6: "
+        "Standard ELO params must have length 5, 6 or 7: "
         "[k_factor, home_advantage, margin_factor, season_carryover, max_margin] or "
-        "[k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin]"
+        "[k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin] or "
+        "[k_factor, default_home_advantage, interstate_home_advantage, margin_factor, season_carryover, max_margin, beta]"
     )
+
+
+def get_elo_parameter_space():
+    """
+    Return the standard ELO optimization search space.
+
+    This compatibility helper is used by the Python test suite and older
+    optimization tooling that expect a ``.dimensions`` attribute.
+    """
+    if not SKOPT_AVAILABLE:
+        raise ImportError(
+            "scikit-optimize is required for Bayesian optimization. "
+            "Install with: pip install scikit-optimize"
+        )
+
+    return Space([
+        Integer(10, 50, name='k_factor'),
+        Integer(0, 80, name='default_home_advantage'),
+        Integer(20, 120, name='interstate_home_advantage'),
+        Real(0.1, 0.7, name='margin_factor'),
+        Real(0.3, 0.95, name='season_carryover'),
+        Integer(60, 180, name='max_margin'),
+        Real(0.02, 0.08, name='beta'),
+    ])
 
 
 def _unpack_margin_params(params: List[float]) -> Tuple[float, float, float, float, float, float, float]:

@@ -177,4 +177,113 @@ describe('public/js/main.js', () => {
     expect(button.textContent).toBe('Save Prediction');
     expect(button.disabled).toBe(false);
   });
+
+  test('prediction inputs manage 50 percent team selection and delete state transitions', () => {
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        home_team_abbrev: 'CAT',
+        away_team: 'Swans',
+        away_team_abbrev: 'SYD',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const homeInput = document.querySelector('.home-prediction[data-match-id="22"]');
+    const awayInput = document.querySelector('.away-prediction[data-match-id="22"]');
+    const saveButton = document.querySelector('.save-prediction[data-match-id="22"]');
+
+    homeInput.value = '50';
+    homeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    expect(awayInput.value).toBe('50');
+    expect(saveButton.textContent).toBe('Update Prediction');
+    expect(document.getElementById('team-selection-22')).not.toBeNull();
+    expect(saveButton.dataset.tippedTeam).toBe('home');
+
+    document.querySelector('#team-selection-22 .away-team-button').click();
+    expect(saveButton.dataset.tippedTeam).toBe('away');
+
+    homeInput.value = '';
+    homeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+
+    expect(awayInput.value).toBe('');
+    expect(saveButton.textContent).toBe('Clear Prediction');
+    expect(saveButton.classList.contains('delete-state')).toBe(true);
+    expect(document.getElementById('team-selection-22')).toBeNull();
+  });
+
+  test('save button blocks 50 percent submissions until a team selection is present', () => {
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const homeInput = document.querySelector('.home-prediction[data-match-id="22"]');
+    const saveButton = document.querySelector('.save-prediction[data-match-id="22"]');
+
+    homeInput.value = '50';
+    homeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    delete saveButton.dataset.tippedTeam;
+
+    saveButton.click();
+
+    expect(global.alert).toHaveBeenCalledWith('Please select which team you think will win');
+  });
+
+  test('savePrediction clears existing stored predictions on delete success', async () => {
+    document.querySelector('.round-buttons').innerHTML = '';
+    document.getElementById('matches-container').innerHTML = `
+      <div class="match-card">
+        <input class="home-prediction" data-match-id="22" data-original-value="64" value="">
+        <button class="save-prediction delete-state" data-match-id="22">Clear Prediction</button>
+      </div>
+    `;
+
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true })
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('22', '', button);
+    await flushPromises();
+    await flushPromises();
+
+    expect(window.userPredictions['22']).toBeUndefined();
+    expect(document.querySelector('.home-prediction').dataset.originalValue).toBe('');
+    expect(button.textContent).toBe('Cleared');
+  });
+
+  test('fetchMatchesForRound shows an error state when the request fails', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    window.fetchMatchesForRound('2');
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
+  });
 });

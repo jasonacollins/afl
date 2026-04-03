@@ -240,10 +240,11 @@ afl-predictions/
 
 ## Testing
 
-The project uses Jest for unit and integration coverage.
+The project uses Jest for JavaScript unit and integration coverage, and pytest for Python model and automation tests.
 
 - Test files live under `**/__tests__/**/*.test.js` and `**/*.{spec,test}.js`
-- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and selected browser scripts under `public/js/`
+- Python tests live under `scripts/tests` and are part of the default test workflow
+- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and covered browser scripts under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - Route and app integration tests use `supertest`
 - Browser-oriented tests run in the standard Node Jest environment using a lightweight DOM harness, so client-side scripts should remain testable without depending on a real browser runtime
@@ -252,9 +253,9 @@ The project uses Jest for unit and integration coverage.
 
 Core commands:
 
-- `npm test` - run the test suite
-- `npm run test:watch` - run tests in watch mode
-- `npm run test:coverage` - generate a coverage report in `coverage/`
+- `npm test` - run the JavaScript and Python test suites
+- `npm run test:watch` - run the JavaScript suite in watch mode
+- `npm run test:coverage` - generate the JavaScript coverage report in `coverage/` and run the Python suite
 
 ## Docker Setup
 

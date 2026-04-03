@@ -15,8 +15,11 @@ module.exports = {
     'scripts/automation/**/*.js',
     'utils/**/*.js',
     'public/js/admin.js',
+    'public/js/home.js',
     'public/js/main.js',
     'public/js/mobile-nav.js',
+    'public/js/predictions.js',
+    'public/js/stats.js',
     '!**/__tests__/**',
     '!**/node_modules/**'
   ],
@@ -32,10 +35,10 @@ module.exports = {
 
   coverageThreshold: {
     global: {
-      statements: 73,
-      branches: 59,
-      functions: 73,
-      lines: 73
+      statements: 75,
+      branches: 62,
+      functions: 76,
+      lines: 76
     },
     './public/js/mobile-nav.js': {
       statements: 95,
@@ -44,16 +47,34 @@ module.exports = {
       lines: 95
     },
     './public/js/main.js': {
-      statements: 36,
-      branches: 25,
-      functions: 43,
-      lines: 37
+      statements: 58,
+      branches: 40,
+      functions: 55,
+      lines: 60
     },
     './public/js/admin.js': {
-      statements: 20,
-      branches: 12,
-      functions: 15,
-      lines: 20
+      statements: 45,
+      branches: 35,
+      functions: 35,
+      lines: 45
+    },
+    './public/js/home.js': {
+      statements: 70,
+      branches: 55,
+      functions: 100,
+      lines: 70
+    },
+    './public/js/predictions.js': {
+      statements: 85,
+      branches: 50,
+      functions: 100,
+      lines: 85
+    },
+    './public/js/stats.js': {
+      statements: 80,
+      branches: 50,
+      functions: 90,
+      lines: 80
     }
   }
 };

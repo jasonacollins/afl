@@ -10,6 +10,7 @@ describe('public/js/admin.js', () => {
   let restoreDomGlobals;
   let originalAlert;
   let originalFetch;
+  let originalSetTimeout;
 
   beforeEach(() => {
     jest.resetModules();
@@ -44,11 +45,17 @@ describe('public/js/admin.js', () => {
 
     originalAlert = global.alert;
     originalFetch = global.fetch;
+    originalSetTimeout = global.setTimeout;
 
     global.alert = jest.fn();
     window.alert = global.alert;
     global.fetch = jest.fn();
     window.fetch = global.fetch;
+    global.setTimeout = jest.fn((callback) => {
+      callback();
+      return 0;
+    });
+    window.setTimeout = global.setTimeout;
     global.updateStoredPrediction = jest.fn();
     global.getMatchDataById = jest.fn(() => null);
     global.calculateAccuracy = jest.fn(() => '<p>metrics</p>');
@@ -71,6 +78,9 @@ describe('public/js/admin.js', () => {
       global.fetch = originalFetch;
       window.fetch = originalFetch;
     }
+
+    global.setTimeout = originalSetTimeout;
+    window.setTimeout = originalSetTimeout;
 
     delete global.updateStoredPrediction;
     delete global.getMatchDataById;
@@ -161,5 +171,54 @@ describe('public/js/admin.js', () => {
 
     expect(global.fetch).not.toHaveBeenCalled();
     expect(global.alert).toHaveBeenCalledWith('Please select a user first');
+  });
+
+  test('admin savePrediction override posts the selected user prediction and refreshes metrics', async () => {
+    global.getMatchDataById = jest.fn(() => ({
+      match_id: 44,
+      hscore: 88,
+      ascore: 80
+    }));
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const button = document.querySelector('.save-prediction');
+    button.dataset.tippedTeam = 'away';
+
+    window.savePrediction('44', '50', button);
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7/save', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'X-CSRF-Token': 'admin-csrf-token'
+      })
+    }));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      matchId: '44',
+      probability: 50,
+      tippedTeam: 'away'
+    });
+    expect(global.updateStoredPrediction).toHaveBeenCalledWith('44', 50, 'away');
+    expect(document.querySelector('.home-prediction').dataset.originalValue).toBe('50');
+    expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('<p>metrics</p>');
+  });
+
+  test('DOMContentLoaded adds clear buttons that route through savePrediction with an empty payload', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const saveButton = document.querySelector('.save-prediction');
+    const clearButton = document.querySelector('.clear-prediction');
+    window.savePrediction = jest.fn();
+
+    clearButton.click();
+
+    expect(window.savePrediction).toHaveBeenCalledWith('44', '', saveButton);
   });
 });

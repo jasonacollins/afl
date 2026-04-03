@@ -11,9 +11,9 @@ For comprehensive project information including architecture, features, and setu
 ### Core Commands
 - `npm start` - Start the production server
 - `npm run dev` - Start development server with nodemon (auto-restart on changes)
-- `npm test` - Run Jest tests
-- `npm run test:watch` - Run tests in watch mode
-- `npm run test:coverage` - Run tests with coverage report
+- `npm test` - Run the JavaScript and Python test suites
+- `npm run test:watch` - Run the JavaScript suite in watch mode
+- `npm run test:coverage` - Run JavaScript coverage plus the Python suite
 
 ### Data Management
 - `npm run import` - Initialize database with team data (`scripts/automation/import-data.js`)
@@ -159,6 +159,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 Testing conventions are documented in `README.md`. Additional AI-specific expectations:
 - Keep client-side scripts under `public/js/` directly testable in the Node-based Jest harness; avoid browser-only assumptions that require a real browser runtime
+- Keep Python tests in `scripts/tests` runnable under `pytest` so they remain part of the default `npm test` workflow
 - When changing test scope meaningfully, update `jest.config.js` coverage thresholds intentionally rather than leaving them stale
 - Prefer `require.main === module` guards and exported entrypoints for automation scripts so tests can import them without triggering CLI side effects
 

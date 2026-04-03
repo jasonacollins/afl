@@ -10,9 +10,11 @@
     "sync-games": "node scripts/automation/sync-games.js",
     "daily-sync": "node scripts/automation/daily-sync.js",
     "db-maintenance": "node scripts/automation/db-maintenance.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test": "npm run test:js && npm run test:python",
+    "test:js": "jest --runInBand",
+    "test:python": "python3 -m pytest -q scripts/tests",
+    "test:watch": "npm run test:js -- --watch",
+    "test:coverage": "npm run test:js -- --coverage && npm run test:python"
   },
   "engines": {
     "node": ">=16.0.0"
