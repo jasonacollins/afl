@@ -435,3 +435,114 @@ describe('Admin Script Runner - persisted logs and recovery', () => {
     expect(recoveredCount).toBe(2);
   });
 });
+
+describe('Admin Script Runner - metadata and log edge cases', () => {
+  let readdirSpy;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    readdirSpy = jest.spyOn(fs, 'readdir');
+  });
+
+  afterEach(() => {
+    readdirSpy.mockRestore();
+  });
+
+  test('getScriptMetadata groups model files and picks preferred default predictors', async () => {
+    const { getQuery } = require('../../models/db');
+
+    readdirSpy
+      .mockResolvedValueOnce([
+        { name: 'afl_elo_win_trained_to_2025.json', isFile: () => true },
+        { name: 'optimal_elo_params_win_trained_to_2025.json', isFile: () => true },
+        { name: 'optimal_margin_methods_trained_to_2025.json', isFile: () => true },
+        { name: 'notes.txt', isFile: () => true }
+      ])
+      .mockResolvedValueOnce([
+        { name: 'afl_elo_margin_only_trained_to_2025.json', isFile: () => true }
+      ]);
+
+    getQuery.mockResolvedValue([
+      { predictor_id: 1, display_name: 'Alpha' },
+      { predictor_id: 6, display_name: "Dad's AI" },
+      { predictor_id: 8, display_name: 'Testing Predictor' }
+    ]);
+
+    const metadata = await adminScriptRunner.getScriptMetadata();
+
+    expect(metadata.modelFiles).toEqual(expect.objectContaining({
+      win: expect.arrayContaining([
+        'data/models/win/afl_elo_win_trained_to_2025.json',
+        'data/models/win/optimal_elo_params_win_trained_to_2025.json',
+        'data/models/win/optimal_margin_methods_trained_to_2025.json'
+      ]),
+      margin: ['data/models/margin/afl_elo_margin_only_trained_to_2025.json'],
+      winModels: ['data/models/win/afl_elo_win_trained_to_2025.json'],
+      winParams: ['data/models/win/optimal_elo_params_win_trained_to_2025.json'],
+      winMarginMethods: ['data/models/win/optimal_margin_methods_trained_to_2025.json']
+    }));
+    expect(metadata.defaults).toEqual(expect.objectContaining({
+      predictorId: 6,
+      marginPredictorId: 1,
+      winMarginMethodsPredictorId: 8,
+      dbPath: 'data/database/afl_predictions.db'
+    }));
+    expect(metadata.scripts).toEqual(expect.any(Array));
+  });
+
+  test('getScriptMetadata tolerates unreadable model directories', async () => {
+    const { getQuery } = require('../../models/db');
+
+    readdirSpy.mockRejectedValue(new Error('permission denied'));
+    getQuery.mockResolvedValue([{ predictor_id: 6, display_name: "Dad's AI" }]);
+
+    const metadata = await adminScriptRunner.getScriptMetadata();
+
+    expect(metadata.modelFiles.win).toEqual([]);
+    expect(metadata.modelFiles.margin).toEqual([]);
+    expect(metadata.defaults.predictorId).toBe(6);
+  });
+
+  test('buildScriptCommand rejects paths outside the project root', async () => {
+    await expect(adminScriptRunner.__testables.buildScriptCommand('season-simulation', {
+      year: 2026,
+      modelPath: '../../outside.json'
+    })).rejects.toThrow('modelPath must resolve inside the project root');
+  });
+
+  test('getRunLogs returns a placeholder when the run has no log path', async () => {
+    getOne.mockResolvedValue({ run_id: 55, log_path: null });
+
+    await expect(adminScriptRunner.getRunLogs(55)).resolves.toEqual([
+      {
+        log_id: null,
+        run_id: 55,
+        seq: 1,
+        stream: 'system',
+        message: 'No log file is available for this run.',
+        created_at: expect.any(String)
+      }
+    ]);
+  });
+
+  test('getRunLogs returns an invalid-path placeholder for unsafe log paths', async () => {
+    getOne.mockResolvedValue({ run_id: 56, log_path: '../../outside.log' });
+
+    await expect(adminScriptRunner.getRunLogs(56)).resolves.toEqual([
+      {
+        log_id: null,
+        run_id: 56,
+        seq: 1,
+        stream: 'system',
+        message: 'Run log path is invalid.',
+        created_at: expect.any(String)
+      }
+    ]);
+  });
+
+  test('getRunLogs returns empty output for later polls after missing logs', async () => {
+    getOne.mockResolvedValue({ run_id: 57, log_path: null });
+
+    await expect(adminScriptRunner.getRunLogs(57, 1)).resolves.toEqual([]);
+  });
+});

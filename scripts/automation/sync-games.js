@@ -89,6 +89,112 @@ async function resolveVenueId(venueName) {
   return row ? row.venue_id : null;
 }
 
+function resolveSquiggleTeamIds(game) {
+  let homeTeamId = game.hteamid || null;
+  let awayTeamId = game.ateamid || null;
+
+  if (!homeTeamId && game.hteam && game.hteam.toLowerCase().includes('to be announced')) {
+    homeTeamId = 99;
+  }
+
+  if (!awayTeamId && game.ateam && game.ateam.toLowerCase().includes('to be announced')) {
+    awayTeamId = 99;
+  }
+
+  return {
+    homeTeamId,
+    awayTeamId
+  };
+}
+
+function resolveRoundNumber(game) {
+  let roundNumber = game.round.toString();
+  const normalizedRoundName = String(game.roundname || '').trim().toLowerCase();
+
+  if (normalizedRoundName === 'opening round') {
+    return 'OR';
+  }
+
+  if (
+    game.is_final > 0 ||
+    normalizedRoundName.includes('wild') ||
+    normalizedRoundName.includes('final')
+  ) {
+    if (normalizedRoundName.includes('wild')) {
+      return 'Wildcard Finals';
+    }
+    if (normalizedRoundName.includes('elimination')) {
+      return 'Elimination Final';
+    }
+    if (normalizedRoundName.includes('qualifying')) {
+      return 'Qualifying Final';
+    }
+    if (normalizedRoundName.includes('semi')) {
+      return 'Semi Final';
+    }
+    if (normalizedRoundName.includes('preliminary')) {
+      return 'Preliminary Final';
+    }
+    if (normalizedRoundName.includes('grand')) {
+      return 'Grand Final';
+    }
+
+    switch (game.is_final) {
+      case 1: return 'Wildcard Finals';
+      case 2: return 'Elimination Final';
+      case 3: return 'Qualifying Final';
+      case 4: return 'Semi Final';
+      case 5: return 'Preliminary Final';
+      case 6: return 'Grand Final';
+      default: return 'Finals';
+    }
+  }
+
+  return roundNumber;
+}
+
+function resolveMatchDate(game) {
+  if (game.unixtime) {
+    return new Date(game.unixtime * 1000).toISOString();
+  }
+  if (game.date) {
+    return new Date(game.date).toISOString();
+  }
+  return null;
+}
+
+function normalizeCompletion(complete) {
+  const parsedCompletion = Number.parseInt(complete, 10);
+  return Number.isInteger(parsedCompletion) && parsedCompletion >= 0 && parsedCompletion <= 100
+    ? parsedCompletion
+    : 0;
+}
+
+function normalizeScorePayload(game, matchDate, completion, now = new Date()) {
+  const parsedMatchDate = matchDate ? new Date(matchDate) : null;
+  const hasValidMatchDate = parsedMatchDate && !Number.isNaN(parsedMatchDate.getTime());
+  const isFutureMatch = hasValidMatchDate && parsedMatchDate > now;
+
+  const hasZeroPlaceholderScores =
+    Number(game.hscore) === 0 &&
+    Number(game.ascore) === 0 &&
+    Number(game.hgoals) === 0 &&
+    Number(game.hbehinds) === 0 &&
+    Number(game.agoals) === 0 &&
+    Number(game.abehinds) === 0;
+
+  const shouldNullFixtureScores = completion < 100 && isFutureMatch && hasZeroPlaceholderScores;
+
+  return {
+    homeScore: shouldNullFixtureScores ? null : (game.hscore !== undefined ? game.hscore : null),
+    awayScore: shouldNullFixtureScores ? null : (game.ascore !== undefined ? game.ascore : null),
+    homeGoals: shouldNullFixtureScores ? null : (game.hgoals || null),
+    homeBehinds: shouldNullFixtureScores ? null : (game.hbehinds || null),
+    awayGoals: shouldNullFixtureScores ? null : (game.agoals || null),
+    awayBehinds: shouldNullFixtureScores ? null : (game.abehinds || null)
+  };
+}
+
 // Sync team data first to ensure the IDs are correct
 async function syncTeams() {
   logger.info('Synchronizing team data with Squiggle API...');
@@ -172,20 +278,7 @@ async function syncGamesFromAPI(options = {}) {
     
     for (const game of data.games) {
       try {
-        // Get team IDs from the API
-        let homeTeamId = game.hteamid || null;
-        let awayTeamId = game.ateamid || null;
-
-        // For finals without assigned teams, use placeholder IDs if the team name is "To be announced"
-        if (!homeTeamId && game.hteam && game.hteam.toLowerCase().includes("to be announced")) {
-          // Use a special ID for TBA home team
-          homeTeamId = 99; // Special ID for "To be announced"
-        }
-
-        if (!awayTeamId && game.ateam && game.ateam.toLowerCase().includes("to be announced")) {
-          // Use a special ID for TBA away team
-          awayTeamId = 99; // Special ID for "To be announced"
-        }
+        const { homeTeamId, awayTeamId } = resolveSquiggleTeamIds(game);
         
         // Skip games with missing game ID
         if (!game.id) {
@@ -194,85 +287,21 @@ async function syncGamesFromAPI(options = {}) {
           continue;
         }
         
-        // Map round name
-        let roundNumber = game.round.toString();
-        const normalizedRoundName = String(game.roundname || '').trim().toLowerCase();
-
-        if (normalizedRoundName === 'opening round') {
-          roundNumber = 'OR';
-        } else if (
-          game.is_final > 0 ||
-          normalizedRoundName.includes('wild') ||
-          normalizedRoundName.includes('final')
-        ) {
-          // Prefer explicit roundname matches when available. Fallback to
-          // Squiggle is_final values for feeds that use generic finals labels.
-          if (normalizedRoundName.includes('wild')) {
-            roundNumber = 'Wildcard Finals';
-          } else if (normalizedRoundName.includes('elimination')) {
-            roundNumber = 'Elimination Final';
-          } else if (normalizedRoundName.includes('qualifying')) {
-            roundNumber = 'Qualifying Final';
-          } else if (normalizedRoundName.includes('semi')) {
-            roundNumber = 'Semi Final';
-          } else if (normalizedRoundName.includes('preliminary')) {
-            roundNumber = 'Preliminary Final';
-          } else if (normalizedRoundName.includes('grand')) {
-            roundNumber = 'Grand Final';
-          } else {
-            switch (game.is_final) {
-              case 1: roundNumber = 'Wildcard Finals'; break;
-              case 2: roundNumber = 'Elimination Final'; break;
-              case 3: roundNumber = 'Qualifying Final'; break;
-              case 4: roundNumber = 'Semi Final'; break;
-              case 5: roundNumber = 'Preliminary Final'; break;
-              case 6: roundNumber = 'Grand Final'; break;
-              default: roundNumber = 'Finals';
-            }
-          }
-        }
+        const roundNumber = resolveRoundNumber(game);
         
         // Convert Unix timestamp to ISO date if available
-        let matchDate = null;
-        if (game.unixtime) {
-          matchDate = new Date(game.unixtime * 1000).toISOString();
-        } else if (game.date) {
-          matchDate = new Date(game.date).toISOString();
-        }
+        const matchDate = resolveMatchDate(game);
         
         // matches.complete is NOT NULL in schema; default unknown/invalid values to 0.
-        const parsedCompletion = Number.parseInt(game.complete, 10);
-        const completion = Number.isInteger(parsedCompletion) && parsedCompletion >= 0 && parsedCompletion <= 100
-          ? parsedCompletion
-          : 0;
-
-        const parsedMatchDate = matchDate ? new Date(matchDate) : null;
-        const hasValidMatchDate = parsedMatchDate && !Number.isNaN(parsedMatchDate.getTime());
-        const isFutureMatch = hasValidMatchDate && parsedMatchDate > new Date();
-
-        const hasZeroPlaceholderScores =
-          Number(game.hscore) === 0 &&
-          Number(game.ascore) === 0 &&
-          Number(game.hgoals) === 0 &&
-          Number(game.hbehinds) === 0 &&
-          Number(game.agoals) === 0 &&
-          Number(game.abehinds) === 0;
-
-        // Squiggle can return 0-0 placeholders for future fixtures.
-        // Store these as NULL to keep fixture/unplayed semantics consistent across the app.
-        const shouldNullFixtureScores = completion < 100 && isFutureMatch && hasZeroPlaceholderScores;
-
-        // Get home and away scores
-        const homeScore = shouldNullFixtureScores
-          ? null
-          : (game.hscore !== undefined ? game.hscore : null);
-        const awayScore = shouldNullFixtureScores
-          ? null
-          : (game.ascore !== undefined ? game.ascore : null);
-        const homeGoals = shouldNullFixtureScores ? null : (game.hgoals || null);
-        const homeBehinds = shouldNullFixtureScores ? null : (game.hbehinds || null);
-        const awayGoals = shouldNullFixtureScores ? null : (game.agoals || null);
-        const awayBehinds = shouldNullFixtureScores ? null : (game.abehinds || null);
+        const completion = normalizeCompletion(game.complete);
+        const {
+          homeScore,
+          awayScore,
+          homeGoals,
+          homeBehinds,
+          awayGoals,
+          awayBehinds
+        } = normalizeScorePayload(game, matchDate, completion);
         const venueId = await resolveVenueId(game.venue);
         
         // Check if match already exists in database with the Squiggle ID
@@ -527,5 +556,12 @@ if (require.main === module) {
 
 module.exports = {
   syncGamesFromAPI,
-  syncTeams
+  syncTeams,
+  __testables: {
+    resolveSquiggleTeamIds,
+    resolveRoundNumber,
+    resolveMatchDate,
+    normalizeCompletion,
+    normalizeScorePayload
+  }
 };

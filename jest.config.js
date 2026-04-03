@@ -12,7 +12,9 @@ module.exports = {
     'routes/**/*.js',
     'models/**/*.js',
     'middleware/**/*.js',
+    'scripts/automation/**/*.js',
     'utils/**/*.js',
+    '!**/__tests__/**',
     '!**/node_modules/**'
   ],
   

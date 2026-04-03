@@ -221,14 +221,36 @@ async function main() {
   console.log(JSON.stringify(result));
 }
 
-main()
-  .catch((error) => {
-    logger.error('DB maintenance failed', {
-      error: error.message,
-      stack: error.stack
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      logger.error('DB maintenance failed', {
+        error: error.message,
+        stack: error.stack
+      });
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await closeDbConnection();
     });
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await closeDbConnection();
-  });
+}
+
+module.exports = {
+  main,
+  __testables: {
+    DEFAULT_RETENTION_DAYS,
+    LOG_ROOT,
+    PROJECT_ROOT,
+    nowIso,
+    parseArguments,
+    ensurePathWithinProject,
+    tableExists,
+    unlinkIfExists,
+    walkFiles,
+    cleanupOldAdminRunRows,
+    cleanupOrphanRunLogFiles,
+    runCleanup,
+    runVacuum,
+    closeDbConnection
+  }
+};

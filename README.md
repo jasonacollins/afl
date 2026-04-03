@@ -243,7 +243,7 @@ afl-predictions/
 The project uses Jest for unit and integration coverage.
 
 - Test files live under `**/__tests__/**/*.test.js` and `**/*.{spec,test}.js`
-- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, and `utils/`
+- Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, and `utils/`
 - Route and app integration tests use `supertest`
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
 

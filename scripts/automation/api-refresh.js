@@ -1,6 +1,6 @@
 const { runQuery, getOne } = require('../../models/db');
 // node-fetch v3 is ESM-only; use dynamic import for CommonJS scripts.
-const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+let fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 const { logger } = require('../../utils/logger');
 const { AppError } = require('../../utils/error-handler');
 const { buildSquiggleQueryUrl, getSquiggleRequestOptions } = require('../../utils/squiggle-request');
@@ -60,7 +60,7 @@ async function refreshAPIData(year, options = {}) {
     
     logger.debug('Fetching games from Squiggle API', { apiUrl });
     
-    const response = await fetch(apiUrl, getSquiggleRequestOptions());
+    const response = await fetchImpl(apiUrl, getSquiggleRequestOptions());
 
     if (!response.ok) {
       throw new AppError(
@@ -269,7 +269,23 @@ async function refreshAPIData(year, options = {}) {
     );
   }
 }
-module.exports = { refreshAPIData };
+
+function setFetchImplementationForTests(mockFetch) {
+  fetchImpl = mockFetch;
+}
+
+function resetFetchImplementationForTests() {
+  fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+}
+
+module.exports = {
+  refreshAPIData,
+  __testables: {
+    resolveVenueId,
+    setFetchImplementationForTests,
+    resetFetchImplementationForTests
+  }
+};
 
 if (require.main === module) {
   (async () => {
