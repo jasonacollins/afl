@@ -13,6 +13,8 @@ jest.mock('../../utils/logger', () => ({
   }
 }));
 
+const fs = require('fs').promises;
+const path = require('path');
 const { getOne } = require('../../models/db');
 const adminScriptRunner = require('../admin-script-runner');
 
@@ -130,5 +132,75 @@ describe('Admin Script Runner - win model file-type validation', () => {
     await expect(buildScriptCommand('win-train', {
       paramsFile: 'data/models/win/afl_elo_win_trained_to_2025.json'
     })).rejects.toThrow('paramsFile must reference an optimal_elo_params_win artifact');
+  });
+});
+
+describe('Admin Script Runner - persisted logs and recovery', () => {
+  test('getRunLogs parses structured log lines and falls back to system messages for plain text', async () => {
+    const runId = 401;
+    const relativeLogPath = path.posix.join(
+      'logs',
+      'admin-scripts',
+      '2099',
+      '12',
+      `run-${process.pid}-${Date.now()}.log`
+    );
+    const absoluteLogPath = path.join(__dirname, '..', '..', relativeLogPath);
+
+    await fs.mkdir(path.dirname(absoluteLogPath), { recursive: true });
+    await fs.writeFile(
+      absoluteLogPath,
+      `${JSON.stringify({
+        created_at: '2026-04-03T00:00:00.000Z',
+        stream: 'stdout',
+        message: 'first line'
+      })}\nplain text line\n`,
+      'utf8'
+    );
+
+    getOne.mockResolvedValue({ run_id: runId, log_path: relativeLogPath });
+
+    try {
+      const logs = await adminScriptRunner.getRunLogs(runId);
+
+      expect(logs).toEqual([
+        {
+          log_id: null,
+          run_id: runId,
+          seq: 1,
+          stream: 'stdout',
+          message: 'first line',
+          created_at: '2026-04-03T00:00:00.000Z'
+        },
+        {
+          log_id: null,
+          run_id: runId,
+          seq: 2,
+          stream: 'system',
+          message: 'plain text line',
+          created_at: expect.any(String)
+        }
+      ]);
+    } finally {
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
+  test('recoverInterruptedRuns marks queued and running rows as interrupted', async () => {
+    const { runQuery } = require('../../models/db');
+    runQuery.mockResolvedValue({ changes: 2 });
+
+    const recoveredCount = await adminScriptRunner.recoverInterruptedRuns();
+
+    expect(runQuery).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE admin_script_runs'),
+      [
+        'interrupted',
+        expect.any(String),
+        'queued',
+        'running'
+      ]
+    );
+    expect(recoveredCount).toBe(2);
   });
 });

@@ -1,7 +1,8 @@
 jest.mock('../../models/db', () => ({
   getQuery: jest.fn(),
   getOne: jest.fn(),
-  runQuery: jest.fn()
+  runQuery: jest.fn(),
+  dbPath: '/tmp/afl-admin-route-test.db'
 }));
 
 jest.mock('../auth', () => ({
@@ -82,7 +83,12 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const request = require('supertest');
-const { getQuery, getOne, runQuery } = require('../../models/db');
+const fs = require('fs');
+const fsp = fs.promises;
+const os = require('os');
+const path = require('path');
+const dbModule = require('../../models/db');
+const { getQuery, getOne, runQuery } = dbModule;
 const predictorService = require('../../services/predictor-service');
 const predictionService = require('../../services/prediction-service');
 const passwordService = require('../../services/password-service');
@@ -91,6 +97,18 @@ const resultUpdateService = require('../../services/result-update-service');
 const { refreshAPIData } = require('../../scripts/automation/api-refresh');
 const adminRouter = require('../admin');
 const { createRouterTestApp } = require('./test-app');
+
+async function listDirSafe(directoryPath) {
+  try {
+    return await fsp.readdir(directoryPath);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+
+    throw error;
+  }
+}
 
 describe('admin routes', () => {
   beforeEach(() => {
@@ -428,6 +446,128 @@ describe('admin routes', () => {
       updateCount: 2,
       scoresUpdated: 3
     });
+  });
+
+  test('GET /export/predictions returns CSV output with scoring columns', async () => {
+    predictionService.getAllPredictionsWithDetails.mockResolvedValue([
+      {
+        predictor_name: "Dad's AI",
+        round_number: '1',
+        match_number: 14,
+        match_date: '2026-03-20T09:30:00.000Z',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        home_win_probability: 50,
+        tipped_team: 'away',
+        hscore: 80,
+        ascore: 85
+      }
+    ]);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/export/predictions');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/csv');
+    expect(response.text).toContain(
+      'Predictor,Round,Match Number,Match Date,Home Team,Away Team,Home Win %,Away Win %,Tipped Team,Home Score,Away Score,Correct,Tip Points,Brier Score,Bits Score'
+    );
+    expect(response.text).toContain('"Dad\'s AI","1",14,');
+    expect(response.text).toContain('"Swans",80,85,"Yes",1.0,0.2000,0.4000');
+  });
+
+  test('GET /export/database copies the database, downloads it, and removes the temporary copy', async () => {
+    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'afl-admin-export-'));
+    const currentDbPath = path.join(tempDir, 'current.db');
+    await fsp.writeFile(currentDbPath, 'current-db-content', 'utf8');
+    dbModule.dbPath = currentDbPath;
+    const unlinkSpy = jest.spyOn(fs, 'unlink');
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+    app.response.download = function download(filePath, filename, callback) {
+      this.json({ downloadedPath: filePath, filename });
+      if (typeof callback === 'function') {
+        callback(null);
+      }
+    };
+
+    try {
+      const response = await request(app).get('/export/database');
+
+      expect(response.status).toBe(200);
+      expect(response.body.filename).toMatch(/^afl_predictions_.*\.db$/);
+      expect(response.body.downloadedPath).toContain('/data/afl_predictions_');
+      expect(unlinkSpy).toHaveBeenCalledWith(response.body.downloadedPath, expect.any(Function));
+    } finally {
+      unlinkSpy.mockRestore();
+      await fsp.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('POST /upload-database backs up the current database, replaces it, and exits for restart', async () => {
+    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'afl-admin-upload-'));
+    const currentDbPath = path.join(tempDir, 'current.db');
+    const uploadDbPath = path.join(tempDir, 'uploaded.db');
+    const backupsDir = path.join(process.cwd(), 'data', 'database', 'backups');
+    const backupFilesBefore = await listDirSafe(backupsDir);
+    const tempUploadsDir = path.join(process.cwd(), 'data', 'temp');
+    const tempUploadsBefore = await listDirSafe(tempUploadsDir);
+    const scheduledCallbacks = [];
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((callback) => {
+      scheduledCallbacks.push(callback);
+      return 1;
+    });
+
+    await fsp.writeFile(currentDbPath, 'old database contents', 'utf8');
+    await fsp.writeFile(uploadDbPath, 'new database contents', 'utf8');
+    dbModule.dbPath = currentDbPath;
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    try {
+      const response = await request(app)
+        .post('/upload-database')
+        .attach('databaseFile', uploadDbPath);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        message: 'Database uploaded successfully. The application will restart shortly.'
+      });
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      scheduledCallbacks[0]();
+
+      expect(await fsp.readFile(currentDbPath, 'utf8')).toBe('new database contents');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+
+      const backupFilesAfter = await listDirSafe(backupsDir);
+      const newBackupFiles = backupFilesAfter.filter((fileName) => !backupFilesBefore.includes(fileName));
+      expect(newBackupFiles.length).toBeGreaterThan(0);
+
+      const backupContents = await fsp.readFile(path.join(backupsDir, newBackupFiles[0]), 'utf8');
+      expect(backupContents).toBe('old database contents');
+
+      const tempUploadsAfter = await listDirSafe(tempUploadsDir);
+      const newTempUploads = tempUploadsAfter.filter((fileName) => !tempUploadsBefore.includes(fileName));
+      expect(newTempUploads).toEqual([]);
+
+      await Promise.all(newBackupFiles.map((fileName) =>
+        fsp.rm(path.join(backupsDir, fileName), { force: true })
+      ));
+    } finally {
+      exitSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
+      await fsp.rm(tempDir, { recursive: true, force: true });
+    }
   });
 
   test('POST /set-featured-predictors requires an active predictor', async () => {
