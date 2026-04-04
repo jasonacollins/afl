@@ -4,7 +4,7 @@ const SqliteStore = require('connect-sqlite3')(session);
 const path = require('path');
 const methodOverride = require('method-override');
 const helmet = require('helmet');
-require('dotenv').config();
+require('dotenv').config({ quiet: process.env.NODE_ENV === 'test' });
 
 // Import utilities
 const { errorMiddleware, catchAsync } = require('./utils/error-handler');

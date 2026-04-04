@@ -20,10 +20,17 @@ function buildSimulationDom() {
         <thead>
           <tr>
             <th class="sortable" data-sort="team">Team</th>
+            <th class="sortable" data-sort="elo">ELO</th>
+            <th class="sortable" data-sort="record">Record</th>
             <th class="sortable" data-sort="projected-wins">Wins</th>
+            <th class="sortable" data-sort="top10">Top 10</th>
+            <th class="sortable" data-sort="wildcard">Wildcard</th>
             <th class="sortable" data-sort="top6">Top 6</th>
             <th class="sortable" data-sort="top8">Top 8</th>
             <th class="sortable" data-sort="finals-week-2">Finals Week 2</th>
+            <th class="sortable" data-sort="top4">Top 4</th>
+            <th class="sortable" data-sort="prelim">Prelim</th>
+            <th class="sortable" data-sort="grand-final">Grand Final</th>
             <th class="sortable" data-sort="premiership">Flag</th>
           </tr>
         </thead>
@@ -470,6 +477,132 @@ describe('public/js/simulation.js', () => {
     expect(document.getElementById('round-snapshot-nav').classList.contains('is-hidden')).toBe(true);
   });
 
+  test('supports the remaining sortable columns across 2026 and legacy seasons', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/simulation/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026, 2025] })
+        });
+      }
+
+      if (url === '/api/simulation/2026') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2026,
+            round_snapshots: [
+              {
+                round_key: 'round-2-current',
+                round_label: 'Current Round 2',
+                round_tab_label: 'Current',
+                round_order: 2.5,
+                completed_matches: 12,
+                remaining_matches: 195,
+                num_simulations: 50000,
+                results: [
+                  buildTeam('Cats', {
+                    current_elo: 1510,
+                    current_wins: 4,
+                    projected_wins: 15.5,
+                    finals_probability: 0.82,
+                    wildcard_probability: 0.03,
+                    top4_probability: 0.42,
+                    prelim_probability: 0.21,
+                    grand_final_probability: 0.11,
+                    finals_week2_probability: 0.55
+                  }),
+                  buildTeam('Bombers', {
+                    current_elo: 1490,
+                    current_wins: 6,
+                    projected_wins: 14.7,
+                    finals_probability: 0.91,
+                    wildcard_probability: 0.16,
+                    top4_probability: 0.51,
+                    prelim_probability: 0.29,
+                    grand_final_probability: 0.17,
+                    finals_week2_probability: 0.68
+                  }),
+                  buildTeam('Dockers', {
+                    current_elo: 1525,
+                    current_wins: 5,
+                    projected_wins: 13.4,
+                    finals_probability: 0.77,
+                    wildcard_probability: 0.45,
+                    top4_probability: 0.35,
+                    prelim_probability: 0.18,
+                    grand_final_probability: 0.08,
+                    finals_week2_probability: 0.24
+                  })
+                ]
+              }
+            ]
+          })
+        });
+      }
+
+      if (url === '/api/simulation/2025') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2025,
+            current_round_label: 'Before Round 4',
+            num_simulations: 50000,
+            completed_matches: 24,
+            remaining_matches: 183,
+            results: [
+              buildTeam('Cats', { finals_probability: 0.72 }),
+              buildTeam('Swans', { finals_probability: 0.91, projected_wins: 14.1 }),
+              buildTeam('Dockers', { finals_probability: 0.65, projected_wins: 13.5 })
+            ]
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('simulation.js');
+    if (document.readyState === 'loading') {
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    }
+    await flushPromises();
+    await flushPromises();
+
+    document.querySelector('#simulation-table th.sortable[data-sort="elo"]').click();
+    expect(getRenderedTeams()).toEqual(['Dockers', 'Cats', 'Bombers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="record"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Dockers', 'Cats']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="projected-wins"]').click();
+    expect(getRenderedTeams()).toEqual(['Cats', 'Bombers', 'Dockers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="top10"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Cats', 'Dockers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="wildcard"]').click();
+    expect(getRenderedTeams()).toEqual(['Dockers', 'Bombers', 'Cats']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="top4"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Cats', 'Dockers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="prelim"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Cats', 'Dockers']);
+
+    document.querySelector('#simulation-table th.sortable[data-sort="grand-final"]').click();
+    expect(getRenderedTeams()).toEqual(['Bombers', 'Cats', 'Dockers']);
+
+    const yearSelect = document.getElementById('year-select');
+    yearSelect.value = '2025';
+    yearSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flushPromises();
+    await flushPromises();
+    await flushPromises();
+
+    document.querySelector('#simulation-table th.sortable[data-sort="top8"]').click();
+    expect(getRenderedTeams()).toEqual(['Swans', 'Cats', 'Dockers']);
+  });
+
   test('keeps table order stable when an unknown sort header is clicked', async () => {
     const unknownHeader = document.createElement('th');
     unknownHeader.className = 'sortable';
@@ -543,5 +676,40 @@ describe('public/js/simulation.js', () => {
     expect(document.getElementById('error-message').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('round-snapshot-context').textContent).toBe('Broken Snapshot');
     expect(document.querySelectorAll('#simulation-tbody tr')).toHaveLength(0);
+  });
+
+  test('shows an error when snapshot payloads collapse to no usable snapshot entries', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/simulation/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026] })
+        });
+      }
+
+      if (url === '/api/simulation/2026') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2026,
+            round_snapshots: [null]
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('simulation.js');
+    if (document.readyState === 'loading') {
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    }
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('error-message').classList.contains('is-hidden')).toBe(false);
+    expect(document.getElementById('error-text').textContent).toBe(
+      'Simulation snapshot data is missing or invalid.'
+    );
+    expect(document.getElementById('table-container').classList.contains('is-hidden')).toBe(true);
   });
 });

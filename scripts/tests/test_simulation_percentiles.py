@@ -674,6 +674,24 @@ def test_load_existing_round_snapshots_filters_invalid_entries_and_infers_round_
     assert snapshots[1]['round_order'] == 10000
 
 
+def test_load_existing_round_snapshots_ignores_other_season_files(tmp_path):
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.year = 2026
+
+    output_path = tmp_path / 'season_simulation_2025.json'
+    output_path.write_text(json.dumps({
+        'year': 2025,
+        'round_snapshots': [
+            {
+                'round_key': 'round-1',
+                'results': [{'team': 'A'}]
+            }
+        ]
+    }), encoding='utf-8')
+
+    assert simulator.load_existing_round_snapshots(str(output_path)) == []
+
+
 def test_save_results_merges_snapshots_prunes_stale_current_and_writes_json(tmp_path, monkeypatch):
     """Saving results should merge by round key and keep only the active current snapshot."""
     simulator = SeasonSimulator.__new__(SeasonSimulator)
@@ -738,6 +756,53 @@ def test_save_results_merges_snapshots_prunes_stale_current_and_writes_json(tmp_
     assert saved['remaining_matches'] == 13
     assert [snapshot['round_key'] for snapshot in saved['round_snapshots']] == ['round-1', 'round-2-current']
     assert saved['round_snapshots'][1]['results'] == results
+
+
+def test_save_results_removes_temp_file_when_atomic_replace_fails(tmp_path, monkeypatch):
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.year = 2026
+    simulator.num_simulations = 50000
+    simulator.model_mode = 'margin_only'
+    simulator.win_model_path = None
+    simulator.margin_model_path = 'data/models/margin/model.json'
+    simulator.from_scratch = False
+    simulator.snapshot_round_metadata = {
+        'round_key': 'round-1',
+        'round_label': 'Before Round 1',
+        'round_tab_label': 'R1',
+        'round_order': 1,
+        'round_number': '1'
+    }
+    simulator.completed_matches = pd.DataFrame({'match_id': [1]})
+    simulator.get_remaining_match_counts = lambda: {
+        'remaining_regular_matches': 3,
+        'remaining_finals_matches': 9,
+        'remaining_matches': 12
+    }
+    simulator.load_existing_round_snapshots = lambda output_path: []
+
+    real_mkstemp = season_simulator_module.tempfile.mkstemp
+    temp_path_holder = {}
+
+    def capturing_mkstemp(*args, **kwargs):
+        fd, temp_path = real_mkstemp(*args, **kwargs)
+        temp_path_holder['path'] = temp_path
+        return fd, temp_path
+
+    def failing_replace(_src, _dst):
+        raise OSError('replace failed')
+
+    monkeypatch.setattr(season_simulator_module.tempfile, 'mkstemp', capturing_mkstemp)
+    monkeypatch.setattr(season_simulator_module.os, 'replace', failing_replace)
+
+    with pytest.raises(OSError, match='replace failed'):
+        simulator.save_results(
+            [{'team': 'Sydney'}],
+            str(tmp_path / 'nested' / 'season_simulation_2026.json')
+        )
+
+    assert 'path' in temp_path_holder
+    assert not os.path.exists(temp_path_holder['path'])
 
 
 def test_run_backfill_round_snapshots_resets_existing_file_and_saves_each_context(tmp_path):

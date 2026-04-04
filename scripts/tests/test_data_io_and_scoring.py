@@ -2,7 +2,9 @@ import os
 import sqlite3
 import sys
 import tempfile
+from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -167,6 +169,75 @@ def test_load_parameters_wraps_file_errors_in_value_error(tmp_path):
 
     with pytest.raises(ValueError, match='Failed to load parameters'):
         data_io.load_parameters(str(missing_path))
+
+
+def test_save_optimization_results_serializes_numpy_scalars_and_cv_results(tmp_path, capsys):
+    output_path = tmp_path / 'optimisation' / 'results.json'
+
+    data_io.save_optimization_results({
+        'best_score': np.float64(0.123),
+        'search_iterations': np.int64(4),
+        'all_results': [
+            {
+                'params': {'k_factor': 24},
+                'log_loss': np.float64(0.222),
+                'cv_scores': [np.float64(0.2), np.float64(0.24)]
+            },
+            {
+                'params': {'k_factor': 30},
+                'score': np.float64(0.333),
+                'cv_scores': []
+            }
+        ]
+    }, str(output_path))
+
+    raw_output = output_path.read_text(encoding='utf-8')
+    saved = data_io.json.loads(raw_output)
+
+    assert '"best_score": 0.123' in raw_output
+    assert '"search_iterations": 4' in raw_output
+    assert '"log_loss": 0.333' in raw_output
+    assert 'Optimization results saved to:' in capsys.readouterr().out
+    assert saved['search_iterations'] == 4
+    assert saved['all_results'][1]['log_loss'] == pytest.approx(0.333)
+
+
+def test_create_summary_file_writes_model_parameters_and_sorted_ratings(tmp_path, capsys):
+    output_path = tmp_path / 'summaries' / 'training.txt'
+    model = SimpleNamespace(
+        k_factor=24,
+        home_advantage=30,
+        season_carryover=0.7,
+        margin_factor=0.05,
+        margin_scale=0.12,
+        get_current_ratings=lambda: {'Swans': 1512.4, 'Cats': 1498.2}
+    )
+
+    data_io.create_summary_file(
+        model,
+        {
+            'total_matches': 198,
+            'accuracy': 0.61,
+            'brier_score': 0.1823,
+            'margin_mae': 24.4
+        },
+        str(output_path),
+        {
+            'db_path': 'data/database/afl_predictions.db',
+            'start_year': 1990,
+            'end_year': 2025
+        }
+    )
+
+    summary_text = output_path.read_text(encoding='utf-8')
+
+    assert 'AFL ELO Model Training Summary' in summary_text
+    assert 'Training Period: 1990-2025' in summary_text
+    assert 'Margin MAE: 24.4 points' in summary_text
+    assert 'K-Factor: 24' in summary_text
+    assert 'Swans: 1512' in summary_text
+    assert 'Cats: 1498' in summary_text
+    assert 'Training summary saved to:' in capsys.readouterr().out
 
 
 def test_atomic_write_text_removes_temp_file_when_replace_fails(tmp_path, monkeypatch):

@@ -11,6 +11,7 @@ describe('public/js/stats.js', () => {
   let originalFetch;
   let originalAlert;
   let consoleErrorSpy;
+  let consoleLogSpy;
 
   beforeEach(() => {
     jest.resetModules();
@@ -37,6 +38,7 @@ describe('public/js/stats.js', () => {
     window.alert = global.alert;
     window.location.reload = jest.fn();
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -57,6 +59,7 @@ describe('public/js/stats.js', () => {
     }
 
     consoleErrorSpy.mockRestore();
+    consoleLogSpy.mockRestore();
     restoreDomGlobals();
     dom.window.close();
   });

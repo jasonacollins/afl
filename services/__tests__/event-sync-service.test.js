@@ -321,6 +321,63 @@ describe('event-sync-service snapshot handling', () => {
     eventSyncService.stop();
   });
 
+  test('scheduleReconnect logs state-recording failures without aborting reconnect setup', async () => {
+    eventSyncService.running = true;
+    eventSyncService.reconnectDelayMs = 5000;
+    resultUpdateService.recordLastError.mockRejectedValueOnce(new Error('state write failed'));
+    resultUpdateService.recordConnectionState.mockRejectedValueOnce(new Error('connection write failed'));
+
+    eventSyncService.scheduleReconnect(new Error('connect failed'));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to record event sync error state',
+      { error: 'state write failed' }
+    );
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to record event sync reconnect state',
+      { error: 'connection write failed' }
+    );
+
+    eventSyncService.stop();
+  });
+
+  test('scheduleReconnect logs reconnect failures and recursively schedules another attempt', async () => {
+    jest.useFakeTimers();
+    eventSyncService.running = true;
+    eventSyncService.reconnectDelayMs = 5000;
+
+    const connectSpy = jest.spyOn(eventSyncService, 'connect')
+      .mockRejectedValueOnce(new Error('retry failed'))
+      .mockResolvedValueOnce();
+
+    try {
+      eventSyncService.scheduleReconnect(new Error('initial failure'));
+      await jest.advanceTimersByTimeAsync(5000);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(logger.error).toHaveBeenCalledWith('Event sync reconnect failed', {
+        error: 'retry failed',
+        url: 'https://sse.squiggle.com.au/games'
+      });
+      expect(resultUpdateService.recordConnectionState).toHaveBeenNthCalledWith(1, 'reconnecting', {
+        url: 'https://sse.squiggle.com.au/games',
+        reconnect_in_ms: 5000
+      });
+      expect(resultUpdateService.recordConnectionState).toHaveBeenNthCalledWith(2, 'reconnecting', {
+        url: 'https://sse.squiggle.com.au/games',
+        reconnect_in_ms: 10000
+      });
+      expect(eventSyncService.reconnectDelayMs).toBe(20000);
+    } finally {
+      eventSyncService.stop();
+      connectSpy.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
   test('stop aborts the in-flight SSE request controller', () => {
     const abort = jest.fn();
     eventSyncService.running = true;

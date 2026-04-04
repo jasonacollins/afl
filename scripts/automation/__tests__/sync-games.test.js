@@ -58,6 +58,7 @@ const {
   resetDatabase,
   monitorLiveGames,
   main,
+  runCli,
   setFetchImplementationForTests,
   resetFetchImplementationForTests
 } = syncGamesModule.__testables;
@@ -578,6 +579,32 @@ describe('sync-games maintenance and monitoring helpers', () => {
     expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
   });
 
+  test('main dispatches the reset command without exiting the process', async () => {
+    process.argv = ['node', 'sync-games.js', 'reset'];
+    global.setTimeout = jest.fn((callback) => {
+      callback();
+      return 0;
+    });
+    fs.readFileSync.mockImplementation((filePath) => {
+      if (String(filePath).includes('teams')) {
+        return JSON.stringify({
+          teams: [{ id: 1, name: 'Cats' }]
+        });
+      }
+
+      throw new Error(`Unexpected cache read: ${filePath}`);
+    });
+    getOne.mockResolvedValue(null);
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    await main();
+
+    expect(runQuery).toHaveBeenNthCalledWith(1, 'DELETE FROM predictions');
+    expect(runQuery).toHaveBeenNthCalledWith(2, 'DELETE FROM matches');
+    expect(runQuery).toHaveBeenNthCalledWith(3, 'DELETE FROM teams');
+    expect(process.exit).not.toHaveBeenCalled();
+  });
+
   test('main syncs the current year by default and exits successfully', async () => {
     process.argv = ['node', 'sync-games.js'];
     fs.readFileSync.mockImplementation((filePath) => {
@@ -592,6 +619,29 @@ describe('sync-games maintenance and monitoring helpers', () => {
     expect(initializeDatabase).toHaveBeenCalled();
     expect(process.exit).toHaveBeenCalledWith(0);
     expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('main dispatches monitor mode and keeps the process alive', async () => {
+    process.argv = ['node', 'sync-games.js', 'monitor', '5'];
+    fs.readFileSync.mockImplementation((filePath) => {
+      const normalizedPath = String(filePath);
+      if (normalizedPath.includes('teams')) {
+        return JSON.stringify({ teams: [] });
+      }
+      if (normalizedPath.includes('games')) {
+        return JSON.stringify({ games: [] });
+      }
+
+      throw new Error(`Unexpected cache read: ${filePath}`);
+    });
+    global.setTimeout = jest.fn();
+
+    await main();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(global.setTimeout).toHaveBeenCalledWith(expect.any(Function), 60000);
+    expect(process.on).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+    expect(process.exit).not.toHaveBeenCalled();
   });
 
   test('monitorLiveGames schedules the standard polling interval after a successful update', async () => {
@@ -652,5 +702,24 @@ describe('sync-games maintenance and monitoring helpers', () => {
     sigintHandler();
 
     expect(process.exit).toHaveBeenCalledWith(0);
+  });
+
+  test('runCli logs failures and exits non-zero when the main command throws', async () => {
+    const exitSpy = jest.fn();
+    fs.readFileSync.mockImplementation((filePath) => {
+      if (String(filePath).includes('teams')) {
+        throw new Error('teams cache blew up');
+      }
+
+      throw new Error(`Unexpected cache read: ${filePath}`);
+    });
+
+    await runCli(['year', '2026'], exitSpy);
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(require('../../../utils/logger').logger.error).toHaveBeenCalledWith(
+      'Script failed:',
+      expect.objectContaining({ message: 'teams cache blew up' })
+    );
   });
 });

@@ -782,6 +782,45 @@ describe('Admin Script Runner - persisted logs and recovery', () => {
     }
   });
 
+  test('startScriptRun records an unknown exit code when the process closes without one', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+
+    spawn.mockReturnValue(child);
+    getOne.mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ lastID: 47 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    const run = await adminScriptRunner.startScriptRun('sync-games', { year: 2026 }, 9);
+    const logPath = runQuery.mock.calls[1][1][2];
+    const absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+    child.emit('close', null);
+    await waitFor(() => runQuery.mock.calls.length >= 3);
+
+    const logLines = (await fs.readFile(absoluteLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line).message);
+
+    try {
+      expect(run.runId).toBe(47);
+      expect(runQuery).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('UPDATE admin_script_runs'),
+        ['failed', null, 'Process exited with code unknown', expect.any(String), 47]
+      );
+      expect(logLines).toEqual(expect.arrayContaining([
+        'Starting command: node scripts/automation/sync-games.js year 2026',
+        'Process exited with code unknown'
+      ]));
+    } finally {
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
   test('getRunLogs parses structured log lines and falls back to system messages for plain text', async () => {
     const runId = 401;
     const relativeLogPath = path.posix.join(

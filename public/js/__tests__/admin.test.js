@@ -12,6 +12,7 @@ describe('public/js/admin.js', () => {
   let originalFetch;
   let originalSetTimeout;
   let originalFormData;
+  let consoleErrorSpy;
 
   function setInputFiles(input, files) {
     Object.defineProperty(input, 'files', {
@@ -104,6 +105,7 @@ describe('public/js/admin.js', () => {
     window.fetchMatchesForRound = jest.fn();
     window.savePrediction = jest.fn();
     window.location.reload = jest.fn();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -135,6 +137,7 @@ describe('public/js/admin.js', () => {
     delete global.updateStoredPrediction;
     delete global.getMatchDataById;
     delete global.calculateAccuracy;
+    consoleErrorSpy.mockRestore();
 
     restoreDomGlobals();
     dom.window.close();
@@ -256,6 +259,23 @@ describe('public/js/admin.js', () => {
     expect(button.textContent).toBe('Save Prediction');
     expect(button.disabled).toBe(false);
     expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('Old metrics');
+  });
+
+  test('clearPredictionDirectly restores the button after network failures', async () => {
+    global.fetch.mockRejectedValue(new Error('network down'));
+
+    loadBrowserScript('admin.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.clearPredictionDirectly('44', '7', button);
+    await flushPromises();
+
+    expect(button.textContent).toBe('Save Prediction');
+    expect(button.disabled).toBe(false);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error clearing prediction:',
+      expect.any(Error)
+    );
   });
 
   test('admin savePrediction override posts the selected user prediction and refreshes metrics', async () => {
@@ -428,6 +448,47 @@ describe('public/js/admin.js', () => {
     expect(input.dataset.originalValue).toBe('61');
   });
 
+  test('admin savePrediction restores the button and alerts on network failures', async () => {
+    global.fetch.mockRejectedValue(new Error('save request failed'));
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const input = document.querySelector('.home-prediction');
+    const button = document.querySelector('.save-prediction');
+
+    input.value = '62';
+    button.textContent = 'Update Prediction';
+
+    window.savePrediction('44', '62', button);
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('An error occurred. Please try again.');
+    expect(button.textContent).toBe('Update Prediction');
+    expect(button.disabled).toBe(false);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error saving prediction:',
+      expect.any(Error)
+    );
+  });
+
+  test('admin savePrediction clears metrics when match results are unavailable', async () => {
+    global.getMatchDataById = jest.fn(() => null);
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('44', '62', button);
+    await flushPromises();
+
+    expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('');
+  });
+
   test('refresh form submits API refresh options and renders skipped games', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
@@ -577,5 +638,20 @@ describe('public/js/admin.js', () => {
     expect(document.getElementById('uploadDatabaseModal').style.display).toBe('none');
     expect(document.getElementById('resetPasswordModal').style.display).toBe('none');
     expect(document.getElementById('deleteUserModal').style.display).toBe('none');
+  });
+
+  test('clear button logs an error when its matching save button is missing', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.querySelector('.save-prediction').remove();
+    const clearButton = document.querySelector('.clear-prediction');
+
+    clearButton.click();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Save button not found for clear action on match ID:',
+      '44'
+    );
   });
 });

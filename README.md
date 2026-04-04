@@ -262,6 +262,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - Browser entrypoints under `public/js/` are collected for coverage via the `jest.config.js` glob, so new standalone scripts should stay testable in the lightweight DOM harness and should receive explicit per-file thresholds when they become critical
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
+- When a script owns CLI exit-code behavior, prefer a thin exported CLI wrapper around the core callable so tests can cover success/failure exits separately from the underlying work
 - For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught
 - For automation scripts that mutate data, prefer a mix of collaborator-mocked unit tests and temporary SQLite integration tests so persistence contracts are exercised directly
 - For `scripts/season_simulator.py`, keep direct tests around core probability/rating helpers and finals constraints in addition to snapshot/CLI coverage so simulation math regressions are caught close to the source

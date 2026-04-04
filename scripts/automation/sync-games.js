@@ -486,14 +486,13 @@ async function monitorLiveGames(teamId) {
 }
 
 // Parse command line arguments
-async function main() {
-  const args = process.argv.slice(2);
+async function main(args = process.argv.slice(2), exitFn = process.exit) {
   
   if (args.length === 0) {
     const currentYear = new Date().getFullYear();
     logger.info(`No options provided. Syncing current year by default: ${currentYear}`);
     await syncGamesFromAPI({ year: currentYear });
-    process.exit(0);
+    exitFn(0);
   }
   
   const options = {};
@@ -542,16 +541,22 @@ async function main() {
   
   // Exit unless monitoring
   if (!args.includes('monitor')) {
-    process.exit(0);
+    exitFn(0);
+  }
+}
+
+async function runCli(args = process.argv.slice(2), exitFn = process.exit) {
+  try {
+    await main(args, exitFn);
+  } catch (error) {
+    logger.error('Script failed:', error);
+    exitFn(1);
   }
 }
 
 // Execute the script only if run directly (not when imported)
 if (require.main === module) {
-  main().catch(error => {
-    logger.error('Script failed:', error);
-    process.exit(1);
-  });
+  runCli();
 }
 
 function setFetchImplementationForTests(mockFetch) {
@@ -576,6 +581,7 @@ module.exports = {
     resetDatabase,
     monitorLiveGames,
     main,
+    runCli,
     setFetchImplementationForTests,
     resetFetchImplementationForTests
   }

@@ -28,7 +28,7 @@ TARGET_SOURCES = [
 ]
 DEFAULT_FILE_LINE_COVERAGE_THRESHOLD = 60.0
 FILE_LINE_COVERAGE_THRESHOLDS = {
-    Path('scripts/core/data_io.py'): 80.0,
+    Path('scripts/core/data_io.py'): 90.0,
     Path('scripts/core/elo_core.py'): 74.0,
     Path('scripts/core/home_advantage.py'): 95.0,
     Path('scripts/core/optimise.py'): 75.0,
@@ -43,10 +43,10 @@ FILE_LINE_COVERAGE_THRESHOLDS = {
     Path('scripts/elo_win_optimize.py'): 85.0,
     Path('scripts/elo_win_predict.py'): 85.0,
     Path('scripts/elo_win_train.py'): 76.0,
-    Path('scripts/season_simulator.py'): 80.0,
+    Path('scripts/season_simulator.py'): 81.0,
 }
 FILE_BRANCH_COVERAGE_THRESHOLDS = {
-    Path('scripts/core/data_io.py'): 60.0,
+    Path('scripts/core/data_io.py'): 70.0,
     Path('scripts/core/elo_core.py'): 45.0,
     Path('scripts/core/home_advantage.py'): 90.0,
     Path('scripts/core/optimise.py'): 45.0,
@@ -58,7 +58,7 @@ FILE_BRANCH_COVERAGE_THRESHOLDS = {
     Path('scripts/elo_predict_combined.py'): 60.0,
     Path('scripts/elo_win_predict.py'): 50.0,
     Path('scripts/elo_win_train.py'): 50.0,
-    Path('scripts/season_simulator.py'): 65.0,
+    Path('scripts/season_simulator.py'): 68.0,
 }
 
 

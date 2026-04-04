@@ -175,6 +175,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - For `scripts/season_simulator.py`, keep direct coverage on probability/rating helpers and completed-finals constraint logic in addition to CLI and snapshot-path tests
 - When changing test scope meaningfully, update `jest.config.js` coverage thresholds intentionally rather than leaving them stale
 - Prefer `require.main === module` guards and exported entrypoints for automation scripts so tests can import them without triggering CLI side effects
+- When an automation script is responsible for CLI exit codes, prefer a thin exported wrapper around the core callable so tests can cover exit behavior independently of the underlying work
 - Keep Python coverage artifacts ephemeral; `scripts/tests/run_pytest_with_coverage.py` should not depend on a committed or persistent repo-root `.coverage` file
 
 ## Important Implementation Notes

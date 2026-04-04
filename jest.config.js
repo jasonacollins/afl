@@ -78,9 +78,9 @@ module.exports = {
       lines: 81
     },
     './services/admin-script-runner.js': {
-      statements: 87,
-      branches: 74,
-      functions: 90,
+      statements: 88,
+      branches: 76,
+      functions: 92,
       lines: 87
     },
     './services/admin-script-definitions.js': {
@@ -102,10 +102,10 @@ module.exports = {
       lines: 88
     },
     './services/event-sync-service.js': {
-      statements: 88,
-      branches: 78,
-      functions: 75,
-      lines: 90
+      statements: 90,
+      branches: 79,
+      functions: 80,
+      lines: 92
     },
     './services/predictor-service.js': {
       statements: 95,
@@ -114,10 +114,10 @@ module.exports = {
       lines: 95
     },
     './services/result-update-service.js': {
-      statements: 86,
-      branches: 68,
-      functions: 84,
-      lines: 86
+      statements: 90,
+      branches: 70,
+      functions: 85,
+      lines: 90
     },
     './services/scoring-service.js': {
       statements: 100,
@@ -162,10 +162,10 @@ module.exports = {
       lines: 84
     },
     './public/js/admin.js': {
-      statements: 80,
-      branches: 60,
-      functions: 80,
-      lines: 80
+      statements: 84,
+      branches: 62,
+      functions: 85,
+      lines: 84
     },
     './public/js/elo-chart.js': {
       statements: 85,
@@ -186,10 +186,10 @@ module.exports = {
       lines: 95
     },
     './public/js/simulation.js': {
-      statements: 86,
-      branches: 69,
+      statements: 90,
+      branches: 75,
       functions: 100,
-      lines: 85
+      lines: 90
     },
     './public/js/stats.js': {
       statements: 90,
@@ -234,10 +234,10 @@ module.exports = {
       lines: 93
     },
     './scripts/automation/sync-games.js': {
-      statements: 77,
-      branches: 72,
-      functions: 83,
-      lines: 81
+      statements: 84,
+      branches: 78,
+      functions: 88,
+      lines: 88
     }
   }
 };

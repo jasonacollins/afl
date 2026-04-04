@@ -291,6 +291,108 @@ describe('result-update-service state and queue behavior', () => {
     );
   });
 
+  test('scheduleWorker marks jobs failed permanently after the final retry attempt', async () => {
+    getOne
+      .mockResolvedValueOnce({
+        job_id: 22,
+        year: 2026,
+        match_number: 88,
+        status: 'queued',
+        attempt_count: 3
+      })
+      .mockResolvedValueOnce({
+        job_id: 22,
+        year: 2026,
+        match_number: 88,
+        status: 'running',
+        attempt_count: 4
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    runPostResultRecompute.mockRejectedValue(new Error('recompute exploded'));
+
+    resultUpdateService.scheduleWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(runPostResultRecompute).toHaveBeenCalledWith(2026, {
+      source: 'result-update-job:22'
+    });
+    expect(runQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('UPDATE result_update_jobs'),
+      ['failed', expect.any(String), expect.any(String), 'recompute exploded', 22]
+    );
+    expect(logger.error).toHaveBeenCalledWith('Result update job failed permanently', expect.objectContaining({
+      jobId: 22,
+      attemptCount: 4,
+      error: 'recompute exploded'
+    }));
+  });
+
+  test('scheduleWorker restarts when queued work appears after the worker exits', async () => {
+    getOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ job_id: 31 })
+      .mockResolvedValueOnce({
+        job_id: 31,
+        year: 2026,
+        match_number: null,
+        status: 'queued',
+        attempt_count: 0
+      })
+      .mockResolvedValueOnce({
+        job_id: 31,
+        year: 2026,
+        match_number: null,
+        status: 'running',
+        attempt_count: 1
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    runPostResultRecompute.mockResolvedValue();
+
+    resultUpdateService.scheduleWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(runPostResultRecompute).toHaveBeenCalledWith(2026, {
+      source: 'result-update-job:31'
+    });
+    expect(runQuery).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining('UPDATE result_update_jobs'),
+      ['running', expect.any(String), expect.any(String), 31]
+    );
+    expect(runQuery).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('UPDATE result_update_jobs'),
+      ['succeeded', expect.any(String), expect.any(String), null, 31]
+    );
+  });
+
+  test('scheduleWorker logs queued-job probe failures after the worker exits', async () => {
+    getOne
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('probe failed'));
+
+    resultUpdateService.scheduleWorker();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to inspect queued result update jobs after worker exit',
+      { error: 'probe failed' }
+    );
+  });
+
   test('reconcileSeasonResults queues recompute work when completed results changed', async () => {
     refreshAPIData.mockResolvedValue({
       updatedCompletedMatchNumbers: [91],
