@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import sys
+import tempfile
 
 import pytest
 
@@ -52,6 +53,37 @@ def test_load_model_wraps_file_errors_in_value_error(tmp_path):
 
     with pytest.raises(ValueError, match='Failed to load model'):
         data_io.load_model(str(broken_path))
+
+
+def test_load_parameters_wraps_file_errors_in_value_error(tmp_path):
+    missing_path = tmp_path / 'missing.json'
+
+    with pytest.raises(ValueError, match='Failed to load parameters'):
+        data_io.load_parameters(str(missing_path))
+
+
+def test_atomic_write_text_removes_temp_file_when_replace_fails(tmp_path, monkeypatch):
+    target_path = tmp_path / 'artifacts' / 'output.json'
+    real_mkstemp = tempfile.mkstemp
+    created_temp_path = {}
+
+    def capturing_mkstemp(*args, **kwargs):
+        fd, temp_path = real_mkstemp(*args, **kwargs)
+        created_temp_path['path'] = temp_path
+        return fd, temp_path
+
+    def failing_replace(_src, _dst):
+        raise OSError('replace failed')
+
+    monkeypatch.setattr(data_io.tempfile, 'mkstemp', capturing_mkstemp)
+    monkeypatch.setattr(data_io.os, 'replace', failing_replace)
+
+    with pytest.raises(OSError, match='replace failed'):
+        data_io.atomic_write_text(str(target_path), '{"ok": true}')
+
+    assert 'path' in created_temp_path
+    assert not os.path.exists(created_temp_path['path'])
+    assert not target_path.exists()
 
 
 def test_save_predictions_helpers_write_files_and_filter_database_writes(afl_test_db_path, tmp_path, capsys):
@@ -147,6 +179,114 @@ def test_save_predictions_to_database_override_mode_keeps_started_and_completed_
         (11, 55, 'home'),
         (12, 48, 'away')
     ]
+
+
+def test_save_predictions_to_database_verbose_mode_warns_for_unparseable_and_missing_dates(
+    afl_test_db_path,
+    capsys,
+):
+    predictions = [
+        {
+            'match_id': 16,
+            'match_date': 'not-a-date',
+            'home_win_probability': 0.62,
+            'predicted_margin': 11.4
+        },
+        {
+            'match_id': 17,
+            'home_win_probability': 0.45,
+            'predicted_margin': -3.2
+        }
+    ]
+
+    data_io.save_predictions_to_database(
+        predictions,
+        str(afl_test_db_path),
+        predictor_id=79,
+        verbose=True,
+    )
+
+    conn = sqlite3.connect(afl_test_db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT match_id, home_win_probability, tipped_team
+            FROM predictions
+            WHERE predictor_id = ?
+            ORDER BY match_id
+            """,
+            (79,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert rows == [
+        (16, 62, 'home'),
+        (17, 45, 'away')
+    ]
+    output = capsys.readouterr().out
+    assert "Warning: Could not parse match date 'not-a-date'" in output
+    assert 'Warning: No match date for match 17' in output
+
+
+def test_save_predictions_to_database_rolls_back_when_insert_fails(afl_test_db_path, capsys):
+    conn = sqlite3.connect(afl_test_db_path)
+    try:
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX idx_predictions_match_predictor
+            ON predictions (match_id, predictor_id)
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO predictions (
+                match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (16, 80, 55, 4.0, 'home'),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    duplicate_predictions = [
+        {
+            'match_id': 16,
+            'match_date': '2099-08-01T19:20:00+00:00',
+            'home_win_probability': 0.62,
+            'predicted_margin': 11.4
+        },
+        {
+            'match_id': 16,
+            'match_date': '2099-08-01T19:20:00+00:00',
+            'home_win_probability': 0.58,
+            'predicted_margin': 7.5
+        }
+    ]
+
+    with pytest.raises(sqlite3.IntegrityError):
+        data_io.save_predictions_to_database(
+            duplicate_predictions,
+            str(afl_test_db_path),
+            predictor_id=80,
+        )
+
+    conn = sqlite3.connect(afl_test_db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+            FROM predictions
+            WHERE predictor_id = ?
+            """,
+            (80,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert rows == [(16, 80, 55, 4.0, 'home')]
+    assert 'Error saving predictions to database:' in capsys.readouterr().out
 
 
 def test_scoring_helpers_support_percentages_draws_and_per_game_results():

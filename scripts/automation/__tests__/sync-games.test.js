@@ -54,9 +54,12 @@ const {
   normalizeCompletion,
   normalizeScorePayload,
   fetchAPI,
+  resolveVenueId,
   resetDatabase,
   monitorLiveGames,
-  main
+  main,
+  setFetchImplementationForTests,
+  resetFetchImplementationForTests
 } = syncGamesModule.__testables;
 
 describe('sync-games normalization helpers', () => {
@@ -167,6 +170,8 @@ describe('sync-games normalization helpers', () => {
 describe('sync-games fetchAPI cache behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    nodeFetch.mockReset();
+    resetFetchImplementationForTests();
   });
 
   test('returns fresh cached API data without making a network request', async () => {
@@ -190,11 +195,56 @@ describe('sync-games fetchAPI cache behavior', () => {
 
     expect(data).toEqual({ games: [{ id: 9 }] });
   });
+
+  test('uses the injected fetch implementation for uncached successful requests', async () => {
+    fs.existsSync.mockReturnValue(false);
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ games: [{ id: 5 }] })
+    }));
+
+    const data = await fetchAPI('games', { year: 2026 });
+
+    expect(data).toEqual({ games: [{ id: 5 }] });
+    expect(fs.writeFileSync).toHaveBeenCalledWith(expect.any(String), JSON.stringify({ games: [{ id: 5 }] }));
+  });
+
+  test('rethrows fetch failures when no cache is available', async () => {
+    fs.existsSync.mockReturnValue(false);
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Unavailable'
+    }));
+
+    await expect(fetchAPI('games', { year: 2026 })).rejects.toThrow('API request failed: 503 Unavailable');
+  });
+});
+
+describe('sync-games venue resolution', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('resolveVenueId returns null for blank values', async () => {
+    await expect(resolveVenueId('')).resolves.toBeNull();
+    expect(getOne).not.toHaveBeenCalled();
+  });
+
+  test('resolveVenueId returns the matched venue id', async () => {
+    getOne.mockResolvedValue({ venue_id: 11 });
+
+    await expect(resolveVenueId('MCG')).resolves.toBe(11);
+    expect(getOne).toHaveBeenCalledWith(expect.stringContaining('SELECT venue_id'), ['MCG', 'MCG']);
+  });
 });
 
 describe('sync-games orchestration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    nodeFetch.mockReset();
+    resetFetchImplementationForTests();
+    fs.existsSync.mockReturnValue(true);
     fs.statSync.mockReturnValue({ mtimeMs: Date.now() });
     initializeDatabase.mockResolvedValue();
   });
@@ -469,6 +519,9 @@ describe('sync-games maintenance and monitoring helpers', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    nodeFetch.mockReset();
+    resetFetchImplementationForTests();
+    fs.existsSync.mockReturnValue(true);
     originalArgv = process.argv;
     originalExit = process.exit;
     originalSetTimeout = global.setTimeout;
@@ -576,5 +629,28 @@ describe('sync-games maintenance and monitoring helpers', () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(global.setTimeout).toHaveBeenCalledWith(expect.any(Function), 72000);
+  });
+
+  test('monitorLiveGames exits cleanly when the SIGINT handler fires', async () => {
+    fs.readFileSync.mockImplementation((filePath) => {
+      const normalizedPath = String(filePath);
+      if (normalizedPath.includes('teams')) {
+        return JSON.stringify({ teams: [] });
+      }
+      if (normalizedPath.includes('games')) {
+        return JSON.stringify({ games: [] });
+      }
+
+      throw new Error(`Unexpected cache read: ${filePath}`);
+    });
+    global.setTimeout = jest.fn();
+
+    await monitorLiveGames();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sigintHandler = process.on.mock.calls.find(([eventName]) => eventName === 'SIGINT')[1];
+    sigintHandler();
+
+    expect(process.exit).toHaveBeenCalledWith(0);
   });
 });

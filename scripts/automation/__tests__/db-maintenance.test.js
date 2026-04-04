@@ -21,6 +21,7 @@ const fs = require('fs').promises;
 const dbModule = require('../../../models/db');
 const { logger } = require('../../../utils/logger');
 const dbMaintenance = require('../db-maintenance');
+const { main } = dbMaintenance;
 
 const {
   DEFAULT_RETENTION_DAYS,
@@ -75,15 +76,21 @@ describe('db-maintenance cleanup flows', () => {
   let readdirSpy;
   let statSpy;
   let unlinkSpy;
+  let originalArgv;
+  let consoleLogSpy;
 
   beforeEach(() => {
     jest.clearAllMocks();
     readdirSpy = jest.spyOn(fs, 'readdir');
     statSpy = jest.spyOn(fs, 'stat');
     unlinkSpy = jest.spyOn(fs, 'unlink');
+    originalArgv = process.argv;
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    process.argv = originalArgv;
+    consoleLogSpy.mockRestore();
     readdirSpy.mockRestore();
     statSpy.mockRestore();
     unlinkSpy.mockRestore();
@@ -205,6 +212,51 @@ describe('db-maintenance cleanup flows', () => {
 
     await expect(runVacuum()).resolves.toEqual({ vacuumed: true });
     expect(dbModule.runQuery).toHaveBeenCalledWith('VACUUM');
+  });
+
+  test('main writes cleanup result JSON for cleanup mode', async () => {
+    process.argv = ['node', 'db-maintenance.js', '--mode=cleanup', '--retention-days=14'];
+    dbModule.getOne.mockResolvedValue(null);
+    readdirSpy.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }));
+    dbModule.runQuery.mockResolvedValue({});
+
+    await main();
+
+    expect(dbModule.runQuery).toHaveBeenLastCalledWith('PRAGMA incremental_vacuum');
+    expect(consoleLogSpy).toHaveBeenCalledWith(JSON.stringify({
+      deletedRows: 0,
+      deletedRunLogFiles: 0,
+      deletedOrphanFiles: 0,
+      retentionDays: 14
+    }));
+    expect(logger.info).toHaveBeenCalledWith(
+      'DB maintenance cleanup completed',
+      expect.objectContaining({
+        deletedRows: 0,
+        deletedRunLogFiles: 0,
+        deletedOrphanFiles: 0,
+        retentionDays: 14
+      })
+    );
+  });
+
+  test('main writes vacuum result JSON for vacuum mode', async () => {
+    process.argv = ['node', 'db-maintenance.js', '--mode=vacuum'];
+    dbModule.runQuery.mockResolvedValue({});
+
+    await main();
+
+    expect(dbModule.runQuery).toHaveBeenCalledWith('VACUUM');
+    expect(consoleLogSpy).toHaveBeenCalledWith(JSON.stringify({ vacuumed: true }));
+    expect(logger.info).toHaveBeenCalledWith('DB maintenance vacuum completed', { vacuumed: true });
+  });
+
+  test('main rejects unsupported modes before performing work', async () => {
+    process.argv = ['node', 'db-maintenance.js', '--mode=invalid'];
+
+    await expect(main()).rejects.toThrow('Unsupported mode: invalid');
+    expect(dbModule.runQuery).not.toHaveBeenCalled();
+    expect(consoleLogSpy).not.toHaveBeenCalled();
   });
 
   test('closeDbConnection resolves after db.close callback', async () => {

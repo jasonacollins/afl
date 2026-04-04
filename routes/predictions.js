@@ -201,22 +201,18 @@ router.post('/save', catchAsync(async (req, res) => {
 
   // Only perform lock check for non-admin users
   if (!req.session.isAdmin && match.match_date) {
-    try {
-      const matchDate = new Date(match.match_date);
-      if (new Date() > matchDate) {
-        throw createValidationError('This match has started and predictions are locked');
-      }
-    } catch (error) {
-      if (error.isOperational) {
-        throw error;
-      }
-
+    const matchDate = new Date(match.match_date);
+    if (Number.isNaN(matchDate.getTime())) {
       logger.error('Error parsing match date', { 
         matchId, 
         date: match.match_date, 
-        error: error.message 
+        error: 'Invalid date'
       });
       throw createValidationError('Invalid match date format');
+    }
+
+    if (new Date() > matchDate) {
+      throw createValidationError('This match has started and predictions are locked');
     }
   }
   

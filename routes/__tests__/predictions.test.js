@@ -122,6 +122,61 @@ describe('predictions routes', () => {
     expect(response.body.locals.predictions).toEqual({ 2: 64 });
   });
 
+  test('GET / falls back to the most recently completed round when no future match exists', async () => {
+    getQuery.mockResolvedValue([
+      {
+        match_id: 10,
+        round_number: '1',
+        match_date: '2026-03-01T12:00:00.000Z',
+        hscore: 90,
+        ascore: 80
+      },
+      {
+        match_id: 11,
+        round_number: '2',
+        match_date: '2026-03-08T12:00:00.000Z',
+        hscore: 84,
+        ascore: 79
+      }
+    ]);
+    matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([{ match_id: 11 }]);
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(matchService.getMatchesByRoundSelectionAndYear).toHaveBeenCalledWith('2', 2026);
+    expect(response.body.locals.selectedRound).toBe('2');
+    expect(response.body.locals.currentRound).toBeNull();
+  });
+
+  test('GET / falls back to the first round when no fixture dates can resolve a selection', async () => {
+    getQuery.mockResolvedValue([
+      {
+        match_id: 20,
+        round_number: '2',
+        match_date: null,
+        hscore: null,
+        ascore: null
+      }
+    ]);
+    matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([{ match_id: 99 }]);
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(matchService.getMatchesByRoundSelectionAndYear).toHaveBeenCalledWith('1', 2026);
+    expect(response.body.locals.selectedRound).toBe('1');
+    expect(response.body.locals.currentRound).toBe('1');
+  });
+
   test('GET /round/:round returns processed matches for the selected round', async () => {
     matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([{ match_id: 33 }]);
     matchService.processMatchLockStatus.mockReturnValue([{ match_id: 33, isLocked: false }]);
@@ -183,6 +238,37 @@ describe('predictions routes', () => {
     expect(response.body.message).toBe('This match has started and predictions are locked');
   });
 
+  test('POST /save rejects invalid match date formats for non-admin users', async () => {
+    getOne.mockResolvedValue({ match_date: 'not-a-date' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .set('Accept', 'application/json')
+      .send({ matchId: 44, probability: 60 });
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('Invalid match date format');
+  });
+
+  test('POST /save lets admins bypass the started-match lock check', async () => {
+    getOne.mockResolvedValue({ match_date: '2000-03-01T12:00:00.000Z' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .send({ matchId: 44, probability: 65 });
+
+    expect(response.status).toBe(200);
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 65);
+  });
+
   test('POST /save deletes predictions when probability is blank', async () => {
     getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
 
@@ -197,6 +283,38 @@ describe('predictions routes', () => {
     expect(response.status).toBe(200);
     expect(predictionService.deletePrediction).toHaveBeenCalledWith(44, 5);
     expect(response.body).toEqual({ success: true, action: 'deleted' });
+  });
+
+  test('POST /save deletes predictions when probability is null', async () => {
+    getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .send({ matchId: 44, probability: null });
+
+    expect(response.status).toBe(200);
+    expect(predictionService.deletePrediction).toHaveBeenCalledWith(44, 5);
+    expect(response.body).toEqual({ success: true, action: 'deleted' });
+  });
+
+  test('POST /save defaults non-numeric probabilities to 50', async () => {
+    getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .send({ matchId: 44, probability: 'abc' });
+
+    expect(response.status).toBe(200);
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 50);
+    expect(response.body).toEqual({ success: true });
   });
 
   test('POST /save clamps probability before saving', async () => {

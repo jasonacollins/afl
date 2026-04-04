@@ -1,5 +1,5 @@
 // node-fetch v3 is ESM-only; use dynamic import for CommonJS scripts.
-const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+let fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 const { getQuery, getOne, runQuery, initializeDatabase } = require('../../models/db');
 const fs = require('fs');
 const path = require('path');
@@ -40,7 +40,7 @@ async function fetchAPI(endpoint, params = {}) {
   logger.info(`Fetching data from: ${url}`);
   
   try {
-    const response = await fetch(url, getSquiggleRequestOptions());
+    const response = await fetchImpl(url, getSquiggleRequestOptions());
     
     if (!response.ok) {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
@@ -554,6 +554,14 @@ if (require.main === module) {
   });
 }
 
+function setFetchImplementationForTests(mockFetch) {
+  fetchImpl = mockFetch;
+}
+
+function resetFetchImplementationForTests() {
+  fetchImpl = (...args) => require('node-fetch').default(...args);
+}
+
 module.exports = {
   syncGamesFromAPI,
   syncTeams,
@@ -567,6 +575,8 @@ module.exports = {
     normalizeScorePayload,
     resetDatabase,
     monitorLiveGames,
-    main
+    main,
+    setFetchImplementationForTests,
+    resetFetchImplementationForTests
   }
 };
