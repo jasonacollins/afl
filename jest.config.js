@@ -38,22 +38,64 @@ module.exports = {
 
   coverageThreshold: {
     global: {
-      statements: 76,
-      branches: 62,
-      functions: 78,
-      lines: 77
+      statements: 78,
+      branches: 64,
+      functions: 80,
+      lines: 78
     },
     './app.js': {
-      statements: 88,
-      branches: 64,
-      functions: 82,
-      lines: 89
+      statements: 90,
+      branches: 65,
+      functions: 90,
+      lines: 91
+    },
+    './routes/admin.js': {
+      statements: 90,
+      branches: 71,
+      functions: 95,
+      lines: 90
+    },
+    './routes/auth.js': {
+      statements: 91,
+      branches: 76,
+      functions: 100,
+      lines: 91
+    },
+    './routes/elo.js': {
+      statements: 77,
+      branches: 78,
+      functions: 100,
+      lines: 77
+    },
+    './routes/matches.js': {
+      statements: 98,
+      branches: 74,
+      functions: 92,
+      lines: 99
+    },
+    './routes/predictions.js': {
+      statements: 84,
+      branches: 61,
+      functions: 100,
+      lines: 85
+    },
+    './routes/simulation.js': {
+      statements: 81,
+      branches: 80,
+      functions: 100,
+      lines: 81
     },
     './services/elo-service.js': {
       statements: 69,
       branches: 58,
       functions: 71,
       lines: 70
+    },
+    './public/js/admin-scripts.js': {
+      statements: 84,
+      branches: 70,
+      functions: 92,
+      lines: 85
     },
     './public/js/mobile-nav.js': {
       statements: 95,
@@ -68,22 +110,22 @@ module.exports = {
       lines: 75
     },
     './public/js/admin.js': {
-      statements: 70,
-      branches: 50,
-      functions: 60,
-      lines: 70
+      statements: 73,
+      branches: 52,
+      functions: 65,
+      lines: 74
     },
     './public/js/elo-chart.js': {
-      statements: 62,
-      branches: 43,
-      functions: 67,
-      lines: 62
+      statements: 65,
+      branches: 45,
+      functions: 69,
+      lines: 66
     },
     './public/js/home.js': {
-      statements: 70,
-      branches: 55,
+      statements: 72,
+      branches: 58,
       functions: 100,
-      lines: 70
+      lines: 72
     },
     './public/js/predictions.js': {
       statements: 85,
@@ -91,11 +133,17 @@ module.exports = {
       functions: 100,
       lines: 85
     },
+    './public/js/simulation.js': {
+      statements: 85,
+      branches: 66,
+      functions: 100,
+      lines: 85
+    },
     './public/js/stats.js': {
-      statements: 80,
-      branches: 50,
-      functions: 90,
-      lines: 80
+      statements: 81,
+      branches: 54,
+      functions: 94,
+      lines: 81
     },
     './scripts/automation/api-refresh.js': {
       statements: 81,
@@ -108,6 +156,24 @@ module.exports = {
       branches: 62,
       functions: 75,
       lines: 78
+    },
+    './scripts/automation/db-maintenance.js': {
+      statements: 75,
+      branches: 65,
+      functions: 76,
+      lines: 75
+    },
+    './scripts/automation/elo-predictions.js': {
+      statements: 85,
+      branches: 75,
+      functions: 66,
+      lines: 85
+    },
+    './scripts/automation/import-data.js': {
+      statements: 93,
+      branches: 50,
+      functions: 100,
+      lines: 93
     },
     './scripts/automation/sync-games.js': {
       statements: 77,
