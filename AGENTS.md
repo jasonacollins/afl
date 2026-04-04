@@ -163,6 +163,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - Keep Python tests in `scripts/tests` runnable under `pytest` so they remain part of the default `npm test` workflow
 - Treat the default `npm test` JavaScript path as coverage-gated as well: Jest runs with coverage enabled there, so global and per-file thresholds in `jest.config.js` must stay intentionally maintained
 - Treat the default Python test workflow as a per-file coverage gate defined in `scripts/tests/run_pytest_with_coverage.py` for the covered core/model/history/prediction/simulation scripts; it requires the standard `coverage.py` package so selected branch-heavy files are checked for branch minimums as well. Use `AFL_ALLOW_TRACE_COVERAGE=1` only when you intentionally want weaker local validation. Do not rely on Python coverage as report-only output
+- For covered Python training/prediction entrypoints, prefer direct behavior tests in addition to CLI smoke coverage so predictor isolation, future-only filtering, override handling, compatibility guards, and carryover behavior are verified at the imported function level
 - Treat critical JavaScript files in `jest.config.js` as potential per-file coverage gates as well; when you raise or relax meaningful test scope, update those thresholds intentionally
 - For app/security changes, prefer at least one real `createApp()` integration test over fully mocked router wiring so CSP, session, CSRF, and middleware ordering are exercised together
 - When startup behavior changes meaningfully, keep at least one `startServer()` test that exercises the real initialization path so database bootstrap, recovery ordering, and listener startup are covered together
@@ -171,6 +172,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - For `scripts/season_simulator.py`, keep direct coverage on probability/rating helpers and completed-finals constraint logic in addition to CLI and snapshot-path tests
 - When changing test scope meaningfully, update `jest.config.js` coverage thresholds intentionally rather than leaving them stale
 - Prefer `require.main === module` guards and exported entrypoints for automation scripts so tests can import them without triggering CLI side effects
+- Keep Python coverage artifacts ephemeral; `scripts/tests/run_pytest_with_coverage.py` should not depend on a committed or persistent repo-root `.coverage` file
 
 ## Important Implementation Notes
 

@@ -48,7 +48,12 @@ FILE_BRANCH_COVERAGE_THRESHOLDS = {
     Path('scripts/core/elo_core.py'): 45.0,
     Path('scripts/core/optimise.py'): 45.0,
     Path('scripts/elo_history_generator.py'): 55.0,
-    Path('scripts/elo_predict_combined.py'): 45.0,
+    Path('scripts/elo_margin_methods_predict.py'): 35.0,
+    Path('scripts/elo_margin_predict.py'): 35.0,
+    Path('scripts/elo_margin_train.py'): 20.0,
+    Path('scripts/elo_predict_combined.py'): 50.0,
+    Path('scripts/elo_win_predict.py'): 30.0,
+    Path('scripts/elo_win_train.py'): 20.0,
     Path('scripts/season_simulator.py'): 60.0,
 }
 
@@ -145,7 +150,15 @@ def run_with_trace(pytest_args, print_branch_note=True):
 
 
 def run_with_coverage(pytest_args, coverage_module):
-    cov = coverage_module.Coverage(branch=True, source=[str(REPO_ROOT / 'scripts')])
+    with tempfile.NamedTemporaryFile(prefix='afl-py-coverage-data-', delete=False) as handle:
+        data_file_path = Path(handle.name)
+    data_file_path.unlink(missing_ok=True)
+
+    cov = coverage_module.Coverage(
+        branch=True,
+        source=[str(REPO_ROOT / 'scripts')],
+        data_file=str(data_file_path),
+    )
     cov.start()
     try:
         exit_code = pytest.main(pytest_args)
@@ -210,6 +223,8 @@ def run_with_coverage(pytest_args, coverage_module):
         if branch_threshold is not None and branch_pct < branch_threshold:
             failures.append((rel_path, 'branch', branch_pct, branch_threshold))
 
+    data_file_path.unlink(missing_ok=True)
+
     return exit_code, failures, line_summary, branch_summary
 
 
@@ -221,6 +236,7 @@ def main():
         'true',
         'yes'
     )
+    (REPO_ROOT / '.coverage').unlink(missing_ok=True)
 
     if coverage_module and hasattr(coverage_module, 'Coverage'):
         exit_code, failures, line_summary, branch_summary = run_with_coverage(pytest_args, coverage_module)

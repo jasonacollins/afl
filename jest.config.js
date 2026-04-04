@@ -146,16 +146,16 @@ module.exports = {
       lines: 95
     },
     './public/js/main.js': {
-      statements: 80,
-      branches: 65,
-      functions: 75,
-      lines: 80
+      statements: 84,
+      branches: 68,
+      functions: 80,
+      lines: 84
     },
     './public/js/admin.js': {
-      statements: 75,
-      branches: 52,
-      functions: 69,
-      lines: 76
+      statements: 78,
+      branches: 55,
+      functions: 72,
+      lines: 78
     },
     './public/js/elo-chart.js': {
       statements: 82,
@@ -164,10 +164,10 @@ module.exports = {
       lines: 82
     },
     './public/js/home.js': {
-      statements: 85,
-      branches: 75,
+      statements: 88,
+      branches: 78,
       functions: 100,
-      lines: 85
+      lines: 88
     },
     './public/js/predictions.js': {
       statements: 95,

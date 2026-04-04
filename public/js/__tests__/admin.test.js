@@ -357,6 +357,19 @@ describe('public/js/admin.js', () => {
     expect(window.savePrediction).toHaveBeenCalledWith('44', '', saveButton);
   });
 
+  test('admin fetchMatchesForRound wrapper preserves the original loader and re-applies clear buttons', () => {
+    const originalFetchMatchesForRound = window.fetchMatchesForRound;
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.querySelector('.clear-prediction').remove();
+    window.fetchMatchesForRound('2');
+
+    expect(originalFetchMatchesForRound).toHaveBeenCalledWith('2');
+    expect(document.querySelector('.clear-prediction')).not.toBeNull();
+  });
+
   test('admin savePrediction rejects invalid probabilities and restores the saved value', () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));

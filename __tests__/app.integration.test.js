@@ -192,9 +192,10 @@ async function seedAuthenticatedRouteData(dbModule) {
   );
   await dbModule.runQuery(
     `INSERT INTO predictors (
-      predictor_id, name, password, is_admin, year_joined, display_name, active
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [7, 'member', passwordHash, 0, 2022, 'Member', 1]
+      predictor_id, name, password, is_admin, year_joined, display_name, active,
+      homepage_available, is_default_featured
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [7, 'member', passwordHash, 0, 2022, 'Member', 1, 1, 1]
   );
   await dbModule.runQuery(
     `INSERT INTO matches (
@@ -215,8 +216,8 @@ async function seedAuthenticatedRouteData(dbModule) {
   await dbModule.runQuery(
     `INSERT INTO predictions (
       prediction_id, match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
-    ) VALUES (?, ?, ?, ?, ?, ?)`,
-    [1, 1001, 7, 65, 7.5, 'home']
+    ) VALUES (?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?)`,
+    [1, 1001, 7, 65, 7.5, 'home', 2, 1002, 7, 72, 11.5, 'home']
   );
 }
 
@@ -648,6 +649,29 @@ describe('app integration route stack', () => {
     expect(response.text).toContain('Predictor Leaderboard - 2026 Season');
     expect(response.text).toContain('Member (You)');
     expect(response.text).toContain('Round Performance - 2026');
+  });
+
+  test('public homepage renders DB-backed featured predictor data and homepage controls', async () => {
+    await seedAuthenticatedRouteData(loaded.dbModule);
+
+    const app = loaded.appModule.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    const response = await request(app).get('/?year=2026');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain('Model Performance');
+    expect(response.text).toContain('Model Predictions');
+    expect(response.text).toContain('data-featured-predictor-id="7"');
+    expect(response.text).toContain('data-selected-year="2026"');
+    expect(response.text).toContain('Select Season');
+    expect(response.text).toContain('Select Round');
+    expect(response.text).toContain('data-round="2"');
+    expect(response.text).toContain('Swans vs Lions');
+    expect(response.text).toContain('72% Swans');
+    expect(response.text).toContain('/js/home.js');
   });
 
   test('public /elo and /simulation pages render their page-specific content through createApp', async () => {

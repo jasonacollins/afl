@@ -247,6 +247,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - The default `npm test` workflow runs Jest with coverage enabled, so the JavaScript global and per-file thresholds in `jest.config.js` are enforced on the main test path
 - The default Python test workflow enforces per-file coverage minimums through `scripts/tests/run_pytest_with_coverage.py` across the covered core/model/history/prediction/simulation scripts; treat Python coverage as a gate, not report-only output
 - The default Python coverage gate requires the standard `coverage.py` package so selected branch-heavy scripts are checked for branch minimums in addition to per-file line minimums; only use the trace-only fallback intentionally via `AFL_ALLOW_TRACE_COVERAGE=1` when you explicitly want weaker local validation
+- Covered Python entrypoints should have direct behavior tests where practical, not only CLI smoke coverage; prefer asserting filtering, save-path, predictor-isolation, compatibility, and carryover behavior close to the imported functions
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`
@@ -261,6 +262,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught
 - For automation scripts that mutate data, prefer a mix of collaborator-mocked unit tests and temporary SQLite integration tests so persistence contracts are exercised directly
 - For `scripts/season_simulator.py`, keep direct tests around core probability/rating helpers and finals constraints in addition to snapshot/CLI coverage so simulation math regressions are caught close to the source
+- `scripts/tests/run_pytest_with_coverage.py` should not rely on leaving a repo-root `.coverage` artifact behind; treat any such file as disposable local state, not a project output
 
 Core commands:
 

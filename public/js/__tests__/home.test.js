@@ -190,4 +190,45 @@ describe('public/js/home.js', () => {
     expect(document.getElementById('predictions-table-container').textContent).toContain('Error loading predictions');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching predictions:', expect.any(Error));
   });
+
+  test('falls back to the current year and renders legacy numeric 50 percent predictions when homepage metadata is absent', async () => {
+    restoreDomGlobals();
+    dom.window.close();
+
+    installHomeDom(`
+      <div class="round-buttons">
+        <button class="round-button" data-round="1">Round 1</button>
+      </div>
+      <div id="predictions-table-container"></div>
+    `, 'https://example.test/');
+
+    global.fetch.mockResolvedValue({
+      json: async () => ({
+        matches: [
+          {
+            match_id: 18,
+            match_date: '2026-04-15T09:30:00.000Z',
+            venue: 'MCG',
+            home_team: 'Cats',
+            away_team: 'Swans',
+            hscore: null,
+            ascore: null
+          }
+        ],
+        predictions: {
+          18: 50
+        }
+      })
+    });
+
+    loadBrowserScript('home.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.querySelector('.round-button[data-round="1"]').click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith(`/featured-predictions/1?year=${new Date().getFullYear()}`);
+    expect(document.getElementById('predictions-table-container').textContent).toContain('50% draw');
+  });
 });
