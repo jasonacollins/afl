@@ -42,7 +42,8 @@ const {
   hasCompletedResultChanges,
   regenerateEloHistory,
   regenerateSeasonSimulation,
-  runFallbackReconciliation
+  runFallbackReconciliation,
+  dailySync
 } = require('../daily-sync');
 const { refreshAPIData } = require('../api-refresh');
 const { runEloPredictions } = require('../elo-predictions');
@@ -263,6 +264,8 @@ describe('daily-sync completed result detection', () => {
 });
 
 describe('daily-sync automation orchestration', () => {
+  const originalExit = process.exit;
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetQuery.mockReset();
@@ -270,6 +273,11 @@ describe('daily-sync automation orchestration', () => {
     fs.readFileSync.mockImplementation(() => {
       throw new Error('Unexpected readFileSync call');
     });
+    process.exit = jest.fn();
+  });
+
+  afterEach(() => {
+    process.exit = originalExit;
   });
 
   test('regenerateEloHistory spawns the history generator and resolves on success', async () => {
@@ -458,5 +466,48 @@ describe('daily-sync automation orchestration', () => {
     expect(runEloPredictions).not.toHaveBeenCalled();
     expect(spawn).not.toHaveBeenCalled();
     expect(result.recomputeResults).toBeNull();
+  });
+
+  test('dailySync exits successfully when fallback reconciliation completes', async () => {
+    const currentYear = new Date().getFullYear();
+
+    mockGetQuery.mockResolvedValue([]);
+    syncGamesFromAPI.mockResolvedValue({
+      insertCount: 0,
+      updateCount: 0,
+      skipCount: 0,
+      completedInsertCount: 0,
+      completedUpdateCount: 0
+    });
+    refreshAPIData.mockResolvedValue({
+      insertCount: 0,
+      updateCount: 0,
+      scoresUpdated: 0
+    });
+    fs.existsSync.mockImplementation((targetPath) => {
+      const normalizedPath = String(targetPath);
+      return normalizedPath.endsWith(`season_simulation_${currentYear}.json`);
+    });
+    fs.readFileSync.mockReturnValue(JSON.stringify({
+      year: currentYear,
+      round_snapshots: [{ round_key: 'round-or' }]
+    }));
+
+    await dailySync();
+
+    expect(syncGamesFromAPI).toHaveBeenCalledWith({ year: currentYear });
+    expect(refreshAPIData).toHaveBeenCalledWith(currentYear, {
+      forceScoreUpdate: false,
+      source: 'daily-sync'
+    });
+    expect(process.exit).toHaveBeenCalledWith(0);
+  });
+
+  test('dailySync exits with failure when fallback reconciliation throws', async () => {
+    syncGamesFromAPI.mockRejectedValue(new Error('sync failed'));
+
+    await dailySync();
+
+    expect(process.exit).toHaveBeenCalledWith(1);
   });
 });

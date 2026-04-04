@@ -162,7 +162,10 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - Treat standalone page entrypoints under `public/js/` as part of the covered test surface: when adding one, include it in `jest.config.js` coverage collection and keep its DOM interactions testable in the lightweight harness
 - Keep Python tests in `scripts/tests` runnable under `pytest` so they remain part of the default `npm test` workflow
 - Treat the default Python test workflow as a per-file coverage gate defined in `scripts/tests/run_pytest_with_coverage.py` for the covered core/model/history/prediction/simulation scripts; do not rely on Python coverage as report-only output
+- Treat critical JavaScript files in `jest.config.js` as potential per-file coverage gates as well; when you raise or relax meaningful test scope, update those thresholds intentionally
+- For app/security changes, prefer at least one real `createApp()` integration test over fully mocked router wiring so CSP, session, CSRF, and middleware ordering are exercised together
 - For DB-sensitive Python or automation changes, prefer isolated temporary fixtures for behavior tests and keep at least one smoke test that boots a fresh database through `initializeDatabase()` to catch schema drift against the real app bootstrap path
+- For data-mutating automation scripts, keep a small amount of temporary SQLite integration coverage in addition to collaborator-mocked unit tests so update/insert contracts are verified directly
 - When changing test scope meaningfully, update `jest.config.js` coverage thresholds intentionally rather than leaving them stale
 - Prefer `require.main === module` guards and exported entrypoints for automation scripts so tests can import them without triggering CLI side effects
 

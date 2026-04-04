@@ -24,7 +24,10 @@ TARGET_SOURCES = [
 ]
 DEFAULT_FILE_COVERAGE_THRESHOLD = 40.0
 FILE_COVERAGE_THRESHOLDS = {
+    Path('scripts/core/data_io.py'): 70.0,
+    Path('scripts/core/elo_core.py'): 70.0,
     Path('scripts/core/optimise.py'): 58.0,
+    Path('scripts/core/scoring.py'): 85.0,
     Path('scripts/elo_history_generator.py'): 64.0,
     Path('scripts/season_simulator.py'): 73.0,
 }

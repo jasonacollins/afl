@@ -43,6 +43,18 @@ module.exports = {
       functions: 78,
       lines: 77
     },
+    './app.js': {
+      statements: 88,
+      branches: 64,
+      functions: 82,
+      lines: 89
+    },
+    './services/elo-service.js': {
+      statements: 69,
+      branches: 58,
+      functions: 71,
+      lines: 70
+    },
     './public/js/mobile-nav.js': {
       statements: 95,
       branches: 80,
@@ -50,10 +62,10 @@ module.exports = {
       lines: 95
     },
     './public/js/main.js': {
-      statements: 70,
-      branches: 55,
-      functions: 65,
-      lines: 72
+      statements: 73,
+      branches: 57,
+      functions: 69,
+      lines: 75
     },
     './public/js/admin.js': {
       statements: 70,
@@ -62,10 +74,10 @@ module.exports = {
       lines: 70
     },
     './public/js/elo-chart.js': {
-      statements: 60,
-      branches: 40,
-      functions: 65,
-      lines: 60
+      statements: 62,
+      branches: 43,
+      functions: 67,
+      lines: 62
     },
     './public/js/home.js': {
       statements: 70,
@@ -84,6 +96,24 @@ module.exports = {
       branches: 50,
       functions: 90,
       lines: 80
+    },
+    './scripts/automation/api-refresh.js': {
+      statements: 81,
+      branches: 83,
+      functions: 58,
+      lines: 83
+    },
+    './scripts/automation/daily-sync.js': {
+      statements: 78,
+      branches: 62,
+      functions: 75,
+      lines: 78
+    },
+    './scripts/automation/sync-games.js': {
+      statements: 77,
+      branches: 72,
+      functions: 83,
+      lines: 81
     }
   }
 };

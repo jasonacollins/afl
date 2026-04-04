@@ -247,12 +247,15 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - The default Python test workflow enforces per-file coverage minimums through `scripts/tests/run_pytest_with_coverage.py` across the covered core/model/history/prediction/simulation scripts; treat Python coverage as a gate, not report-only output
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
+- In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`
 - Route and app integration tests use `supertest`
+- Security-sensitive app behavior should be covered with real `createApp()` integration tests where practical so CSP, session, CSRF, and middleware ordering regressions are caught by the suite
 - Browser-oriented tests run in the standard Node Jest environment using a lightweight DOM harness, so client-side scripts should remain testable without depending on a real browser runtime
 - When adding a new standalone page script under `public/js/`, add it to `jest.config.js` coverage collection and keep its DOM interactions mockable in the lightweight harness
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 - For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught
+- For automation scripts that mutate data, prefer a mix of collaborator-mocked unit tests and temporary SQLite integration tests so persistence contracts are exercised directly
 
 Core commands:
 

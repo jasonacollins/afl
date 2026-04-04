@@ -463,21 +463,25 @@ describe('sync-games orchestration', () => {
 
 describe('sync-games maintenance and monitoring helpers', () => {
   let originalArgv;
+  let originalExit;
   let originalSetTimeout;
   let originalProcessOn;
 
   beforeEach(() => {
     jest.clearAllMocks();
     originalArgv = process.argv;
+    originalExit = process.exit;
     originalSetTimeout = global.setTimeout;
     originalProcessOn = process.on;
     fs.statSync.mockReturnValue({ mtimeMs: Date.now() });
     initializeDatabase.mockResolvedValue();
+    process.exit = jest.fn();
     process.on = jest.fn();
   });
 
   afterEach(() => {
     process.argv = originalArgv;
+    process.exit = originalExit;
     global.setTimeout = originalSetTimeout;
     process.on = originalProcessOn;
   });
@@ -519,6 +523,22 @@ describe('sync-games maintenance and monitoring helpers', () => {
     await main();
 
     expect(fs.unlinkSync).toHaveBeenCalledTimes(2);
+  });
+
+  test('main syncs the current year by default and exits successfully', async () => {
+    process.argv = ['node', 'sync-games.js'];
+    fs.readFileSync.mockImplementation((filePath) => {
+      if (String(filePath).includes('teams')) {
+        return JSON.stringify({ teams: [] });
+      }
+      return JSON.stringify({ games: [] });
+    });
+
+    await main();
+
+    expect(initializeDatabase).toHaveBeenCalled();
+    expect(process.exit).toHaveBeenCalledWith(0);
+    expect(runQuery).not.toHaveBeenCalled();
   });
 
   test('monitorLiveGames schedules the standard polling interval after a successful update', async () => {

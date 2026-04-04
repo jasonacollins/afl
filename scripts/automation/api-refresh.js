@@ -278,10 +278,49 @@ function resetFetchImplementationForTests() {
   fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 }
 
+function parseCliArgs(args, currentYear = new Date().getFullYear()) {
+  let year = currentYear;
+  let forceScoreUpdate = false;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--year' && args[i + 1]) {
+      year = Number.parseInt(args[i + 1], 10);
+      i += 1;
+      continue;
+    }
+    if (arg === '--force-score-update') {
+      forceScoreUpdate = true;
+    }
+  }
+
+  if (!Number.isInteger(year)) {
+    throw new Error('Invalid --year value');
+  }
+
+  return {
+    year,
+    forceScoreUpdate
+  };
+}
+
+async function main(args = process.argv.slice(2)) {
+  const { year, forceScoreUpdate } = parseCliArgs(args);
+  const result = await refreshAPIData(year, { forceScoreUpdate });
+  logger.info('API refresh script completed', { year, forceScoreUpdate });
+  return {
+    year,
+    forceScoreUpdate,
+    result
+  };
+}
+
 module.exports = {
   refreshAPIData,
   __testables: {
     resolveVenueId,
+    parseCliArgs,
+    main,
     setFetchImplementationForTests,
     resetFetchImplementationForTests
   }
@@ -290,29 +329,7 @@ module.exports = {
 if (require.main === module) {
   (async () => {
     try {
-      const args = process.argv.slice(2);
-      const currentYear = new Date().getFullYear();
-      let year = currentYear;
-      let forceScoreUpdate = false;
-
-      for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
-        if (arg === '--year' && args[i + 1]) {
-          year = Number.parseInt(args[i + 1], 10);
-          i += 1;
-          continue;
-        }
-        if (arg === '--force-score-update') {
-          forceScoreUpdate = true;
-        }
-      }
-
-      if (!Number.isInteger(year)) {
-        throw new Error('Invalid --year value');
-      }
-
-      const result = await refreshAPIData(year, { forceScoreUpdate });
-      logger.info('API refresh script completed', { year, forceScoreUpdate });
+      const { result } = await main();
       console.log(result.message);
       process.exit(0);
     } catch (error) {

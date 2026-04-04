@@ -31,6 +31,8 @@ const apiRefresh = require('../api-refresh');
 
 const {
   resolveVenueId,
+  parseCliArgs,
+  main,
   setFetchImplementationForTests,
   resetFetchImplementationForTests
 } = apiRefresh.__testables;
@@ -54,6 +56,17 @@ describe('api-refresh helpers', () => {
 
     await expect(resolveVenueId('MCG')).resolves.toBe(15);
     expect(getOne).toHaveBeenCalledWith(expect.stringContaining('SELECT venue_id'), ['MCG', 'MCG']);
+  });
+
+  test('parseCliArgs handles explicit year and force flags', () => {
+    expect(parseCliArgs(['--year', '2025', '--force-score-update'], 2026)).toEqual({
+      year: 2025,
+      forceScoreUpdate: true
+    });
+  });
+
+  test('parseCliArgs rejects invalid years', () => {
+    expect(() => parseCliArgs(['--year', 'nope'], 2026)).toThrow('Invalid --year value');
   });
 });
 
@@ -213,5 +226,21 @@ describe('api-refresh operational flows', () => {
       errorCode: 'API_ERROR',
       message: 'Squiggle API request failed: 503 Service Unavailable'
     });
+  });
+
+  test('main runs refresh with parsed CLI options and returns the result payload', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ games: [] })
+    }));
+
+    const result = await main(['--year', '2026', '--force-score-update']);
+
+    expect(result.year).toBe(2026);
+    expect(result.forceScoreUpdate).toBe(true);
+    expect(result.result).toEqual(expect.objectContaining({
+      success: true,
+      forceUpdate: true
+    }));
   });
 });
