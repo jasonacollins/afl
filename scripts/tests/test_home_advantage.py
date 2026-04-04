@@ -13,8 +13,81 @@ SCRIPTS_DIR = os.path.join(CURRENT_DIR, '..')
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
+from core.home_advantage import (  # noqa: E402
+    normalize_state,
+    resolve_contextual_home_advantage,
+    resolve_team_state,
+    select_contextual_home_advantage,
+)
 from core.elo_core import AFLEloModel  # noqa: E402
 from core.optimise import get_elo_parameter_space  # noqa: E402
+
+
+class TestHomeAdvantageHelpers:
+    def test_normalize_state_handles_none_blank_and_casing(self):
+        assert normalize_state(None) is None
+        assert normalize_state('') is None
+        assert normalize_state('  vic ') == 'VIC'
+
+    def test_resolve_team_state_prefers_explicit_value_then_mapping(self):
+        team_states = {'Richmond': 'vic', 'Sydney': 'nsw'}
+
+        assert resolve_team_state('Richmond', explicit_team_state='sa', team_states=team_states) == 'SA'
+        assert resolve_team_state('Richmond', team_states=team_states) == 'VIC'
+        assert resolve_team_state('Unknown', team_states=team_states) is None
+        assert resolve_team_state(None, team_states=team_states) is None
+
+    def test_select_contextual_home_advantage_falls_back_for_unknown_or_international_context(self):
+        assert select_contextual_home_advantage(
+            20,
+            60,
+            venue_state='INTL',
+            home_team_state='VIC',
+            away_team_state='WA',
+        ) == 20.0
+        assert select_contextual_home_advantage(
+            20,
+            60,
+            venue_state='VIC',
+            home_team_state=None,
+            away_team_state='WA',
+        ) == 20.0
+        assert select_contextual_home_advantage(
+            20,
+            60,
+            venue_state='WA',
+            home_team_state='WA',
+            away_team_state='VIC',
+        ) == 60.0
+        assert select_contextual_home_advantage(
+            20,
+            60,
+            venue_state='SA',
+            home_team_state='WA',
+            away_team_state='VIC',
+        ) == 20.0
+
+    def test_resolve_contextual_home_advantage_uses_mapping_when_explicit_states_missing(self):
+        team_states = {'Richmond': 'VIC', 'West Coast': 'WA'}
+
+        assert resolve_contextual_home_advantage(
+            25,
+            55,
+            home_team='Richmond',
+            away_team='West Coast',
+            venue_state='VIC',
+            team_states=team_states,
+        ) == 55.0
+        assert resolve_contextual_home_advantage(
+            25,
+            55,
+            home_team='Richmond',
+            away_team='West Coast',
+            venue_state='WA',
+            home_team_state='WA',
+            away_team_state='WA',
+            team_states=team_states,
+        ) == 25.0
 
 
 class TestHomeAdvantageApplication:

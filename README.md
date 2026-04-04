@@ -258,7 +258,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - When startup behavior changes meaningfully, keep at least one test around `startServer()` with the real initialization path so database bootstrap, recovery ordering, and listener startup are exercised together
 - Browser-oriented tests run in the standard Node Jest environment using a lightweight DOM harness, so client-side scripts should remain testable without depending on a real browser runtime
 - The shared scoring formulas used by `services/scoring-service.js` and `scripts/core/scoring.py` are covered by cross-runtime contract tests and should remain behaviorally aligned
-- When adding a new standalone page script under `public/js/`, add it to `jest.config.js` coverage collection and keep its DOM interactions mockable in the lightweight harness
+- Browser entrypoints under `public/js/` are collected for coverage via the `jest.config.js` glob, so new standalone scripts should stay testable in the lightweight DOM harness and should receive explicit per-file thresholds when they become critical
 - `app.js` exports `createApp()` and `startServer()` so tests can import the Express app without starting the production listener
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 - For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught

@@ -19,7 +19,7 @@ function csrfProtection(req, res, next) {
 
   // For non-GET requests, validate CSRF token
   if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
-    const submittedToken = req.body._csrf || req.headers['x-csrf-token'];
+    const submittedToken = (req.body && req.body._csrf) || req.headers['x-csrf-token'];
     
     if (!submittedToken || submittedToken !== req.session.csrfToken) {
       return next(createForbiddenError('CSRF token validation failed'));

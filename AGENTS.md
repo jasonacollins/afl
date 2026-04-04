@@ -159,7 +159,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 Testing conventions are documented in `README.md`. Additional AI-specific expectations:
 - Keep client-side scripts under `public/js/` directly testable in the Node-based Jest harness; avoid browser-only assumptions that require a real browser runtime
-- Treat standalone page entrypoints under `public/js/` as part of the covered test surface: when adding one, include it in `jest.config.js` coverage collection and keep its DOM interactions testable in the lightweight harness
+- Treat standalone page entrypoints under `public/js/` as part of the covered test surface: they are collected by the `jest.config.js` glob, and their DOM interactions should remain testable in the lightweight harness
 - Keep Python tests in `scripts/tests` runnable under `pytest` so they remain part of the default `npm test` workflow
 - Treat the default `npm test` JavaScript path as coverage-gated as well: Jest runs with coverage enabled there, so global and per-file thresholds in `jest.config.js` must stay intentionally maintained
 - Treat the default Python test workflow as a per-file coverage gate defined in `scripts/tests/run_pytest_with_coverage.py` for the covered core/model/history/prediction/simulation scripts; it requires the standard `coverage.py` package so selected branch-heavy files are checked for branch minimums as well. Use `AFL_ALLOW_TRACE_COVERAGE=1` only when you intentionally want weaker local validation. Do not rely on Python coverage as report-only output

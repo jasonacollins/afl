@@ -152,6 +152,11 @@ function makeWritableSelectValue(element, initialValue = '') {
   });
 }
 
+function getRefreshLoopCallback() {
+  const intervalCall = global.setInterval.mock.calls[0];
+  return intervalCall ? intervalCall[0] : null;
+}
+
 describe('public/js/admin-scripts.js', () => {
   let dom;
   let restoreDomGlobals;
@@ -425,6 +430,272 @@ describe('public/js/admin-scripts.js', () => {
     expect(document.getElementById('logRunLabel').textContent).toContain('run #41');
     expect(document.getElementById('scriptLogsOutput').textContent).toContain('Finished successfully');
     expect(document.querySelector('.selected-run-row')).not.toBeNull();
+  });
+
+  test('submits optimized prediction runs with remapped params and keeps submit disabled when a run becomes active', async () => {
+    let historyCallCount = 0;
+
+    global.fetch.mockImplementation((url, options) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => buildMetadataResponse()
+        });
+      }
+
+      if (url === '/admin/api/script-runs?limit=30' && !options) {
+        historyCallCount += 1;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            runs: historyCallCount === 1 ? [] : [
+              {
+                run_id: 57,
+                script_key: 'win-margin-methods-predictions',
+                status: 'running',
+                created_at: '2026-04-03T10:00:00.000Z',
+                started_at: '2026-04-03T10:00:05.000Z',
+                created_by_name: 'Admin'
+              }
+            ]
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            run: {
+              runId: 57,
+              status: 'running'
+            }
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs/57/logs?afterSeq=0&limit=500') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            logs: [],
+            lastSeq: 0
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    document.getElementById('predictionsMode').value = 'optimized';
+    document.getElementById('optimizedWinModelPath').value =
+      'data/models/win/afl_elo_win_trained_to_2025.json';
+    document.getElementById('optimizedMarginMethodsPath').value =
+      'data/models/win/optimal_margin_methods_trained_to_2025.json';
+    document.getElementById('optimizedPredictorId').value = '7';
+    document.getElementById('optimizedDbPath').value = 'data/database/afl_predictions.db';
+    document.getElementById('optimizedOutputDir').value = 'data/predictions/win';
+    document.getElementById('optimizedMethodOverride').value = 'simple';
+    document.getElementById('optimizedAllowModelMismatch').checked = true;
+    document.getElementById('optimizedFutureOnly').checked = true;
+    document.getElementById('optimizedSaveToDb').checked = true;
+    document.getElementById('optimizedOverrideCompleted').checked = false;
+
+    document.querySelector('.script-run-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+    await flushPromises();
+    await flushPromises();
+
+    const postCall = global.fetch.mock.calls.find(([url]) => url === '/admin/api/script-runs');
+    const payload = JSON.parse(postCall[1].body);
+
+    expect(payload.scriptKey).toBe('win-margin-methods-predictions');
+    expect(payload.params).toEqual(expect.objectContaining({
+      winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+      marginMethodsPath: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+      predictorId: '7',
+      dbPath: 'data/database/afl_predictions.db',
+      outputDir: 'data/predictions/win',
+      methodOverride: 'simple',
+      allowModelMismatch: true
+    }));
+    expect(payload.params.marginModelPath).toBeUndefined();
+    expect(payload.params.combinedPredictorId).toBeUndefined();
+    expect(document.getElementById('activeRunBanner').textContent).toContain('Run #57');
+    expect(document.querySelector('.script-run-form button[type="submit"]').disabled).toBe(true);
+  });
+
+  test('ignores invalid history run ids and surfaces run-detail failures', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => buildMetadataResponse()
+        });
+      }
+
+      if (url === '/admin/api/script-runs?limit=30') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            runs: []
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs/44') {
+        return Promise.resolve({
+          ok: false,
+          json: async () => ({
+            success: false,
+            error: 'Unable to load run details'
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    const tbody = document.getElementById('scriptRunHistoryBody');
+    tbody.innerHTML = `
+      <tr><td><button data-action="view-run-logs" data-run-id="not-a-number">Invalid</button></td></tr>
+      <tr><td><button data-action="view-run-logs" data-run-id="44">Valid</button></td></tr>
+    `;
+
+    tbody.querySelector('[data-run-id="not-a-number"]').click();
+    await flushPromises();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+
+    tbody.querySelector('[data-run-id="44"]').click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('scriptsPageError').textContent).toBe('Unable to load run details');
+  });
+
+  test('refresh loop skips overlapping refreshes and reports polling failures', async () => {
+    let refreshMode = 'ready';
+    let resolvePendingRefresh;
+    const pendingRefresh = new Promise((resolve) => {
+      resolvePendingRefresh = resolve;
+    });
+
+    global.fetch.mockImplementation((url) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => buildMetadataResponse()
+        });
+      }
+
+      if (url === '/admin/api/script-runs?limit=30') {
+        if (refreshMode === 'pending') {
+          return pendingRefresh;
+        }
+
+        if (refreshMode === 'error') {
+          return Promise.resolve({
+            ok: false,
+            json: async () => ({
+              success: false,
+              error: 'Polling failed'
+            })
+          });
+        }
+
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            runs: [
+              {
+                run_id: 41,
+                script_key: 'win-margin-methods-predictions',
+                status: 'completed',
+                created_at: '2026-04-03T09:00:00.000Z',
+                finished_at: '2026-04-03T09:10:00.000Z',
+                created_by_name: 'Admin'
+              }
+            ]
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs/41') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            run: {
+              run_id: 41,
+              script_key: 'win-margin-methods-predictions',
+              status: 'completed'
+            }
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs/41/logs?afterSeq=0&limit=500') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            logs: [],
+            lastSeq: 0
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    document.querySelector('[data-action="view-run-logs"]').click();
+    await flushPromises();
+    await flushPromises();
+
+    const refreshLoop = getRefreshLoopCallback();
+    const fetchCountBeforeLoop = global.fetch.mock.calls.length;
+
+    refreshMode = 'pending';
+    const firstRefresh = refreshLoop();
+    const secondRefresh = refreshLoop();
+    await flushPromises();
+
+    expect(global.fetch.mock.calls.length).toBe(fetchCountBeforeLoop + 1);
+
+    resolvePendingRefresh({
+      ok: true,
+      json: async () => ({
+        success: true,
+        runs: []
+      })
+    });
+    await firstRefresh;
+    await secondRefresh;
+
+    refreshMode = 'error';
+    await refreshLoop();
+
+    expect(document.getElementById('scriptsPageError').textContent).toBe('Polling failed');
   });
 
   test('shows a page error when metadata loading fails', async () => {

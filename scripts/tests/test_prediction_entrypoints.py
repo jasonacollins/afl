@@ -241,6 +241,37 @@ def test_margin_train_main_unwraps_parameter_payload_and_persists_performance(mo
     assert 'created_date' in captured['model_data']
 
 
+def test_win_train_main_returns_early_when_database_is_missing(monkeypatch, tmp_path, capsys):
+    missing_db_path = tmp_path / 'missing.db'
+    output_dir = tmp_path / 'models'
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'elo_win_train.py',
+            '--start-year', '2024',
+            '--end-year', '2025',
+            '--db-path', str(missing_db_path),
+            '--output-dir', str(output_dir),
+        ],
+    )
+
+    fetch_calls = []
+    monkeypatch.setattr(
+        win_train_module,
+        'fetch_afl_data',
+        lambda *args, **kwargs: fetch_calls.append((args, kwargs)),
+    )
+
+    win_train_module.main()
+
+    assert fetch_calls == []
+    output = capsys.readouterr().out
+    assert f'Error: Database not found at {missing_db_path}' in output
+    assert not output_dir.exists()
+
+
 def test_win_predict_matches_saves_completed_and_future_predictions_with_override_flag(monkeypatch, tmp_path):
     captured = {}
     instances = []

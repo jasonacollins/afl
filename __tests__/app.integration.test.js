@@ -81,6 +81,12 @@ function loadRealAppModule(dbPath, mocks = {}) {
       jest.unmock('../services/prediction-service');
     }
 
+    if (mocks.apiRefreshModule) {
+      jest.doMock('../scripts/automation/api-refresh', () => mocks.apiRefreshModule);
+    } else {
+      jest.unmock('../scripts/automation/api-refresh');
+    }
+
     loaded = {
       appModule: require('../app'),
       dbModule: require('../models/db')
@@ -222,15 +228,27 @@ async function seedAuthenticatedRouteData(dbModule) {
 }
 
 async function loginAsMember(agent) {
+  return loginAsUser(agent, {
+    username: 'member',
+    password: 'member-secret',
+    expectedLocation: '/predictions'
+  });
+}
+
+async function loginAsUser(agent, options) {
   const loginPage = await agent.get('/login').expect(200);
   const csrfToken = extractCsrfToken(loginPage.text);
 
   await agent
     .post('/login')
     .type('form')
-    .send({ _csrf: csrfToken, username: 'member', password: 'member-secret' })
+    .send({
+      _csrf: csrfToken,
+      username: options.username,
+      password: options.password
+    })
     .expect(302)
-    .expect('Location', '/predictions');
+    .expect('Location', options.expectedLocation);
 }
 
 describe('app integration security stack', () => {
@@ -403,6 +421,252 @@ describe('app integration security stack', () => {
       success: true,
       run: { run_id: 12, status: 'running' }
     });
+  });
+
+  test('authenticated admins can list run history, load run details, and stream logs after real login', async () => {
+    const passwordHash = bcrypt.hashSync('admin-secret', 4);
+    const listRuns = jest.fn().mockResolvedValue([
+      {
+        run_id: 21,
+        script_key: 'sync-games',
+        status: 'running',
+        created_at: '2026-04-03T09:00:00.000Z',
+        started_at: '2026-04-03T09:00:05.000Z',
+        created_by_name: 'Admin'
+      }
+    ]);
+    const getExistingActiveRun = jest.fn().mockResolvedValue({ run_id: 21 });
+    const getRunById = jest.fn().mockResolvedValue({
+      run_id: 21,
+      script_key: 'sync-games',
+      status: 'running'
+    });
+    const getRunLogs = jest.fn().mockResolvedValue([
+      {
+        seq: 3,
+        created_at: '2026-04-03T09:01:00.000Z',
+        stream: 'stdout',
+        message: 'Sync started'
+      }
+    ]);
+
+    await unloadDbModule(loaded && loaded.dbModule);
+    loaded = loadRealAppModule(path.join(tempDir, 'app.db'), {
+      predictorService: {
+        getPredictorByName: jest.fn().mockResolvedValue({
+          predictor_id: 1,
+          name: 'admin',
+          display_name: 'Admin',
+          password: passwordHash,
+          is_admin: 1
+        })
+      },
+      adminScriptRunner: {
+        recoverInterruptedRuns: jest.fn(),
+        listRuns,
+        getExistingActiveRun,
+        getRunById,
+        getRunLogs
+      }
+    });
+
+    const app = loaded.appModule.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+    const agent = request.agent(app);
+
+    await loginAsUser(agent, {
+      username: 'admin',
+      password: 'admin-secret',
+      expectedLocation: '/admin'
+    });
+
+    const runsResponse = await agent.get('/admin/api/script-runs?limit=5');
+    const runResponse = await agent.get('/admin/api/script-runs/21');
+    const logsResponse = await agent.get('/admin/api/script-runs/21/logs?afterSeq=2&limit=4');
+
+    expect(runsResponse.status).toBe(200);
+    expect(runsResponse.body).toEqual({
+      success: true,
+      runs: [
+        expect.objectContaining({
+          run_id: 21,
+          script_key: 'sync-games',
+          status: 'running'
+        })
+      ],
+      activeRunId: 21
+    });
+    expect(runResponse.status).toBe(200);
+    expect(runResponse.body).toEqual({
+      success: true,
+      run: {
+        run_id: 21,
+        script_key: 'sync-games',
+        status: 'running'
+      }
+    });
+    expect(logsResponse.status).toBe(200);
+    expect(logsResponse.body).toEqual({
+      success: true,
+      runId: 21,
+      logs: [
+        expect.objectContaining({
+          seq: 3,
+          stream: 'stdout',
+          message: 'Sync started'
+        })
+      ],
+      lastSeq: 3
+    });
+    expect(listRuns).toHaveBeenCalledWith(5);
+    expect(getExistingActiveRun).toHaveBeenCalledTimes(1);
+    expect(getRunById).toHaveBeenCalledWith(21);
+    expect(getRunLogs).toHaveBeenCalledWith(21, 2, 4);
+  });
+
+  test('admin API refresh requires CSRF and reaches the refresh module with a valid token after real login', async () => {
+    const passwordHash = bcrypt.hashSync('admin-secret', 4);
+    const refreshAPIData = jest.fn().mockResolvedValue({
+      success: true,
+      year: 2026,
+      updateCount: 3,
+      scoresUpdated: 1
+    });
+
+    await unloadDbModule(loaded && loaded.dbModule);
+    loaded = loadRealAppModule(path.join(tempDir, 'app.db'), {
+      predictorService: {
+        getPredictorByName: jest.fn().mockResolvedValue({
+          predictor_id: 1,
+          name: 'admin',
+          display_name: 'Admin',
+          password: passwordHash,
+          is_admin: 1
+        })
+      },
+      adminScriptRunner: {
+        recoverInterruptedRuns: jest.fn()
+      },
+      apiRefreshModule: {
+        refreshAPIData
+      }
+    });
+
+    const app = loaded.appModule.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+    const agent = request.agent(app);
+
+    await loginAsUser(agent, {
+      username: 'admin',
+      password: 'admin-secret',
+      expectedLocation: '/admin'
+    });
+
+    const csrfFailure = await agent
+      .post('/admin/api-refresh')
+      .send({ year: 2026, forceScoreUpdate: true });
+
+    expect(csrfFailure.status).toBe(403);
+    expect(csrfFailure.text).toContain('CSRF token validation failed');
+
+    const scriptsPage = await agent.get('/admin/scripts').expect(200);
+    const csrfToken = extractCsrfToken(scriptsPage.text);
+
+    const success = await agent
+      .post('/admin/api-refresh')
+      .set('X-CSRF-Token', csrfToken)
+      .send({ year: '2026', forceScoreUpdate: true });
+
+    expect(success.status).toBe(200);
+    expect(success.body).toEqual({
+      success: true,
+      year: 2026,
+      updateCount: 3,
+      scoresUpdated: 1
+    });
+    expect(refreshAPIData).toHaveBeenCalledWith(2026, { forceScoreUpdate: true });
+  });
+
+  test('admin database upload uses the real CSRF-protected app stack before replacement and restart', async () => {
+    const passwordHash = bcrypt.hashSync('admin-secret', 4);
+    const scheduledCallbacks = [];
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((callback) => {
+      scheduledCallbacks.push(callback);
+      return 1;
+    });
+
+    await unloadDbModule(loaded && loaded.dbModule);
+    loaded = loadRealAppModule(path.join(tempDir, 'app.db'), {
+      predictorService: {
+        getPredictorByName: jest.fn().mockResolvedValue({
+          predictor_id: 1,
+          name: 'admin',
+          display_name: 'Admin',
+          password: passwordHash,
+          is_admin: 1
+        })
+      },
+      adminScriptRunner: {
+        recoverInterruptedRuns: jest.fn()
+      }
+    });
+
+    await loaded.dbModule.initializeDatabase();
+    const originalDbContents = await fs.readFile(path.join(tempDir, 'app.db'));
+    const uploadedDbPath = path.join(tempDir, 'uploaded.db');
+    await fs.writeFile(uploadedDbPath, 'replacement-database', 'utf8');
+
+    const app = loaded.appModule.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+    const agent = request.agent(app);
+
+    try {
+      await loginAsUser(agent, {
+        username: 'admin',
+        password: 'admin-secret',
+        expectedLocation: '/admin'
+      });
+
+      const csrfFailure = await agent
+        .post('/admin/upload-database')
+        .attach('databaseFile', uploadedDbPath);
+
+      expect(csrfFailure.status).toBe(403);
+      expect(csrfFailure.text).toContain('CSRF token validation failed');
+
+      const scriptsPage = await agent.get('/admin/scripts').expect(200);
+      const csrfToken = extractCsrfToken(scriptsPage.text);
+
+      const success = await agent
+        .post('/admin/upload-database')
+        .set('X-CSRF-Token', csrfToken)
+        .attach('databaseFile', uploadedDbPath);
+
+      expect(success.status).toBe(200);
+      expect(success.body).toEqual({
+        success: true,
+        message: 'Database uploaded successfully. The application will restart shortly.'
+      });
+      expect(scheduledCallbacks).toHaveLength(1);
+
+      scheduledCallbacks[0]();
+
+      expect(await fs.readFile(path.join(tempDir, 'app.db'), 'utf8')).toBe('replacement-database');
+      expect(exitSpy).toHaveBeenCalledWith(0);
+
+      const replacedContents = await fs.readFile(path.join(tempDir, 'app.db'));
+      expect(replacedContents.equals(originalDbContents)).toBe(false);
+    } finally {
+      exitSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
+    }
   });
 
   test('admin pages render CSP-safe HTML with page-specific assets after real admin login', async () => {

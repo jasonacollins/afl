@@ -42,12 +42,23 @@ def test_interpolation_returns_fractional_bounds_for_discrete_data():
     assert lower < upper
 
 
+def test_interpolation_handles_empty_distribution():
+    result = interpolate_percentile([], 50)
+
+    assert np.isnan(result)
+
+
 def test_interpolation_handles_single_value_distribution():
     """If every simulation yields the same total, the percentile should match it."""
     wins = np.array([14] * 1000)
 
     assert interpolate_percentile(wins, 10) == 14
     assert interpolate_percentile(wins, 90) == 14
+
+
+def test_strip_current_snapshot_suffix_only_removes_current_suffix():
+    assert season_simulator_module.strip_current_snapshot_suffix('round-4-current') == 'round-4'
+    assert season_simulator_module.strip_current_snapshot_suffix('season-complete') == 'season-complete'
 
 
 def test_round_snapshot_metadata_for_numeric_round():

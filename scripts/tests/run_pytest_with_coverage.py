@@ -30,6 +30,7 @@ DEFAULT_FILE_LINE_COVERAGE_THRESHOLD = 60.0
 FILE_LINE_COVERAGE_THRESHOLDS = {
     Path('scripts/core/data_io.py'): 80.0,
     Path('scripts/core/elo_core.py'): 74.0,
+    Path('scripts/core/home_advantage.py'): 95.0,
     Path('scripts/core/optimise.py'): 75.0,
     Path('scripts/core/scoring.py'): 90.0,
     Path('scripts/elo_history_generator.py'): 78.0,
@@ -47,6 +48,7 @@ FILE_LINE_COVERAGE_THRESHOLDS = {
 FILE_BRANCH_COVERAGE_THRESHOLDS = {
     Path('scripts/core/data_io.py'): 60.0,
     Path('scripts/core/elo_core.py'): 45.0,
+    Path('scripts/core/home_advantage.py'): 90.0,
     Path('scripts/core/optimise.py'): 45.0,
     Path('scripts/core/scoring.py'): 90.0,
     Path('scripts/elo_history_generator.py'): 55.0,
