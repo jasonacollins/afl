@@ -372,6 +372,95 @@ describe('app integration security stack', () => {
       run: { run_id: 12, status: 'running' }
     });
   });
+
+  test('admin pages render CSP-safe HTML with page-specific assets after real admin login', async () => {
+    const passwordHash = bcrypt.hashSync('admin-secret', 4);
+    await unloadDbModule(loaded && loaded.dbModule);
+    loaded = loadRenderedAppModule({
+      predictorService: {
+        getPredictorByName: jest.fn().mockResolvedValue({
+          predictor_id: 1,
+          name: 'admin',
+          display_name: 'Admin',
+          password: passwordHash,
+          is_admin: 1
+        }),
+        getAllPredictors: jest.fn().mockResolvedValue([
+          {
+            predictor_id: 1,
+            name: 'admin',
+            display_name: 'Admin',
+            is_admin: 1,
+            year_joined: 2024,
+            active: 1
+          },
+          {
+            predictor_id: 6,
+            name: 'dad-ai',
+            display_name: "Dad's AI",
+            is_admin: 0,
+            year_joined: 2025,
+            active: 1
+          }
+        ])
+      },
+      roundService: {
+        resolveYear: jest.fn().mockResolvedValue({
+          selectedYear: 2026,
+          years: [{ year: 2026 }, { year: 2025 }]
+        }),
+        getRoundsForYear: jest.fn().mockResolvedValue([
+          { round_number: 'OR' },
+          { round_number: '2' }
+        ]),
+        combineRoundsForDisplay: jest.fn((rounds) => rounds)
+      },
+      featuredPredictions: {
+        getDefaultFeaturedPredictorId: jest.fn().mockResolvedValue(6)
+      },
+      adminScriptRunner: {
+        recoverInterruptedRuns: jest.fn()
+      }
+    });
+
+    const app = loaded.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+    const agent = request.agent(app);
+
+    const loginPage = await agent.get('/login').expect(200);
+    const csrfToken = extractCsrfToken(loginPage.text);
+
+    await agent
+      .post('/login')
+      .type('form')
+      .send({ _csrf: csrfToken, username: 'admin', password: 'admin-secret' })
+      .expect(302)
+      .expect('Location', '/admin');
+
+    const adminResponse = await agent.get('/admin').expect(200);
+    const scriptsResponse = await agent.get('/admin/scripts').expect(200);
+
+    for (const response of [adminResponse, scriptsResponse]) {
+      expect(response.headers['content-security-policy']).toContain("default-src 'self'");
+      expect(response.text).toContain('<meta name="csrf-token" content="');
+      expect(response.text).toContain('Admin panel');
+      expect(response.text).toContain('/js/mobile-nav.js');
+      expect(response.text).not.toContain('onclick=');
+      expect(hasInlineScriptTag(response.text)).toBe(false);
+    }
+
+    expect(adminResponse.text).toContain('Admin Dashboard');
+    expect(adminResponse.text).toContain('Featured Predictor');
+    expect(adminResponse.text).toContain('Dad&#39;s AI');
+    expect(adminResponse.text).toContain('/js/admin.js');
+
+    expect(scriptsResponse.text).toContain('Admin Scripts');
+    expect(scriptsResponse.text).toContain('Run Sync Games');
+    expect(scriptsResponse.text).toContain('Run Predictions');
+    expect(scriptsResponse.text).toContain('/js/admin-scripts.js');
+  });
 });
 
 describe('app integration route stack', () => {

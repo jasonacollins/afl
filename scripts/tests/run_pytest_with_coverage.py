@@ -144,7 +144,7 @@ def run_with_trace(pytest_args, print_branch_note=True):
     return exit_code, failures, summary_rows
 
 
-def run_branch_coverage(pytest_args, coverage_module):
+def run_with_coverage(pytest_args, coverage_module):
     cov = coverage_module.Coverage(branch=True, source=[str(REPO_ROOT / 'scripts')])
     cov.start()
     try:
@@ -152,6 +152,8 @@ def run_branch_coverage(pytest_args, coverage_module):
     finally:
         cov.stop()
         cov.save()
+
+    coverage_data = cov.get_data()
 
     with tempfile.NamedTemporaryFile(prefix='afl-py-coverage-', suffix='.json', delete=False) as handle:
         report_path = Path(handle.name)
@@ -161,8 +163,9 @@ def run_branch_coverage(pytest_args, coverage_module):
     finally:
         report_path.unlink(missing_ok=True)
 
-    failures = []
+    line_summary = {}
     branch_summary = {}
+    failures = []
 
     for path in iter_target_files():
         rel_path = path.relative_to(REPO_ROOT)
@@ -173,6 +176,27 @@ def run_branch_coverage(pytest_args, coverage_module):
             file_report = {'summary': {}}
 
         summary = file_report.get('summary', {})
+        executable_lines = set(trace._find_executable_linenos(str(path)).keys())
+        covered_lines = set()
+        for candidate in (str(path), str(path.resolve())):
+            measured_lines = coverage_data.lines(candidate)
+            if measured_lines:
+                covered_lines = set(measured_lines) & executable_lines
+                break
+
+        executable_count = len(executable_lines)
+        covered_count = len(covered_lines)
+        line_pct = 100.0 if executable_count == 0 else (covered_count / executable_count) * 100.0
+        line_threshold = FILE_LINE_COVERAGE_THRESHOLDS.get(rel_path, DEFAULT_FILE_LINE_COVERAGE_THRESHOLD)
+        line_summary[rel_path] = {
+            'line_pct': line_pct,
+            'covered_count': covered_count,
+            'executable_count': executable_count,
+            'line_threshold': line_threshold,
+        }
+        if line_pct < line_threshold:
+            failures.append((rel_path, line_pct, line_threshold))
+
         branch_total = summary.get('num_branches', 0)
         branch_covered = summary.get('covered_branches', 0)
         branch_pct = 100.0 if branch_total == 0 else (branch_covered / branch_total) * 100.0
@@ -186,7 +210,7 @@ def run_branch_coverage(pytest_args, coverage_module):
         if branch_threshold is not None and branch_pct < branch_threshold:
             failures.append((rel_path, 'branch', branch_pct, branch_threshold))
 
-    return exit_code, failures, branch_summary
+    return exit_code, failures, line_summary, branch_summary
 
 
 def main():
@@ -199,32 +223,14 @@ def main():
     )
 
     if coverage_module and hasattr(coverage_module, 'Coverage'):
-        trace_exit_code, trace_failures, trace_summary_rows = run_with_trace(
-            pytest_args,
-            print_branch_note=False,
-        )
-        if trace_exit_code != 0:
-            return trace_exit_code
+        exit_code, failures, line_summary, branch_summary = run_with_coverage(pytest_args, coverage_module)
+        if exit_code != 0:
+            return exit_code
 
-        branch_exit_code, branch_failures, branch_summary = run_branch_coverage(pytest_args, coverage_module)
-        if branch_exit_code != 0:
-            return branch_exit_code
-
-        exit_code = 0
-        failures = [*trace_failures, *branch_failures]
-        print('\nPython coverage summary (trace line coverage + coverage.py branch coverage)')
-        trace_summary_map = {
-            rel_path: {
-                'line_pct': coverage_pct,
-                'covered_count': covered_count,
-                'executable_count': executable_count,
-                'line_threshold': threshold,
-            }
-            for rel_path, coverage_pct, covered_count, executable_count, threshold in trace_summary_rows
-        }
+        print('\nPython coverage summary (coverage.py line + branch coverage)')
         for path in iter_target_files():
             rel_path = path.relative_to(REPO_ROOT)
-            line_info = trace_summary_map[rel_path]
+            line_info = line_summary[rel_path]
             branch_info = branch_summary.get(rel_path, {})
             branch_threshold = branch_info.get('branch_threshold')
             branch_pct = branch_info.get('branch_pct', 0.0)

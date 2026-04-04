@@ -107,6 +107,43 @@ def calculate_accuracy(predicted_probability, actual_outcome, threshold=0.5):
     return predicted_home_win == actual_home_win
 
 
+def calculate_tip_points(predicted_probability, home_score, away_score, tipped_team='home'):
+    """
+    Calculate binary tip correctness using the same semantics as the JS scoring service.
+
+    Parameters:
+    -----------
+    predicted_probability : float
+        Predicted home-win probability as a percentage (0-100) or fraction (0-1)
+    home_score : float
+        Actual home team score
+    away_score : float
+        Actual away team score
+    tipped_team : str
+        Explicit tipped side used when the prediction is exactly 50%
+
+    Returns:
+    --------
+    int: 1 when the tip is correct, otherwise 0
+    """
+    if predicted_probability <= 1:
+        predicted_probability = predicted_probability * 100
+
+    home_won = home_score > away_score
+    away_won = home_score < away_score
+    tie = home_score == away_score
+
+    if predicted_probability == 50:
+        if tie:
+            return 0
+        return 1 if ((home_won and tipped_team == 'home') or (away_won and tipped_team == 'away')) else 0
+
+    if tie:
+        return 0
+
+    return 1 if ((home_won and predicted_probability > 50) or (away_won and predicted_probability < 50)) else 0
+
+
 def evaluate_predictions(predictions, probability_key='home_win_probability', 
                         actual_result_key='actual_result', per_game=False):
     """

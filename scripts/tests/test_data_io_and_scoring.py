@@ -155,6 +155,11 @@ def test_scoring_helpers_support_percentages_draws_and_per_game_results():
     assert scoring.calculate_brier_score(0.8, 1.0) == pytest.approx(0.04)
     assert scoring.calculate_accuracy(52, 0.5) is True
     assert scoring.calculate_accuracy(70, 0.5) is False
+    assert scoring.calculate_tip_points(50, 90, 80, 'home') == 1
+    assert scoring.calculate_tip_points(50, 80, 90, 'away') == 1
+    assert scoring.calculate_tip_points(50, 85, 85, 'home') == 0
+    assert scoring.calculate_tip_points(0.65, 100, 80, 'home') == 1
+    assert scoring.calculate_tip_points(35, 80, 100, 'home') == 1
 
     evaluation = scoring.evaluate_predictions(
         [

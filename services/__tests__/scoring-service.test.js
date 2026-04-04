@@ -153,4 +153,57 @@ describe('Scoring Service', () => {
       expect(result.bits_fraction).toBeCloseTo(result.bits_percent, 10);
     });
   });
+
+  test('matches the Python tip-point helper for 50 percent, non-50, and draw edge cases', () => {
+    const scoringService = require('../scoring-service');
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    const cases = [
+      { probability: 50, homeScore: 90, awayScore: 80, tippedTeam: 'home' },
+      { probability: 50, homeScore: 80, awayScore: 90, tippedTeam: 'away' },
+      { probability: 50, homeScore: 80, awayScore: 90, tippedTeam: 'home' },
+      { probability: 50, homeScore: 85, awayScore: 85, tippedTeam: 'home' },
+      { probability: 65, homeScore: 100, awayScore: 80, tippedTeam: 'home' },
+      { probability: 35, homeScore: 80, awayScore: 100, tippedTeam: 'home' },
+      { probability: 65, homeScore: 80, awayScore: 100, tippedTeam: 'home' },
+      { probability: 65, homeScore: 88, awayScore: 88, tippedTeam: 'away' }
+    ];
+
+    const jsResults = cases.map(({ probability, homeScore, awayScore, tippedTeam }) => (
+      scoringService.calculateTipPoints(probability, homeScore, awayScore, tippedTeam)
+    ));
+
+    const pythonResults = JSON.parse(execFileSync(
+      'python3',
+      [
+        '-c',
+        [
+          'import json',
+          'import sys',
+          'from pathlib import Path',
+          'repo_root = Path.cwd()',
+          "sys.path.insert(0, str(repo_root / 'scripts'))",
+          'from core import scoring',
+          'cases = json.loads(sys.argv[1])',
+          'results = []',
+          'for case in cases:',
+          '    results.append(',
+          "        scoring.calculate_tip_points(",
+          "            case['probability'],",
+          "            case['homeScore'],",
+          "            case['awayScore'],",
+          "            case['tippedTeam'],",
+          '        )',
+          '    )',
+          'print(json.dumps(results))'
+        ].join('\n'),
+        JSON.stringify(cases)
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8'
+      }
+    ));
+
+    expect(pythonResults).toEqual(jsResults);
+  });
 });

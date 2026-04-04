@@ -9,6 +9,8 @@ describe('public/js/stats.js', () => {
   let dom;
   let restoreDomGlobals;
   let originalFetch;
+  let originalAlert;
+  let consoleErrorSpy;
 
   beforeEach(() => {
     jest.resetModules();
@@ -16,6 +18,7 @@ describe('public/js/stats.js', () => {
     dom = createDom(`
       <meta name="csrf-token" content="stats-csrf-token">
       <div class="stats-container" data-year="2026" data-user-id="7"></div>
+      <button class="round-button" data-round="OR">Opening Round</button>
       <button class="round-button" data-round="1">Round 1</button>
       <label>
         <input type="checkbox" class="exclude-checkbox" data-predictor-id="11">
@@ -27,9 +30,13 @@ describe('public/js/stats.js', () => {
     restoreDomGlobals = installDomGlobals(dom);
 
     originalFetch = global.fetch;
+    originalAlert = global.alert;
     global.fetch = jest.fn();
     window.fetch = global.fetch;
+    global.alert = jest.fn();
+    window.alert = global.alert;
     window.location.reload = jest.fn();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -41,6 +48,15 @@ describe('public/js/stats.js', () => {
       window.fetch = originalFetch;
     }
 
+    if (typeof originalAlert === 'undefined') {
+      delete global.alert;
+      delete window.alert;
+    } else {
+      global.alert = originalAlert;
+      window.alert = originalAlert;
+    }
+
+    consoleErrorSpy.mockRestore();
     restoreDomGlobals();
     dom.window.close();
   });
@@ -120,12 +136,132 @@ describe('public/js/stats.js', () => {
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
     await flushPromises();
 
-    document.querySelector('.round-button').click();
+    document.querySelector('.round-button[data-round="1"]').click();
     await flushPromises();
 
     expect(document.getElementById('round-stats-container').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('round-display').textContent).toBe('Round 1');
     expect(document.getElementById('round-stats-content').textContent).toContain("Dad's AI");
     expect(document.getElementById('round-stats-content').textContent).toContain('(You)');
+  });
+
+  test('shows opening round label and empty-state message when no round results are available', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/excluded-predictors') {
+        return Promise.resolve({
+          json: async () => ({ excludedPredictors: [] })
+        });
+      }
+
+      if (url === '/matches/stats/round/OR?year=2026') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            roundPredictorStats: [
+              { id: 7, totalPredictions: 0 }
+            ]
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    loadBrowserScript('stats.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+
+    document.querySelector('.round-button[data-round="OR"]').click();
+    await flushPromises();
+
+    expect(document.getElementById('round-display').textContent).toBe('Opening Round');
+    expect(document.getElementById('round-stats-content').textContent).toContain(
+      'No prediction results available for this round.'
+    );
+  });
+
+  test('alerts and avoids reload when saving exclusions returns a non-ok response', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/excluded-predictors') {
+        return Promise.resolve({
+          json: async () => ({ excludedPredictors: [] })
+        });
+      }
+
+      if (url === '/admin/api/excluded-predictors') {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          text: async () => 'server error'
+        });
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    loadBrowserScript('stats.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+
+    const checkbox = document.querySelector('.exclude-checkbox');
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('Failed to save exclusions: 500');
+    expect(window.location.reload).not.toHaveBeenCalled();
+  });
+
+  test('alerts on exclusion-save network errors and renders fetch failures for round stats', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/excluded-predictors') {
+        return Promise.resolve({
+          json: async () => ({ excludedPredictors: [] })
+        });
+      }
+
+      if (url === '/admin/api/excluded-predictors') {
+        return Promise.reject(new Error('network down'));
+      }
+
+      if (url === '/matches/stats/round/1?year=2026') {
+        return Promise.reject(new Error('round stats failed'));
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    loadBrowserScript('stats.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+
+    const checkbox = document.querySelector('.exclude-checkbox');
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('Error saving exclusions: network down');
+    expect(window.location.reload).not.toHaveBeenCalled();
+
+    document.querySelector('.round-button[data-round="1"]').click();
+    await flushPromises();
+
+    expect(document.getElementById('round-stats-content').textContent).toContain(
+      'Error loading round statistics.'
+    );
+    expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  test('logs but tolerates failures while loading saved exclusions', async () => {
+    global.fetch.mockRejectedValue(new Error('initial load failed'));
+
+    loadBrowserScript('stats.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error loading saved exclusions:',
+      expect.any(Error)
+    );
   });
 });
