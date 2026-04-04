@@ -84,6 +84,8 @@ describe('public/js/elo-chart.js', () => {
   let originalAlert;
   let originalChart;
   let chartInstances;
+  let consoleErrorSpy;
+  let consoleLogSpy;
 
   async function initializeChart(overrides = {}) {
     global.fetch.mockImplementation((url) => {
@@ -161,6 +163,8 @@ describe('public/js/elo-chart.js', () => {
       return this;
     });
     window.Chart = global.Chart;
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -188,6 +192,8 @@ describe('public/js/elo-chart.js', () => {
       window.Chart = originalChart;
     }
 
+    consoleErrorSpy.mockRestore();
+    consoleLogSpy.mockRestore();
     restoreDomGlobals();
     dom.window.close();
   });

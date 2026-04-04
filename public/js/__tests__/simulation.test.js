@@ -154,6 +154,7 @@ describe('public/js/simulation.js', () => {
   let dom;
   let restoreDomGlobals;
   let originalFetch;
+  let consoleErrorSpy;
 
   beforeEach(() => {
     jest.resetModules();
@@ -165,6 +166,7 @@ describe('public/js/simulation.js', () => {
     originalFetch = global.fetch;
     global.fetch = jest.fn();
     window.fetch = global.fetch;
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -178,6 +180,7 @@ describe('public/js/simulation.js', () => {
 
     restoreDomGlobals();
     dom.window.close();
+    consoleErrorSpy.mockRestore();
   });
 
   test('loads simulation snapshots, renders 2026 finals columns, and switches tabs', async () => {
@@ -285,6 +288,7 @@ describe('public/js/simulation.js', () => {
 
     expect(document.getElementById('error-message').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('error-text').textContent).toBe('Failed to load simulation data. Please try again later.');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error loading simulation data:', expect.any(Error));
   });
 
   test('infers the latest current snapshot and prunes stale current tabs when no explicit key is provided', async () => {

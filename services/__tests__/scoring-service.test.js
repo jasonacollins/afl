@@ -63,9 +63,13 @@ describe('Scoring Service', () => {
     const repoRoot = path.resolve(__dirname, '..', '..');
     const cases = [
       { probability: 0, outcome: 1 },
+      { probability: 2, outcome: 1 },
       { probability: 25, outcome: 0 },
+      { probability: 33, outcome: 1 },
       { probability: 50, outcome: 0.5 },
+      { probability: 51, outcome: 0.5 },
       { probability: 70, outcome: 1 },
+      { probability: 98, outcome: 0 },
       { probability: 100, outcome: 0 }
     ];
 
@@ -106,6 +110,47 @@ describe('Scoring Service', () => {
     pythonResults.forEach((pythonResult, index) => {
       expect(pythonResult.brier).toBeCloseTo(jsResults[index].brier, 10);
       expect(pythonResult.bits).toBeCloseTo(jsResults[index].bits, 10);
+    });
+  });
+
+  test('Python scoring treats 0-1 and 0-100 probabilities equivalently', () => {
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    const pythonResults = JSON.parse(execFileSync(
+      'python3',
+      [
+        '-c',
+        [
+          'import json',
+          'import sys',
+          'from pathlib import Path',
+          'repo_root = Path.cwd()',
+          "sys.path.insert(0, str(repo_root / 'scripts'))",
+          'from core import scoring',
+          'cases = [',
+          "  {'fraction': 0.25, 'percent': 25, 'outcome': 0},",
+          "  {'fraction': 0.5, 'percent': 50, 'outcome': 0.5},",
+          "  {'fraction': 0.73, 'percent': 73, 'outcome': 1},",
+          ']',
+          'results = []',
+          'for case in cases:',
+          '    results.append({',
+          "        'brier_fraction': scoring.calculate_brier_score(case['fraction'], case['outcome']),",
+          "        'brier_percent': scoring.calculate_brier_score(case['percent'], case['outcome']),",
+          "        'bits_fraction': scoring.calculate_bits_score(case['fraction'], case['outcome']),",
+          "        'bits_percent': scoring.calculate_bits_score(case['percent'], case['outcome']),",
+          '    })',
+          'print(json.dumps(results))'
+        ].join('\n')
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8'
+      }
+    ));
+
+    pythonResults.forEach((result) => {
+      expect(result.brier_fraction).toBeCloseTo(result.brier_percent, 10);
+      expect(result.bits_fraction).toBeCloseTo(result.bits_percent, 10);
     });
   });
 });

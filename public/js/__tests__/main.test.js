@@ -10,6 +10,7 @@ describe('public/js/main.js', () => {
   let restoreDomGlobals;
   let originalAlert;
   let originalFetch;
+  let consoleErrorSpy;
 
   beforeEach(() => {
     jest.resetModules();
@@ -48,6 +49,7 @@ describe('public/js/main.js', () => {
       json: async () => ([])
     });
     window.fetch = global.fetch;
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -68,9 +70,78 @@ describe('public/js/main.js', () => {
     delete global.calculateBrierScore;
     delete global.calculateBitsScore;
     delete global.calculateTipPoints;
+    consoleErrorSpy.mockRestore();
 
     restoreDomGlobals();
     dom.window.close();
+  });
+
+  test('bootstraps on DOMContentLoaded by formatting dates, wiring round clicks, and initializing save buttons', async () => {
+    document.getElementById('matches-container').innerHTML = `
+      <div class="match-card">
+        <div class="match-date">2026-04-10T09:30:00.000Z</div>
+        <input class="home-prediction" data-match-id="88" data-original-value="" value="61">
+        <input class="away-prediction" data-match-id="88" value="39">
+        <button class="save-prediction" data-match-id="88">Save Prediction</button>
+      </div>
+    `;
+
+    global.fetch = jest.fn((url) => {
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.resolve({
+          json: async () => ([
+            {
+              match_id: 99,
+              match_date: '2026-04-12T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: null,
+              ascore: null,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      if (url === '/predictions/round/1?year=2026') {
+        return Promise.resolve({
+          json: async () => ([])
+        });
+      }
+
+      if (url === '/predictions/save') {
+        return Promise.resolve({
+          json: async () => ({ success: true })
+        });
+      }
+
+      return Promise.resolve({
+        json: async () => ([])
+      });
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    expect(document.querySelector('.match-date').dataset.originalDate).toBe('2026-04-10T09:30:00.000Z');
+    expect(document.querySelector('.match-date').textContent).not.toBe('2026-04-10T09:30:00.000Z');
+
+    document.querySelector('.round-button[data-round="2"]').click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026');
+    expect(document.getElementById('matches-container').textContent).toContain('Cats');
+
+    const saveButton = document.querySelector('.save-prediction[data-match-id="99"]');
+    const homeInput = document.querySelector('.home-prediction[data-match-id="99"]');
+    homeInput.value = '63';
+    saveButton.click();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/save', expect.any(Object));
   });
 
   test('fetchMatchesForRound updates selected state, renders matches, and refreshes round statuses', async () => {
@@ -473,6 +544,7 @@ describe('public/js/main.js', () => {
     await flushPromises();
 
     expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
   test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {

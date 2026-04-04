@@ -246,7 +246,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - Python tests live under `scripts/tests` and are part of the default test workflow
 - The default `npm test` workflow runs Jest with coverage enabled, so the JavaScript global and per-file thresholds in `jest.config.js` are enforced on the main test path
 - The default Python test workflow enforces per-file coverage minimums through `scripts/tests/run_pytest_with_coverage.py` across the covered core/model/history/prediction/simulation scripts; treat Python coverage as a gate, not report-only output
-- When the standard `coverage.py` package is available, the Python coverage gate also enforces branch coverage minimums for selected branch-heavy scripts; otherwise it falls back to line-coverage enforcement so the default workflow still runs
+- The default Python coverage gate requires the standard `coverage.py` package so selected branch-heavy scripts are checked for branch minimums in addition to per-file line minimums; only use the trace-only fallback intentionally via `AFL_ALLOW_TRACE_COVERAGE=1` when you explicitly want weaker local validation
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`

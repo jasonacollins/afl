@@ -606,6 +606,63 @@ describe('Admin Script Runner - persisted logs and recovery', () => {
     }
   });
 
+  test('startScriptRun truncates oversized log lines and records percent-based progress snapshots', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+    let heartbeatCallback = null;
+    let nowMs = 0;
+    const oversizedLine = 'x'.repeat(4105);
+    const setIntervalSpy = jest.spyOn(global, 'setInterval').mockImplementation((callback) => {
+      heartbeatCallback = callback;
+      return 321;
+    });
+    const clearIntervalSpy = jest.spyOn(global, 'clearInterval').mockImplementation(() => {});
+    const dateNowSpy = jest.spyOn(Date, 'now').mockImplementation(() => nowMs);
+
+    spawn.mockReturnValue(child);
+    getOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ predictor_id: 8, display_name: 'Testing Predictor' });
+    runQuery
+      .mockResolvedValueOnce({ lastID: 46 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    const run = await adminScriptRunner.startScriptRun('win-margin-methods-predictions', {
+      startYear: 2026,
+      winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+      marginMethodsPath: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+      predictorId: 8
+    }, 9);
+    const logPath = runQuery.mock.calls[1][1][2];
+    const absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+    child.stdout.emit('data', Buffer.from(`progress 65%\r\n\r\n${oversizedLine}\r\n`));
+    nowMs = 15000;
+    heartbeatCallback();
+    child.emit('close', 0);
+    await waitFor(() => runQuery.mock.calls.length >= 3);
+
+    const logEntries = (await fs.readFile(absoluteLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+
+    try {
+      expect(run.runId).toBe(46);
+      expect(logEntries).toEqual(expect.arrayContaining([
+        expect.objectContaining({ message: 'progress 65%' }),
+        expect.objectContaining({ message: `${'x'.repeat(4000)}...` }),
+        expect.objectContaining({ message: expect.stringContaining('latest progress 65%') })
+      ]));
+    } finally {
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+      dateNowSpy.mockRestore();
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
   test('startScriptRun marks the run failed when the child process emits a startup error', async () => {
     const { runQuery } = require('../../models/db');
     const child = createMockChildProcess();
@@ -868,6 +925,76 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
     })).rejects.toThrow('modelPath must resolve inside the project root');
   });
 
+  test('listRuns clamps the requested limit and preserves nullable creator metadata', async () => {
+    const { getQuery } = require('../../models/db');
+
+    getQuery.mockResolvedValue([
+      {
+        run_id: 90,
+        script_key: 'sync-games',
+        status: 'succeeded',
+        created_by_predictor_id: null,
+        created_by_name: null,
+        created_at: '2026-04-03T00:00:00.000Z',
+        started_at: '2026-04-03T00:00:01.000Z',
+        finished_at: '2026-04-03T00:00:02.000Z',
+        exit_code: 0,
+        error_message: null,
+        log_path: 'logs/admin-scripts/2026/04/run-90.log'
+      }
+    ]);
+
+    await expect(adminScriptRunner.listRuns(999)).resolves.toEqual([
+      {
+        run_id: 90,
+        script_key: 'sync-games',
+        status: 'succeeded',
+        created_by_predictor_id: null,
+        created_by_name: null,
+        created_at: '2026-04-03T00:00:00.000Z',
+        started_at: '2026-04-03T00:00:01.000Z',
+        finished_at: '2026-04-03T00:00:02.000Z',
+        exit_code: 0,
+        error_message: null,
+        log_path: 'logs/admin-scripts/2026/04/run-90.log'
+      }
+    ]);
+    expect(getQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT ?'), [100]);
+  });
+
+  test('getRunById returns mapped metadata and null when the run does not exist', async () => {
+    getOne
+      .mockResolvedValueOnce({
+        run_id: 91,
+        script_key: 'api-refresh',
+        status: 'failed',
+        created_by_predictor_id: 4,
+        created_by_name: 'Ops User',
+        created_at: '2026-04-03T00:00:00.000Z',
+        started_at: '2026-04-03T00:00:01.000Z',
+        finished_at: '2026-04-03T00:00:03.000Z',
+        exit_code: 1,
+        error_message: 'boom',
+        log_path: 'logs/admin-scripts/2026/04/run-91.log'
+      })
+      .mockResolvedValueOnce(null);
+
+    await expect(adminScriptRunner.getRunById(91)).resolves.toEqual({
+      run_id: 91,
+      script_key: 'api-refresh',
+      status: 'failed',
+      created_by_predictor_id: 4,
+      created_by_name: 'Ops User',
+      created_at: '2026-04-03T00:00:00.000Z',
+      started_at: '2026-04-03T00:00:01.000Z',
+      finished_at: '2026-04-03T00:00:03.000Z',
+      exit_code: 1,
+      error_message: 'boom',
+      log_path: 'logs/admin-scripts/2026/04/run-91.log'
+    });
+    await expect(adminScriptRunner.getRunById(999)).resolves.toBeNull();
+  });
+
   test('getRunLogs returns a placeholder when the run has no log path', async () => {
     getOne.mockResolvedValue({ run_id: 55, log_path: null });
 
@@ -902,5 +1029,53 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
     getOne.mockResolvedValue({ run_id: 57, log_path: null });
 
     await expect(adminScriptRunner.getRunLogs(57, 1)).resolves.toEqual([]);
+  });
+
+  test('getRunLogs clamps polling arguments and returns only lines after the requested sequence', async () => {
+    const runId = 402;
+    const relativeLogPath = path.posix.join(
+      'logs',
+      'admin-scripts',
+      '2099',
+      '12',
+      `run-${process.pid}-${Date.now()}-paged.log`
+    );
+    const absoluteLogPath = path.join(__dirname, '..', '..', relativeLogPath);
+
+    await fs.mkdir(path.dirname(absoluteLogPath), { recursive: true });
+    await fs.writeFile(
+      absoluteLogPath,
+      [
+        JSON.stringify({ created_at: '2026-04-03T00:00:00.000Z', stream: 'stdout', message: 'line 1' }),
+        JSON.stringify({ created_at: '2026-04-03T00:00:01.000Z', stream: 'stdout', message: 'line 2' }),
+        JSON.stringify({ created_at: '2026-04-03T00:00:02.000Z', stream: 'stderr', message: 'line 3' })
+      ].join('\n'),
+      'utf8'
+    );
+
+    getOne.mockResolvedValue({ run_id: runId, log_path: relativeLogPath });
+
+    try {
+      await expect(adminScriptRunner.getRunLogs(runId, 1, 9999)).resolves.toEqual([
+        {
+          log_id: null,
+          run_id: runId,
+          seq: 2,
+          stream: 'stdout',
+          message: 'line 2',
+          created_at: '2026-04-03T00:00:01.000Z'
+        },
+        {
+          log_id: null,
+          run_id: runId,
+          seq: 3,
+          stream: 'stderr',
+          message: 'line 3',
+          created_at: '2026-04-03T00:00:02.000Z'
+        }
+      ]);
+    } finally {
+      await fs.rm(absoluteLogPath, { force: true });
+    }
   });
 });

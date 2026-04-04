@@ -9,6 +9,7 @@ describe('public/js/home.js', () => {
   let dom;
   let restoreDomGlobals;
   let originalFetch;
+  let consoleErrorSpy;
 
   function installHomeDom(html, url = 'https://example.test/?year=2024') {
     dom = createDom(html, { url });
@@ -21,6 +22,7 @@ describe('public/js/home.js', () => {
 
   beforeEach(() => {
     jest.resetModules();
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
     installHomeDom(`
       <div class="performance-card" data-selected-year="2025" data-featured-predictor-id="6"></div>
@@ -43,6 +45,7 @@ describe('public/js/home.js', () => {
 
     restoreDomGlobals();
     dom.window.close();
+    consoleErrorSpy.mockRestore();
   });
 
   test('loads featured round predictions and renders the prediction table', async () => {
@@ -109,6 +112,10 @@ describe('public/js/home.js', () => {
 
     expect(global.fetch).toHaveBeenCalledWith('/featured-predictions/1?year=2024');
     expect(document.getElementById('predictions-table-container').textContent).toContain('No matches available for this round');
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'Error reading selected season year from homepage button:',
+      expect.objectContaining({ message: 'Invalid URL' })
+    );
   });
 
   test('renders home, away, draw, correct, partial, and incorrect result states', async () => {
@@ -181,5 +188,6 @@ describe('public/js/home.js', () => {
     await flushPromises();
 
     expect(document.getElementById('predictions-table-container').textContent).toContain('Error loading predictions');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching predictions:', expect.any(Error));
   });
 });
