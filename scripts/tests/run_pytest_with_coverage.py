@@ -32,7 +32,7 @@ FILE_LINE_COVERAGE_THRESHOLDS = {
     Path('scripts/core/elo_core.py'): 74.0,
     Path('scripts/core/optimise.py'): 75.0,
     Path('scripts/core/scoring.py'): 85.0,
-    Path('scripts/elo_history_generator.py'): 72.0,
+    Path('scripts/elo_history_generator.py'): 78.0,
     Path('scripts/elo_margin_methods_optimize.py'): 85.0,
     Path('scripts/elo_margin_methods_predict.py'): 75.0,
     Path('scripts/elo_margin_optimize.py'): 85.0,
@@ -47,7 +47,7 @@ FILE_LINE_COVERAGE_THRESHOLDS = {
 FILE_BRANCH_COVERAGE_THRESHOLDS = {
     Path('scripts/core/elo_core.py'): 45.0,
     Path('scripts/core/optimise.py'): 45.0,
-    Path('scripts/elo_history_generator.py'): 40.0,
+    Path('scripts/elo_history_generator.py'): 55.0,
     Path('scripts/elo_predict_combined.py'): 45.0,
     Path('scripts/season_simulator.py'): 60.0,
 }

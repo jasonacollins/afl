@@ -98,10 +98,10 @@ module.exports = {
       lines: 90
     },
     './services/elo-service.js': {
-      statements: 82,
-      branches: 66,
-      functions: 85,
-      lines: 83
+      statements: 88,
+      branches: 75,
+      functions: 90,
+      lines: 88
     },
     './services/event-sync-service.js': {
       statements: 88,
@@ -158,10 +158,10 @@ module.exports = {
       lines: 76
     },
     './public/js/elo-chart.js': {
-      statements: 76,
-      branches: 55,
-      functions: 77,
-      lines: 77
+      statements: 82,
+      branches: 64,
+      functions: 83,
+      lines: 82
     },
     './public/js/home.js': {
       statements: 85,

@@ -131,6 +131,10 @@ describe('public/js/elo-chart.js', () => {
     await flushPromises();
   }
 
+  function getLatestChartConfig() {
+    return chartInstances[chartInstances.length - 1].config;
+  }
+
   beforeEach(() => {
     jest.resetModules();
 
@@ -339,6 +343,110 @@ describe('public/js/elo-chart.js', () => {
     expect(seasonDatasets).toHaveLength(2);
     expect(seasonDatasets[0].label).toBe('Cats');
     expect(seasonDatasets[1].seasonYear).toBe(2026);
+  });
+
+  test('tooltip and axis callbacks format titles, labels, and year ticks', async () => {
+    await initializeChart();
+
+    let config = getLatestChartConfig();
+    let tooltipCallbacks = config.options.plugins.tooltip.callbacks;
+
+    expect(tooltipCallbacks.title([
+      {
+        raw: { year: 2026, round: '1' },
+        parsed: { x: 1 }
+      }
+    ])).toBe('Round 1');
+
+    expect(tooltipCallbacks.title([
+      {
+        raw: {
+          year: 2026,
+          round: '1',
+          match: { opponent: 'Swans', score: 90, opponent_score: 80, result: 'win' }
+        },
+        parsed: { y: 1512.34 },
+        dataset: { label: 'Cats' }
+      }
+    ])).toBe('Round 1');
+
+    expect(tooltipCallbacks.label({
+      raw: {
+        match: { opponent: 'Swans', score: 90, opponent_score: 80, result: 'win' }
+      },
+      parsed: { y: 1512.34 },
+      dataset: { label: 'Cats' }
+    })).toEqual([
+      'Cats: 1512.3',
+      'vs Swans 90-80 (Win)'
+    ]);
+
+    expect(tooltipCallbacks.label({
+      raw: {},
+      parsed: { y: 1480 },
+      dataset: { label: 'Swans' }
+    })).toBe('Swans: 1480');
+
+    await window.eloChart.handleModeChange('yearRange');
+    await flushPromises();
+
+    config = getLatestChartConfig();
+    tooltipCallbacks = config.options.plugins.tooltip.callbacks;
+
+    expect(tooltipCallbacks.title([
+      {
+        raw: { year: 2026, round: 'Season start' },
+        parsed: { x: 10 }
+      }
+    ])).toBe('Year 2026');
+
+    expect(tooltipCallbacks.title([
+      {
+        raw: {},
+        parsed: { x: 10 }
+      }
+    ])).toBe('Year 2026');
+
+    expect(tooltipCallbacks.title([
+      {
+        raw: {},
+        parsed: { x: 999 }
+      }
+    ])).toBe('Year Range');
+
+    const axis = { ticks: [] };
+    config.options.scales.x.afterBuildTicks(axis);
+    expect(axis.ticks).toEqual([
+      { value: 0, label: '2025' },
+      { value: 10, label: '2026' }
+    ]);
+    expect(config.options.scales.x.ticks.callback(10)).toBe('2026');
+    expect(config.options.scales.x.ticks.callback(11)).toBe('');
+  });
+
+  test('highlight rebuild keeps highlighted teams on top and dims faded teams', async () => {
+    await initializeChart();
+
+    window.eloChart.toggleTeamHighlight('Cats');
+
+    const config = getLatestChartConfig();
+    expect(config.data.datasets.map((dataset) => dataset.label)).toEqual(['Cats', 'Swans']);
+    expect(config.data.datasets[0].borderWidth).toBe(4);
+    expect(config.data.datasets[1].borderWidth).toBe(1);
+    expect(config.data.datasets[0].segment.borderColor({ p0DataIndex: 0, p1DataIndex: 1 })).toBe('#123456');
+    expect(config.data.datasets[1].segment.borderColor({ p0DataIndex: 0, p1DataIndex: 1 })).toBe('#cccccc');
+    expect(document.querySelector('.legend-item[data-team="Cats"]').classList.contains('highlighted')).toBe(true);
+  });
+
+  test('createLegend logs an error when the chart section is unavailable', async () => {
+    await initializeChart();
+
+    const section = document.querySelector('.elo-chart-section');
+    section.remove();
+
+    window.eloChart.createLegend();
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Chart section not found for legend');
   });
 
   test('falls back cleanly when year loading fails and shows no-data errors', async () => {

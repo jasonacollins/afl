@@ -619,4 +619,64 @@ describe('EloService season start chart points', () => {
 
     await expect(eloService.getTeamColors(['Cats'])).resolves.toEqual({});
   });
+
+  test('getNextRound advances through numeric rounds, wildcard finals, and the grand final', () => {
+    expect(eloService.getNextRound('1')).toBe('2');
+    expect(eloService.getNextRound('OR')).toBe('1');
+    expect(eloService.getNextRound('Wildcard Finals')).toBe('Elimination Final');
+    expect(eloService.getNextRound('Wildcard Round')).toBe('Elimination Final');
+    expect(eloService.getNextRound('Grand Final')).toBe('Season Complete');
+    expect(eloService.getNextRound('Unknown')).toBe('Next Round');
+  });
+
+  test('sortRounds keeps opening round first, regular rounds next, and finals in AFL order', () => {
+    const sorted = eloService.sortRounds([
+      'Grand Final',
+      '2',
+      'Wildcard Finals',
+      'foo',
+      'Elimination Final',
+      'OR',
+      'Semi Final',
+      '1'
+    ]);
+
+    expect(sorted).toEqual([
+      'OR',
+      '1',
+      '2',
+      'foo',
+      'Wildcard Finals',
+      'Elimination Final',
+      'Semi Final',
+      'Grand Final'
+    ]);
+  });
+
+  test('getAvailableYears returns distinct descending years and filters invalid or too-old rows', async () => {
+    jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/elo-history.csv');
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(eloService, 'readEloCSV').mockResolvedValue([
+      { year: '2026' },
+      { year: '2025' },
+      { year: '2026' },
+      { year: '1999' },
+      { year: 'bad' },
+      {}
+    ]);
+
+    await expect(eloService.getAvailableYears()).resolves.toEqual([2026, 2025]);
+  });
+
+  test('getAvailableYears returns an empty list when the CSV is missing or unreadable', async () => {
+    jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/elo-history.csv');
+    const existsSpy = jest.spyOn(fs, 'existsSync');
+
+    existsSpy.mockReturnValue(false);
+    await expect(eloService.getAvailableYears()).resolves.toEqual([]);
+
+    existsSpy.mockReturnValue(true);
+    jest.spyOn(eloService, 'readEloCSV').mockRejectedValue(new Error('csv broken'));
+    await expect(eloService.getAvailableYears()).resolves.toEqual([]);
+  });
 });

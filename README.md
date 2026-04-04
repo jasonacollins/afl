@@ -453,7 +453,7 @@ The application includes an interactive ELO chart that displays team strength ra
 
 1. **Mode Selection**: Choose Year (single season) or Year Range (multi-year)
 2. **Year Selection**: Use dropdowns to select years - chart updates automatically
-3. **Team Highlighting**: Click team names to highlight, Ctrl/Cmd+click for multiple
+3. **Team Highlighting**: Click team names or chart lines to toggle highlighting; click again to remove a team from the selection
 4. **Navigation**: Use the top menu to switch between Predictions, ELO, and Simulation pages
 
 ### Data Sources
