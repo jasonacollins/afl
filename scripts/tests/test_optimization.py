@@ -19,7 +19,7 @@ if SCRIPTS_DIR not in sys.path:
 import elo_win_optimize  # noqa: E402
 from core.elo_core import AFLEloModel  # noqa: E402
 from core import optimise  # noqa: E402
-from core.optimise import evaluate_parameters_walkforward, get_elo_parameter_space  # noqa: E402
+from core.optimise import evaluate_parameters_cv, evaluate_parameters_walkforward, get_elo_parameter_space  # noqa: E402
 ELO_SPACE = get_elo_parameter_space().dimensions
 
 
@@ -135,6 +135,17 @@ class TestOptimizationParameterSpace:
 
 
 class TestObjectiveFunction:
+    def test_cross_validation_objective_produces_finite_score(self, sample_matches_data):
+        score = evaluate_parameters_cv(
+            [25, 15, 45, 0.4, 0.7, 100, 0.05],
+            sample_matches_data,
+            cv_folds=3,
+            verbose=False,
+        )
+
+        assert np.isfinite(score)
+        assert 0 <= score <= 1
+
     def test_objective_function_is_deterministic(self, sample_matches_data):
         params = [25, 15, 45, 0.4, 0.7, 100, 0.05]
         scores = [

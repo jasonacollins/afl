@@ -367,4 +367,55 @@ describe('public/js/elo-chart.js', () => {
     await window.eloChart.applyYearRange();
     expect(global.alert).toHaveBeenCalledWith('Please select both start and end years');
   });
+
+  test('tooltip callbacks format round, year-range, and match detail content', async () => {
+    await initializeChart();
+
+    const singleYearConfig = chartInstances[chartInstances.length - 1].config;
+    const singleYearTooltip = singleYearConfig.options.plugins.tooltip.callbacks;
+
+    expect(singleYearTooltip.title([
+      {
+        raw: { year: 2026, round: '1' },
+        parsed: { x: 1 }
+      }
+    ])).toBe('Round 1');
+    expect(singleYearTooltip.label({
+      dataset: { label: 'Cats' },
+      parsed: { y: 1512.2 },
+      raw: {
+        match: {
+          opponent: 'Swans',
+          score: 90,
+          opponent_score: 80,
+          result: 'win'
+        }
+      }
+    })).toEqual(['Cats: 1512.2', 'vs Swans 90-80 (Win)']);
+
+    await window.eloChart.handleModeChange('yearRange');
+    await flushPromises();
+
+    const yearRangeConfig = chartInstances[chartInstances.length - 1].config;
+    const yearRangeTooltip = yearRangeConfig.options.plugins.tooltip.callbacks;
+
+    expect(yearRangeTooltip.title([
+      {
+        raw: { year: 2025, round: 'Season start' },
+        parsed: { x: 0 }
+      }
+    ])).toBe('Year 2025');
+  });
+
+  test('shows a chart creation error when Chart.js throws', async () => {
+    await initializeChart();
+
+    global.Chart.mockImplementationOnce(() => {
+      throw new Error('chart failed');
+    });
+
+    window.eloChart.createChart();
+
+    expect(document.getElementById('elo-chart').textContent).toContain('Failed to create chart: chart failed');
+  });
 });

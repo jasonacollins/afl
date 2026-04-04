@@ -788,3 +788,34 @@ def test_main_rejects_incompatible_from_scratch_and_backfill_flags(monkeypatch):
 
     with pytest.raises(ValueError, match='cannot be combined'):
         season_simulator_module.main()
+
+
+def test_season_simulator_rejects_margin_model_as_win_model(tmp_path, afl_model_payloads):
+    """Combined mode should reject a margin artifact passed as the win model."""
+    wrong_win_model_path = tmp_path / 'wrong-win-model.json'
+    margin_model_path = tmp_path / 'margin-model.json'
+    wrong_win_model_path.write_text(json.dumps(afl_model_payloads['margin_model']), encoding='utf-8')
+    margin_model_path.write_text(json.dumps(afl_model_payloads['margin_model']), encoding='utf-8')
+
+    with pytest.raises(ValueError, match='Expected win ELO model'):
+        SeasonSimulator(
+            str(margin_model_path),
+            db_path='unused.db',
+            year=2026,
+            num_simulations=100,
+            win_model_path=str(wrong_win_model_path),
+        )
+
+
+def test_season_simulator_rejects_non_margin_model_in_margin_only_mode(tmp_path, afl_model_payloads):
+    """Margin-only mode should reject non-margin artifacts before loading matches."""
+    win_model_path = tmp_path / 'win-model.json'
+    win_model_path.write_text(json.dumps(afl_model_payloads['win_model']), encoding='utf-8')
+
+    with pytest.raises(ValueError, match='requires a margin ELO model'):
+        SeasonSimulator(
+            str(win_model_path),
+            db_path='unused.db',
+            year=2026,
+            num_simulations=100,
+        )

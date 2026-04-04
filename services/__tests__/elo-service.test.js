@@ -1,3 +1,4 @@
+const fs = require('fs');
 const eloService = require('../elo-service');
 
 function createMatchPair({
@@ -47,6 +48,10 @@ function createMatchPair({
 }
 
 describe('EloService season start chart points', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('single-year mode prepends season start before Opening Round', () => {
     const rawData = [
       ...createMatchPair({
@@ -369,5 +374,125 @@ describe('EloService season start chart points', () => {
     const seasonStart2025 = result.data.find(point => point.type === 'season_start' && point.year === 2025);
     expect(seasonStart2025.Fitzroy).toBeUndefined();
     expect(seasonStart2025.University).toBeUndefined();
+  });
+
+  test('year-range mode uses Finals Week 2 label from 2026 onward', () => {
+    const rawData = [
+      ...createMatchPair({
+        matchId: 98,
+        date: '2026-09-05 08:00:00+00:00',
+        year: 2026,
+        round: 'Elimination Final',
+        homeTeam: 'Adelaide',
+        awayTeam: 'Brisbane Lions',
+        homeBefore: 1550,
+        homeAfter: 1560,
+        awayBefore: 1450,
+        awayAfter: 1440
+      }),
+      ...createMatchPair({
+        matchId: 99,
+        date: '2026-09-06 08:00:00+00:00',
+        year: 2026,
+        round: 'Qualifying Final',
+        homeTeam: 'Carlton',
+        awayTeam: 'Essendon',
+        homeBefore: 1540,
+        homeAfter: 1548,
+        awayBefore: 1460,
+        awayAfter: 1452
+      })
+    ];
+
+    const result = eloService.processEloDataForYearRange(rawData, 2026, 2026);
+    const groupedBeforePoints = result.data.filter(
+      (point) => point.type === 'before' && point.round === 'Finals Week 2'
+    );
+
+    expect(groupedBeforePoints).toHaveLength(2);
+    expect(groupedBeforePoints[0].x).toBe(groupedBeforePoints[1].x);
+  });
+
+  test('normalizeHistoryRows prefers dated and more complete duplicates', () => {
+    const normalized = eloService.normalizeHistoryRows([
+      {
+        year: '2025',
+        match_id: '1',
+        team: 'Adelaide',
+        round: '1',
+        date: '',
+        rating_before: '1500',
+        rating_after: ''
+      },
+      {
+        year: '2025',
+        match_id: '1',
+        team: 'Adelaide',
+        round: '1',
+        date: '2025-03-01 08:00:00+00:00',
+        rating_before: '1500',
+        rating_after: '1510',
+        opponent: 'Brisbane Lions'
+      }
+    ]);
+
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0].date).toBe('2025-03-01 08:00:00+00:00');
+    expect(normalized[0].rating_after).toBe('1510');
+  });
+
+  test('compareHistoryRows falls back to round order when dates are unusable', () => {
+    const result = eloService.compareHistoryRows(
+      {
+        year: '2026',
+        round: 'OR',
+        date: '',
+        match_id: '2',
+        team: 'Adelaide'
+      },
+      {
+        year: '2026',
+        round: '1',
+        date: '',
+        match_id: '1',
+        team: 'Carlton'
+      }
+    );
+
+    expect(result).toBeLessThan(0);
+  });
+
+  test('getEloRatingsForYear returns an empty payload when the CSV is missing', async () => {
+    jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/missing-elo-history.csv');
+    jest.spyOn(fs, 'existsSync').mockReturnValue(false);
+
+    const result = await eloService.getEloRatingsForYear(2026);
+
+    expect(result).toEqual({
+      teams: [],
+      data: [],
+      year: 2026,
+      error: 'No ELO data available for 2026'
+    });
+  });
+
+  test('getEloRatingsForYearRange appends team colors to processed data', async () => {
+    jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/elo-history.csv');
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(eloService, 'readEloCSV').mockResolvedValue([{ year: '2026' }]);
+    jest.spyOn(eloService, 'getChartTeamsForYearRange').mockResolvedValue(['Cats']);
+    jest.spyOn(eloService, 'processEloDataForYearRange').mockReturnValue({
+      teams: ['Cats'],
+      data: [{ x: 0, year: 2026, round: 'Season start', Cats: 1500 }]
+    });
+    jest.spyOn(eloService, 'getTeamColors').mockResolvedValue({ Cats: '#123456' });
+
+    const result = await eloService.getEloRatingsForYearRange(2026, 2026);
+
+    expect(result).toEqual({
+      teams: ['Cats'],
+      data: [{ x: 0, year: 2026, round: 'Season start', Cats: 1500 }],
+      teamColors: { Cats: '#123456' }
+    });
   });
 });
