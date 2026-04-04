@@ -52,13 +52,13 @@ FILE_BRANCH_COVERAGE_THRESHOLDS = {
     Path('scripts/core/optimise.py'): 45.0,
     Path('scripts/core/scoring.py'): 90.0,
     Path('scripts/elo_history_generator.py'): 55.0,
-    Path('scripts/elo_margin_methods_predict.py'): 35.0,
-    Path('scripts/elo_margin_predict.py'): 35.0,
-    Path('scripts/elo_margin_train.py'): 20.0,
-    Path('scripts/elo_predict_combined.py'): 50.0,
-    Path('scripts/elo_win_predict.py'): 30.0,
-    Path('scripts/elo_win_train.py'): 20.0,
-    Path('scripts/season_simulator.py'): 60.0,
+    Path('scripts/elo_margin_methods_predict.py'): 50.0,
+    Path('scripts/elo_margin_predict.py'): 50.0,
+    Path('scripts/elo_margin_train.py'): 50.0,
+    Path('scripts/elo_predict_combined.py'): 60.0,
+    Path('scripts/elo_win_predict.py'): 50.0,
+    Path('scripts/elo_win_train.py'): 50.0,
+    Path('scripts/season_simulator.py'): 65.0,
 }
 
 

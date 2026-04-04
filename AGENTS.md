@@ -167,6 +167,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - For shared core helpers, especially DB/file I/O and scoring code, add direct behavior tests for cleanup and failure branches close to the source and promote them to explicit branch gates when they become part of the critical contract
 - Treat critical JavaScript files in `jest.config.js` as potential per-file coverage gates as well; when you raise or relax meaningful test scope, update those thresholds intentionally
 - Treat security-sensitive metadata/config modules and state-heavy frontend entrypoints as candidates for explicit per-file gates, not just global coverage
+- Shared contract modules such as CSRF enforcement, Squiggle request configuration, and cross-runtime scoring logic should be treated as strong candidates for explicit per-file JavaScript gates when they become part of the critical contract
 - For app/security changes, prefer at least one real `createApp()` integration test over fully mocked router wiring so CSP, session, CSRF, and middleware ordering are exercised together
 - When startup behavior changes meaningfully, keep at least one `startServer()` test that exercises the real initialization path so database bootstrap, recovery ordering, and listener startup are covered together
 - For DB-sensitive Python or automation changes, prefer isolated temporary fixtures for behavior tests and keep at least one smoke test that boots a fresh database through `initializeDatabase()` to catch schema drift against the real app bootstrap path

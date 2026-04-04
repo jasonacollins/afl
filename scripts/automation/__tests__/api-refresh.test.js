@@ -25,6 +25,8 @@ jest.mock('../../../utils/squiggle-request', () => ({
   }))
 }));
 
+const path = require('path');
+const { spawnSync } = require('child_process');
 const { runQuery, getOne } = require('../../../models/db');
 const { logger } = require('../../../utils/logger');
 const apiRefresh = require('../api-refresh');
@@ -213,6 +215,107 @@ describe('api-refresh operational flows', () => {
     }));
   });
 
+  test('refreshAPIData records a skipped score update when the fixture exists but the final-score update makes no change', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            id: 38513,
+            date: '2026-04-19T05:20:00Z',
+            venue: 'Optus Stadium',
+            hteamid: 6,
+            ateamid: 7,
+            complete: 100,
+            hscore: 81,
+            ascore: 70,
+            hgoals: 12,
+            hbehinds: 9,
+            agoals: 10,
+            abehinds: 10
+          }
+        ]
+      })
+    }));
+
+    getOne
+      .mockResolvedValueOnce({
+        match_date: '2026-04-19T05:20:00Z',
+        venue: 'Marvel Stadium',
+        home_team_id: 6,
+        away_team_id: 7
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        complete: 50,
+        hscore: null,
+        ascore: null
+      });
+    runQuery
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 0 });
+
+    const result = await apiRefresh.refreshAPIData(2026);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Skipped score update for Game ID 38513: DB update failed unexpectedly',
+      { currentCompletion: 50 }
+    );
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      scoresUpdated: 0,
+      skippedScoreUpdateCount: 1
+    }));
+  });
+
+  test('refreshAPIData catches score update write errors and reports them as skipped updates', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            id: 38514,
+            date: '2026-04-19T05:20:00Z',
+            venue: 'Optus Stadium',
+            hteamid: 6,
+            ateamid: 7,
+            complete: 100,
+            hscore: 81,
+            ascore: 70,
+            hgoals: 12,
+            hbehinds: 9,
+            agoals: 10,
+            abehinds: 10
+          }
+        ]
+      })
+    }));
+
+    getOne
+      .mockResolvedValueOnce({
+        match_date: '2026-04-19T05:20:00Z',
+        venue: 'Marvel Stadium',
+        home_team_id: 6,
+        away_team_id: 7
+      })
+      .mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockRejectedValueOnce(new Error('write failed'));
+
+    const result = await apiRefresh.refreshAPIData(2026);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Error updating final scores/completion for match_number 38514',
+      { error: 'write failed' }
+    );
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      scoresUpdated: 0,
+      skippedScoreUpdateCount: 1
+    }));
+  });
+
   test('refreshAPIData rethrows operational API errors from the fetch step', async () => {
     setFetchImplementationForTests(jest.fn().mockResolvedValue({
       ok: false,
@@ -225,6 +328,22 @@ describe('api-refresh operational flows', () => {
       statusCode: 503,
       errorCode: 'API_ERROR',
       message: 'Squiggle API request failed: 503 Service Unavailable'
+    });
+  });
+
+  test('refreshAPIData wraps unexpected top-level errors in an AppError', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new Error('malformed response');
+      }
+    }));
+
+    await expect(apiRefresh.refreshAPIData(2026)).rejects.toMatchObject({
+      isOperational: true,
+      statusCode: 500,
+      errorCode: 'API_REFRESH_ERROR',
+      message: 'Error refreshing API data for year 2026: malformed response'
     });
   });
 
@@ -242,5 +361,16 @@ describe('api-refresh operational flows', () => {
       success: true,
       forceUpdate: true
     }));
+  });
+
+  test('cli exits non-zero and reports invalid year parsing errors', () => {
+    const scriptPath = path.resolve(__dirname, '../api-refresh.js');
+    const result = spawnSync(process.execPath, [scriptPath, '--year', 'nope'], {
+      cwd: path.resolve(__dirname, '../../..'),
+      encoding: 'utf8'
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('API refresh failed: Invalid --year value');
   });
 });

@@ -253,6 +253,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`
 - Security-sensitive metadata/config modules and state-heavy frontend entrypoints should be treated as eligible for explicit per-file gates in `jest.config.js`, not only broad global coverage
+- Shared contract modules such as CSRF enforcement, Squiggle request configuration, and cross-runtime scoring logic are good candidates for explicit per-file JavaScript gates when they are part of the critical app contract
 - Route and app integration tests use `supertest`
 - Security-sensitive app behavior should be covered with real `createApp()` integration tests where practical so CSP, session, CSRF, and middleware ordering regressions are caught by the suite
 - When startup behavior changes meaningfully, keep at least one test around `startServer()` with the real initialization path so database bootstrap, recovery ordering, and listener startup are exercised together

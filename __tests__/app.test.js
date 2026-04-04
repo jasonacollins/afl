@@ -273,6 +273,108 @@ describe('app', () => {
     expect(response.body.locals.featuredPredictorStats).toBeNull();
   });
 
+  test('home route falls back to the most recent completed round when there are no upcoming matches', async () => {
+    const { createApp, mocks } = loadAppModule();
+
+    mocks.featuredPredictions.getDefaultFeaturedPredictor.mockResolvedValue({ predictor_id: 6 });
+    mocks.featuredPredictions.getPredictionYearsForPredictor.mockResolvedValue([{ year: '2026' }]);
+    mocks.roundService.getRoundsForYear.mockResolvedValue([
+      { round_number: '1' },
+      { round_number: '2' },
+      { round_number: '3' }
+    ]);
+    mocks.db.getQuery.mockResolvedValue([
+      {
+        match_id: 1,
+        round_number: '1',
+        match_date: '2026-03-10T19:30:00.000Z',
+        hscore: 75,
+        ascore: 60,
+        home_team: 'Cats',
+        away_team: 'Swans'
+      },
+      {
+        match_id: 2,
+        round_number: '3',
+        match_date: '2026-03-28T19:30:00.000Z',
+        hscore: 88,
+        ascore: 81,
+        home_team: 'Lions',
+        away_team: 'Dockers'
+      }
+    ]);
+    mocks.featuredPredictions.getPredictionsForRound.mockResolvedValue({
+      predictor: { predictor_id: 6 },
+      matches: [],
+      predictions: []
+    });
+    mocks.predictionService.getPredictionsWithResultsForYear.mockResolvedValue([]);
+
+    const app = createJsonRenderApp(createApp, {
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    const response = await request(app).get('/?year=2026');
+
+    expect(mocks.roundService.normalizeRoundForDisplay).toHaveBeenCalledWith('3', 2026);
+    expect(mocks.featuredPredictions.getPredictionsForRound).toHaveBeenCalledWith(6, '3', 2026);
+    expect(response.body.locals.selectedRound).toBe('3');
+  });
+
+  test('home route ignores invalid dates and falls back to opening round when no suitable round can be inferred', async () => {
+    const { createApp, mocks } = loadAppModule();
+
+    mocks.featuredPredictions.getDefaultFeaturedPredictor.mockResolvedValue({ predictor_id: 6 });
+    mocks.featuredPredictions.getPredictionYearsForPredictor.mockResolvedValue([{ year: '2026' }]);
+    mocks.roundService.normalizeRoundForDisplay.mockImplementation((round) => (
+      round === '1' ? null : round
+    ));
+    mocks.roundService.getRoundsForYear.mockResolvedValue([
+      { round_number: '1' },
+      { round_number: 'OR' }
+    ]);
+    mocks.db.getQuery.mockResolvedValue([
+      {
+        match_id: 1,
+        round_number: '1',
+        match_date: 'not-a-date',
+        hscore: null,
+        ascore: null,
+        home_team: 'Cats',
+        away_team: 'Swans'
+      },
+      {
+        match_id: 2,
+        round_number: '1',
+        match_date: null,
+        hscore: null,
+        ascore: null,
+        home_team: 'Lions',
+        away_team: 'Dockers'
+      }
+    ]);
+    mocks.featuredPredictions.getPredictionsForRound.mockResolvedValue({
+      predictor: { predictor_id: 6 },
+      matches: [],
+      predictions: []
+    });
+    mocks.predictionService.getPredictionsWithResultsForYear.mockResolvedValue([]);
+
+    const app = createJsonRenderApp(createApp, {
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    const response = await request(app).get('/?year=2026');
+
+    expect(mocks.logger.logger.warn).toHaveBeenCalledWith(
+      'Falling back to Opening Round as no suitable round found'
+    );
+    expect(mocks.featuredPredictions.getPredictionsForRound).toHaveBeenCalledWith(6, 'OR', 2026);
+    expect(response.body.locals.selectedRound).toBe('OR');
+  });
+
   test('predictor stats endpoint rejects missing predictor id', async () => {
     const { createApp, mocks } = loadAppModule();
     mocks.roundService.resolveYear.mockResolvedValue({ selectedYear: 2026 });

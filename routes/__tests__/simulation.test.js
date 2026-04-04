@@ -100,6 +100,68 @@ describe('simulation routes', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.year).toBe(2026);
     expect(response.body.num_simulations).toBe(50000);
+    expect(response.headers['cache-control']).toBe('public, max-age=3600');
+    expect(response.headers['content-type']).toContain('application/json');
+  });
+
+  test('GET /:year falls back to the from-scratch file variant when the standard file is missing', async () => {
+    fs.access
+      .mockRejectedValueOnce(new Error('missing standard'))
+      .mockResolvedValueOnce();
+    fs.readFile.mockResolvedValue(JSON.stringify({
+      year: 2026,
+      num_simulations: 50000,
+      completed_matches: 10,
+      remaining_matches: 3,
+      results: [{ team: 'Cats' }]
+    }));
+
+    const app = createRouterTestApp(simulationRouter);
+    const response = await request(app).get('/2026');
+
+    expect(response.status).toBe(200);
+    expect(fs.readFile).toHaveBeenCalledWith(
+      expect.stringContaining('season_simulation_2026_from_scratch.json'),
+      'utf-8'
+    );
+  });
+
+  test('GET /:year returns 500 when the simulation file contains invalid JSON', async () => {
+    fs.access.mockResolvedValue();
+    fs.readFile.mockResolvedValue('{invalid json');
+
+    const app = createRouterTestApp(simulationRouter);
+    const response = await request(app).get('/2026');
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      success: false,
+      error: 'Failed to retrieve simulation data',
+      year: 2026
+    });
+  });
+
+  test('GET /:year/summary falls back to the from-scratch file variant', async () => {
+    fs.access
+      .mockRejectedValueOnce(new Error('missing standard'))
+      .mockResolvedValueOnce();
+    fs.readFile.mockResolvedValue(JSON.stringify({
+      year: 2026,
+      num_simulations: 50000,
+      completed_matches: 10,
+      remaining_matches: 3,
+      last_updated: '2026-04-03T00:00:00.000Z',
+      results: [{ team: 'Cats', premiership_probability: 0.2, finals_probability: 0.8 }]
+    }));
+
+    const app = createRouterTestApp(simulationRouter);
+    const response = await request(app).get('/2026/summary');
+
+    expect(response.status).toBe(200);
+    expect(fs.readFile).toHaveBeenCalledWith(
+      expect.stringContaining('season_simulation_2026_from_scratch.json'),
+      'utf-8'
+    );
   });
 
   test('GET /:year/summary returns summarized simulation output', async () => {
@@ -132,5 +194,20 @@ describe('simulation routes', () => {
     expect(response.body.success).toBe(true);
     expect(response.body.top_5_premiership_contenders).toHaveLength(2);
     expect(response.body.current_round_label).toBe('Round 4');
+  });
+
+  test('GET /:year/summary returns 500 when the summary file cannot be read', async () => {
+    fs.access.mockResolvedValue();
+    fs.readFile.mockRejectedValue(new Error('read failed'));
+
+    const app = createRouterTestApp(simulationRouter);
+    const response = await request(app).get('/2026/summary');
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      success: false,
+      error: 'Failed to retrieve simulation summary',
+      year: 2026
+    });
   });
 });

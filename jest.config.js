@@ -119,6 +119,12 @@ module.exports = {
       functions: 84,
       lines: 86
     },
+    './services/scoring-service.js': {
+      statements: 100,
+      branches: 95,
+      functions: 100,
+      lines: 100
+    },
     './services/round-service.js': {
       statements: 89,
       branches: 76,
@@ -130,6 +136,12 @@ module.exports = {
       branches: 67,
       functions: 100,
       lines: 89
+    },
+    './middleware/csrf.js': {
+      statements: 100,
+      branches: 100,
+      functions: 100,
+      lines: 100
     },
     './public/js/admin-scripts.js': {
       statements: 84,
@@ -184,6 +196,12 @@ module.exports = {
       branches: 65,
       functions: 100,
       lines: 90
+    },
+    './utils/squiggle-request.js': {
+      statements: 100,
+      branches: 100,
+      functions: 100,
+      lines: 100
     },
     './scripts/automation/api-refresh.js': {
       statements: 81,
