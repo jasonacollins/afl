@@ -3,6 +3,7 @@ import sqlite3
 import sys
 import tempfile
 
+import pandas as pd
 import pytest
 
 
@@ -30,6 +31,112 @@ def test_fetch_matches_for_prediction_returns_future_rows_sorted(afl_test_db_pat
     assert df.iloc[0]['match_id'] == 11
     assert df.iloc[-1]['match_id'] == 20
     assert df[df['complete'] == 0]['match_id'].tolist() == [16, 17, 18, 19, 20]
+
+
+def test_connect_sqlite_applies_busy_timeout_and_wal_pragmas(tmp_path):
+    db_path = tmp_path / 'afl_predictions.db'
+
+    conn = data_io.connect_sqlite(str(db_path))
+    try:
+        busy_timeout = conn.execute('PRAGMA busy_timeout').fetchone()[0]
+        journal_mode = conn.execute('PRAGMA journal_mode').fetchone()[0]
+        synchronous = conn.execute('PRAGMA synchronous').fetchone()[0]
+    finally:
+        conn.close()
+
+    assert busy_timeout == data_io.SQLITE_BUSY_TIMEOUT_MS
+    assert journal_mode.lower() == 'wal'
+    assert synchronous == 1  # NORMAL
+
+
+def test_fetch_afl_data_closes_connection_when_query_fails(monkeypatch):
+    class FakeConnection:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    fake_conn = FakeConnection()
+
+    monkeypatch.setattr(data_io, 'connect_sqlite', lambda _db_path: fake_conn)
+    monkeypatch.setattr(data_io.pd, 'read_sql_query', lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError('query failed')))
+
+    with pytest.raises(RuntimeError, match='query failed'):
+        data_io.fetch_afl_data('ignored.db', start_year=2025, end_year=2025)
+
+    assert fake_conn.closed is True
+
+
+def test_fetch_matches_for_prediction_coerces_invalid_dates_sorts_and_closes_connection(monkeypatch):
+    class FakeConnection:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    fake_conn = FakeConnection()
+
+    monkeypatch.setattr(data_io, 'connect_sqlite', lambda _db_path: fake_conn)
+    monkeypatch.setattr(
+        data_io.pd,
+        'read_sql_query',
+        lambda *_args, **_kwargs: pd.DataFrame([
+            {'match_id': 20, 'year': 2026, 'match_date': '2099-05-01T00:00:00Z'},
+            {'match_id': 10, 'year': 2026, 'match_date': 'not-a-date'},
+            {'match_id': 11, 'year': 2027, 'match_date': '2099-01-01T00:00:00Z'},
+        ]),
+    )
+
+    matches = data_io.fetch_matches_for_prediction('ignored.db', start_year=2026)
+
+    assert fake_conn.closed is True
+    assert str(matches['match_date'].dtype).startswith('datetime64')
+    assert matches['match_id'].tolist() == [20, 10, 11]
+    assert pd.isna(matches.iloc[1]['match_date'])
+
+
+def test_get_team_states_map_normalizes_states_and_filters_blank_rows(monkeypatch):
+    class FakeConnection:
+        def close(self):
+            return None
+
+    monkeypatch.setattr(data_io, 'connect_sqlite', lambda _db_path: FakeConnection())
+    monkeypatch.setattr(
+        data_io.pd,
+        'read_sql_query',
+        lambda *_args, **_kwargs: pd.DataFrame([
+            {'name': ' Cats ', 'state': ' vic '},
+            {'name': 'Swans', 'state': 'NSW'},
+            {'name': '   ', 'state': 'QLD'},
+            {'name': 'Dockers', 'state': '  '},
+        ]),
+    )
+
+    assert data_io.get_team_states_map('ignored.db') == {
+        'Cats': 'VIC',
+        'Swans': 'NSW'
+    }
+
+
+def test_get_all_teams_closes_connection_when_query_fails(monkeypatch):
+    class FakeConnection:
+        def __init__(self):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    fake_conn = FakeConnection()
+
+    monkeypatch.setattr(data_io, 'connect_sqlite', lambda _db_path: fake_conn)
+    monkeypatch.setattr(data_io.pd, 'read_sql_query', lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError('team query failed')))
+
+    with pytest.raises(RuntimeError, match='team query failed'):
+        data_io.get_all_teams('ignored.db')
+
+    assert fake_conn.closed is True
 
 
 def test_model_and_parameter_helpers_round_trip_files(tmp_path, capsys):
@@ -314,6 +421,27 @@ def test_scoring_helpers_support_percentages_draws_and_per_game_results():
     assert evaluation['total_predictions'] == 3
     assert len(evaluation['bits_scores']) == 3
     assert evaluation['accuracies'] == [1.0, 1.0, 1.0]
+
+
+def test_scoring_helpers_support_numeric_outcomes_thresholds_and_missing_prediction_keys():
+    assert scoring.calculate_accuracy(70, 1.0) is True
+    assert scoring.calculate_accuracy(30, 1.0) is False
+    assert scoring.calculate_accuracy(0.4, 0.0) is True
+    assert scoring.calculate_tip_points(0.5, 70, 60, 'home') == 1
+
+    evaluation = scoring.evaluate_predictions([
+        {'home_win_probability': 0.7, 'actual_result': 1.0},
+        {'home_win_probability': 0.4, 'actual_result': 0.0},
+        {'home_win_probability': 0.5, 'actual_result': 0.5},
+        {'actual_result': 1.0},
+        {'home_win_probability': 0.6},
+    ])
+
+    assert evaluation['total_predictions'] == 3
+    assert evaluation['correct_predictions'] == 3
+    assert evaluation['accuracy'] == pytest.approx(1.0)
+    assert evaluation['bits_score_total'] > 0
+    assert evaluation['brier_score_total'] >= 0
 
 
 def test_scoring_summary_formats_aggregated_results_and_empty_cases():

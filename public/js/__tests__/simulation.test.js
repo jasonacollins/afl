@@ -469,4 +469,79 @@ describe('public/js/simulation.js', () => {
     expect(document.getElementById('ladder-position-card').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('round-snapshot-nav').classList.contains('is-hidden')).toBe(true);
   });
+
+  test('keeps table order stable when an unknown sort header is clicked', async () => {
+    const unknownHeader = document.createElement('th');
+    unknownHeader.className = 'sortable';
+    unknownHeader.dataset.sort = 'unknown-column';
+    document.querySelector('#simulation-table thead tr').appendChild(unknownHeader);
+
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/simulation/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026] })
+        });
+      }
+
+      if (url === '/api/simulation/2026') {
+        return Promise.resolve({
+          json: async () => buildSimulationResponse(2026)
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('simulation.js');
+    if (document.readyState === 'loading') {
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    }
+    await flushPromises();
+    await flushPromises();
+
+    const initialTeams = getRenderedTeams();
+    unknownHeader.click();
+
+    expect(getRenderedTeams()).toEqual(initialTeams);
+    expect(unknownHeader.classList.contains('sorted-desc')).toBe(true);
+  });
+
+  test('renders an empty snapshot row when round snapshots have no result entries', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/simulation/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [2026] })
+        });
+      }
+
+      if (url === '/api/simulation/2026') {
+        return Promise.resolve({
+          json: async () => ({
+            success: true,
+            year: 2026,
+            round_snapshots: [
+              {
+                round_key: 'broken',
+                round_label: 'Broken Snapshot',
+                results: null
+              }
+            ]
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('simulation.js');
+    if (document.readyState === 'loading') {
+      document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    }
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('error-message').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('round-snapshot-context').textContent).toBe('Broken Snapshot');
+    expect(document.querySelectorAll('#simulation-tbody tr')).toHaveLength(0);
+  });
 });

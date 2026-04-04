@@ -345,6 +345,34 @@ describe('public/js/elo-chart.js', () => {
     expect(seasonDatasets[1].seasonYear).toBe(2026);
   });
 
+  test('retains in-season after-game segments and highlights single-point season datasets', async () => {
+    await initializeChart();
+
+    window.eloChart.chartData = [
+      { x: 0, year: 2025, type: 'before' },
+      { x: 1, year: 2025, type: 'after_game' },
+      { x: 2, year: 2025, type: 'before' }
+    ];
+
+    expect(window.eloChart.shouldHideCarryoverSegment({ x: 1 }, { x: 2 })).toBe(false);
+
+    const singlePointDataset = window.eloChart.createSeasonDataset(
+      [{ x: 10, y: 1510 }],
+      'Cats',
+      '#123456',
+      2026
+    );
+    const multiPointDataset = window.eloChart.createSeasonDataset(
+      [{ x: 10, y: 1510 }, { x: 11, y: 1515 }],
+      'Cats',
+      '#123456',
+      2026
+    );
+
+    expect(singlePointDataset.pointRadius({ dataset: singlePointDataset })).toBe(3);
+    expect(multiPointDataset.pointRadius({ dataset: multiPointDataset })).toBe(0);
+  });
+
   test('tooltip and axis callbacks format titles, labels, and year ticks', async () => {
     await initializeChart();
 

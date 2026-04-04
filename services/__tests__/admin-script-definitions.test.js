@@ -1,9 +1,26 @@
 const {
+  ALLOWED_PATH_BASES,
+  YEAR_MIN,
+  getYearMax,
   getScriptDefinition,
   getScriptCatalog
 } = require('../admin-script-definitions');
 
 describe('Admin Script Definitions', () => {
+  test('exports the approved data path bases used by the script runner', () => {
+    expect(ALLOWED_PATH_BASES).toEqual([
+      'data/models',
+      'data/database',
+      'data/predictions',
+      'data/historical',
+      'data/simulations'
+    ]);
+  });
+
+  test('returns null for unknown script definitions', () => {
+    expect(getScriptDefinition('does-not-exist')).toBeNull();
+  });
+
   test('includes win-margin-methods-optimize script definition', () => {
     const definition = getScriptDefinition('win-margin-methods-optimize');
 
@@ -71,5 +88,74 @@ describe('Admin Script Definitions', () => {
     const endYearField = definition.fields.find((field) => field.name === 'endYear');
     expect(endYearField).toBeTruthy();
     expect(endYearField.max).toBeGreaterThanOrEqual(new Date().getFullYear());
+  });
+
+  test('catalog field metadata stays internally consistent for every script', () => {
+    const catalog = getScriptCatalog();
+    const allowedOptionSources = new Set([
+      'activePredictors',
+      'modelFiles.history',
+      'modelFiles.margin',
+      'modelFiles.winMarginMethods',
+      'modelFiles.winModelOrParams',
+      'modelFiles.winModels',
+      'modelFiles.winParams'
+    ]);
+    const pathFieldNames = new Set([
+      'dbPath',
+      'eloParamsPath',
+      'marginMethodsPath',
+      'marginModelPath',
+      'marginParams',
+      'modelPath',
+      'output',
+      'outputDir',
+      'outputPath',
+      'paramsFile',
+      'winModelPath'
+    ]);
+
+    expect(catalog.length).toBeGreaterThan(0);
+
+    catalog.forEach((definition) => {
+      expect(definition.key).toBeTruthy();
+      expect(definition.label).toBeTruthy();
+      expect(definition.description).toBeTruthy();
+
+      const fieldNames = definition.fields.map((field) => field.name);
+      expect(new Set(fieldNames).size).toBe(fieldNames.length);
+
+      definition.fields.forEach((field) => {
+        expect(field.label).toBeTruthy();
+        expect(field.type).toBeTruthy();
+
+        if (field.optionSource) {
+          expect(field.type).toBe('select');
+          expect(allowedOptionSources.has(field.optionSource)).toBe(true);
+        }
+
+        if (field.maxDynamic === 'yearMax') {
+          expect(field.max).toBe(getYearMax());
+          expect(field.min).toBe(YEAR_MIN);
+        }
+
+        if (pathFieldNames.has(field.name)) {
+          expect(['select', 'text']).toContain(field.type);
+        }
+      });
+    });
+  });
+
+  test('prediction-writing jobs require an active predictor selection', () => {
+    ['combined-predictions', 'margin-predictions', 'win-margin-methods-predictions'].forEach((key) => {
+      const definition = getScriptDefinition(key);
+      const predictorField = definition.fields.find((field) => field.name === 'predictorId');
+
+      expect(predictorField).toEqual(expect.objectContaining({
+        type: 'select',
+        required: true,
+        optionSource: 'activePredictors'
+      }));
+    });
   });
 });

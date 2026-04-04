@@ -63,39 +63,39 @@ def fetch_afl_data(db_path: str, start_year: Optional[int] = None,
         Match data with required columns for ELO training
     """
     conn = connect_sqlite(db_path)
-    
-    year_clause = ""
-    if start_year:
-        year_clause += f"AND m.year >= {start_year} "
-    if end_year:
-        year_clause += f"AND m.year <= {end_year}"
-    
-    query = f"""
-    SELECT 
-        m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore,
-        ht.name as home_team, at.name as away_team,
-        ht.state as home_team_state, at.state as away_team_state,
-        v.state as venue_state
-    FROM 
-        matches m
-    JOIN 
-        teams ht ON m.home_team_id = ht.team_id
-    JOIN 
-        teams at ON m.away_team_id = at.team_id
-    LEFT JOIN
-        venues v ON m.venue_id = v.venue_id
-    WHERE 
-        m.hscore IS NOT NULL AND m.ascore IS NOT NULL
-        {year_clause}
-    ORDER BY 
-        m.year, m.match_date
-    """
-    
-    df = pd.read_sql_query(query, conn)
-    conn.close()
-    
-    return df
+
+    try:
+        year_clause = ""
+        if start_year:
+            year_clause += f"AND m.year >= {start_year} "
+        if end_year:
+            year_clause += f"AND m.year <= {end_year}"
+
+        query = f"""
+        SELECT 
+            m.match_id, m.match_number, m.round_number, m.match_date, 
+            m.venue, m.year, m.hscore, m.ascore,
+            ht.name as home_team, at.name as away_team,
+            ht.state as home_team_state, at.state as away_team_state,
+            v.state as venue_state
+        FROM 
+            matches m
+        JOIN 
+            teams ht ON m.home_team_id = ht.team_id
+        JOIN 
+            teams at ON m.away_team_id = at.team_id
+        LEFT JOIN
+            venues v ON m.venue_id = v.venue_id
+        WHERE 
+            m.hscore IS NOT NULL AND m.ascore IS NOT NULL
+            {year_clause}
+        ORDER BY 
+            m.year, m.match_date
+        """
+
+        return pd.read_sql_query(query, conn)
+    finally:
+        conn.close()
 
 
 def fetch_matches_for_prediction(db_path: str, start_year: int) -> pd.DataFrame:
@@ -115,30 +115,32 @@ def fetch_matches_for_prediction(db_path: str, start_year: int) -> pd.DataFrame:
         All matches from start_year onwards (completed and future)
     """
     conn = connect_sqlite(db_path)
-    
-    query = f"""
-    SELECT 
-        m.match_id, m.match_number, m.round_number, m.match_date, 
-        m.venue, m.year, m.hscore, m.ascore, m.complete,
-        ht.name as home_team, at.name as away_team,
-        ht.state as home_team_state, at.state as away_team_state,
-        v.state as venue_state
-    FROM 
-        matches m
-    JOIN 
-        teams ht ON m.home_team_id = ht.team_id
-    JOIN 
-        teams at ON m.away_team_id = at.team_id
-    LEFT JOIN
-        venues v ON m.venue_id = v.venue_id
-    WHERE 
-        m.year >= {start_year}
-    ORDER BY 
-        m.year, m.match_date
-    """
-    
-    matches = pd.read_sql_query(query, conn)
-    conn.close()
+
+    try:
+        query = f"""
+        SELECT 
+            m.match_id, m.match_number, m.round_number, m.match_date, 
+            m.venue, m.year, m.hscore, m.ascore, m.complete,
+            ht.name as home_team, at.name as away_team,
+            ht.state as home_team_state, at.state as away_team_state,
+            v.state as venue_state
+        FROM 
+            matches m
+        JOIN 
+            teams ht ON m.home_team_id = ht.team_id
+        JOIN 
+            teams at ON m.away_team_id = at.team_id
+        LEFT JOIN
+            venues v ON m.venue_id = v.venue_id
+        WHERE 
+            m.year >= {start_year}
+        ORDER BY 
+            m.year, m.match_date
+        """
+
+        matches = pd.read_sql_query(query, conn)
+    finally:
+        conn.close()
     
     # Convert match_date to datetime for sorting
     matches['match_date'] = pd.to_datetime(matches['match_date'], errors='coerce')
@@ -199,11 +201,13 @@ def get_all_teams(db_path: str) -> List[str]:
         List of all team names
     """
     conn = connect_sqlite(db_path)
-    
-    query = "SELECT name FROM teams ORDER BY name"
-    teams_df = pd.read_sql_query(query, conn)
-    conn.close()
-    
+
+    try:
+        query = "SELECT name FROM teams ORDER BY name"
+        teams_df = pd.read_sql_query(query, conn)
+    finally:
+        conn.close()
+
     return teams_df['name'].tolist()
 
 

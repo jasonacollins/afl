@@ -55,6 +55,26 @@ describe('predictor-service', () => {
     });
   });
 
+  test('getActivePredictors returns active predictors from the database', async () => {
+    const predictors = [{ predictor_id: 7, name: 'dad', active: 1 }];
+    getQuery.mockResolvedValue(predictors);
+
+    await expect(predictorService.getActivePredictors()).resolves.toEqual(predictors);
+    expect(getQuery).toHaveBeenCalledWith(
+      'SELECT predictor_id, name, display_name, is_admin, year_joined FROM predictors WHERE active = 1 ORDER BY name'
+    );
+  });
+
+  test('getActivePredictors converts database failures to AppError', async () => {
+    getQuery.mockRejectedValue(new Error('db failed'));
+
+    await expect(predictorService.getActivePredictors()).rejects.toMatchObject({
+      message: 'Failed to fetch active predictors',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
+    });
+  });
+
   test('createPredictor rejects missing username or password', async () => {
     await expect(
       predictorService.createPredictor('', 'secret', 'Display Name', false, 2026)
@@ -98,6 +118,17 @@ describe('predictor-service', () => {
     );
   });
 
+  test('createPredictor falls back to the current year when yearJoined is omitted', async () => {
+    const currentYear = new Date().getFullYear();
+
+    await predictorService.createPredictor('dad', 'secret', 'Dad', false);
+
+    expect(runQuery).toHaveBeenCalledWith(
+      'INSERT INTO predictors (name, display_name, password, is_admin, year_joined) VALUES (?, ?, ?, ?, ?)',
+      ['dad', 'Dad', 'hashed-password', 0, currentYear]
+    );
+  });
+
   test('createPredictor maps unique-constraint failures to validation errors', async () => {
     runQuery.mockRejectedValue(new Error('SQLITE_CONSTRAINT: UNIQUE failed: predictors.name'));
 
@@ -106,6 +137,18 @@ describe('predictor-service', () => {
     ).rejects.toMatchObject({
       message: 'Username already exists',
       errorCode: 'VALIDATION_ERROR'
+    });
+  });
+
+  test('createPredictor maps hashing failures to AppError', async () => {
+    bcrypt.genSalt.mockRejectedValue(new Error('bcrypt down'));
+
+    await expect(
+      predictorService.createPredictor('dad', 'secret', 'Dad', false, 2026)
+    ).rejects.toMatchObject({
+      message: 'Failed to create predictor',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
     });
   });
 
@@ -149,6 +192,16 @@ describe('predictor-service', () => {
     );
   });
 
+  test('resetPassword maps unexpected failures to AppError', async () => {
+    bcrypt.hash.mockRejectedValue(new Error('hash failed'));
+
+    await expect(predictorService.resetPassword(4, 'secret123')).rejects.toMatchObject({
+      message: 'Failed to reset password',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
+    });
+  });
+
   test('deletePredictor deletes predictions before deleting the predictor', async () => {
     runQuery
       .mockResolvedValueOnce({ changes: 3 })
@@ -180,11 +233,49 @@ describe('predictor-service', () => {
     });
   });
 
+  test('deletePredictor maps unexpected database failures to AppError', async () => {
+    runQuery.mockRejectedValue(new Error('delete failed'));
+
+    await expect(predictorService.deletePredictor(8)).rejects.toMatchObject({
+      message: 'Failed to delete predictor',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
+    });
+  });
+
   test('getPredictorById returns null when no row exists', async () => {
     getOne.mockResolvedValue(null);
 
     await expect(predictorService.getPredictorById(7)).resolves.toBeNull();
     expect(getOne).toHaveBeenCalledWith('SELECT * FROM predictors WHERE predictor_id = ?', [7]);
+  });
+
+  test('getPredictorById converts database failures to AppError', async () => {
+    getOne.mockRejectedValue(new Error('db failed'));
+
+    await expect(predictorService.getPredictorById(7)).rejects.toMatchObject({
+      message: 'Failed to fetch predictor',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
+    });
+  });
+
+  test('getPredictorByName returns predictor rows by username', async () => {
+    const predictor = { predictor_id: 3, name: 'dad' };
+    getOne.mockResolvedValue(predictor);
+
+    await expect(predictorService.getPredictorByName('dad')).resolves.toEqual(predictor);
+    expect(getOne).toHaveBeenCalledWith('SELECT * FROM predictors WHERE name = ?', ['dad']);
+  });
+
+  test('getPredictorByName converts database failures to AppError', async () => {
+    getOne.mockRejectedValue(new Error('db failed'));
+
+    await expect(predictorService.getPredictorByName('dad')).rejects.toMatchObject({
+      message: 'Failed to fetch predictor',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
+    });
   });
 
   test('getPredictorsWithAdminStatus returns predictors including flags', async () => {
@@ -195,5 +286,15 @@ describe('predictor-service', () => {
     expect(getQuery).toHaveBeenCalledWith(
       'SELECT predictor_id, name, display_name, is_admin, stats_excluded, active FROM predictors ORDER BY name'
     );
+  });
+
+  test('getPredictorsWithAdminStatus converts database failures to AppError', async () => {
+    getQuery.mockRejectedValue(new Error('db failed'));
+
+    await expect(predictorService.getPredictorsWithAdminStatus()).rejects.toMatchObject({
+      message: 'Failed to fetch predictors',
+      statusCode: 500,
+      errorCode: 'DATABASE_ERROR'
+    });
   });
 });

@@ -248,9 +248,11 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - The default Python test workflow enforces per-file coverage minimums through `scripts/tests/run_pytest_with_coverage.py` across the covered core/model/history/prediction/simulation scripts; treat Python coverage as a gate, not report-only output
 - The default Python coverage gate requires the standard `coverage.py` package so selected branch-heavy scripts are checked for branch minimums in addition to per-file line minimums; only use the trace-only fallback intentionally via `AFL_ALLOW_TRACE_COVERAGE=1` when you explicitly want weaker local validation
 - Covered Python entrypoints should have direct behavior tests where practical, not only CLI smoke coverage; prefer asserting filtering, save-path, predictor-isolation, compatibility, and carryover behavior close to the imported functions
+- For shared core helpers, especially database/file I/O and scoring logic, prefer direct behavior tests that exercise cleanup and error-handling branches close to the source; promote them to explicit branch gates when they become part of the critical test contract
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`
+- Security-sensitive metadata/config modules and state-heavy frontend entrypoints should be treated as eligible for explicit per-file gates in `jest.config.js`, not only broad global coverage
 - Route and app integration tests use `supertest`
 - Security-sensitive app behavior should be covered with real `createApp()` integration tests where practical so CSP, session, CSRF, and middleware ordering regressions are caught by the suite
 - When startup behavior changes meaningfully, keep at least one test around `startServer()` with the real initialization path so database bootstrap, recovery ordering, and listener startup are exercised together

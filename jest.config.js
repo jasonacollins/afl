@@ -91,6 +91,12 @@ module.exports = {
       functions: 90,
       lines: 87
     },
+    './services/admin-script-definitions.js': {
+      statements: 100,
+      branches: 100,
+      functions: 100,
+      lines: 100
+    },
     './services/featured-predictions.js': {
       statements: 90,
       branches: 85,
@@ -110,10 +116,10 @@ module.exports = {
       lines: 90
     },
     './services/predictor-service.js': {
-      statements: 80,
-      branches: 84,
-      functions: 87,
-      lines: 80
+      statements: 95,
+      branches: 90,
+      functions: 100,
+      lines: 95
     },
     './services/result-update-service.js': {
       statements: 86,
@@ -152,16 +158,16 @@ module.exports = {
       lines: 84
     },
     './public/js/admin.js': {
-      statements: 78,
-      branches: 55,
-      functions: 72,
-      lines: 78
+      statements: 80,
+      branches: 60,
+      functions: 80,
+      lines: 80
     },
     './public/js/elo-chart.js': {
-      statements: 82,
-      branches: 64,
-      functions: 83,
-      lines: 82
+      statements: 85,
+      branches: 69,
+      functions: 88,
+      lines: 86
     },
     './public/js/home.js': {
       statements: 88,
@@ -176,16 +182,16 @@ module.exports = {
       lines: 95
     },
     './public/js/simulation.js': {
-      statements: 85,
-      branches: 66,
+      statements: 86,
+      branches: 69,
       functions: 100,
       lines: 85
     },
     './public/js/stats.js': {
-      statements: 81,
-      branches: 54,
-      functions: 94,
-      lines: 81
+      statements: 90,
+      branches: 65,
+      functions: 100,
+      lines: 90
     },
     './scripts/automation/api-refresh.js': {
       statements: 81,
