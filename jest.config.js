@@ -85,11 +85,23 @@ module.exports = {
       functions: 100,
       lines: 81
     },
+    './services/admin-script-runner.js': {
+      statements: 85,
+      branches: 72,
+      functions: 88,
+      lines: 85
+    },
     './services/elo-service.js': {
-      statements: 75,
-      branches: 62,
-      functions: 74,
-      lines: 76
+      statements: 78,
+      branches: 64,
+      functions: 80,
+      lines: 80
+    },
+    './services/event-sync-service.js': {
+      statements: 88,
+      branches: 78,
+      functions: 75,
+      lines: 90
     },
     './public/js/admin-scripts.js': {
       statements: 84,
@@ -116,10 +128,10 @@ module.exports = {
       lines: 76
     },
     './public/js/elo-chart.js': {
-      statements: 67,
-      branches: 45,
-      functions: 69,
-      lines: 67
+      statements: 72,
+      branches: 52,
+      functions: 75,
+      lines: 73
     },
     './public/js/home.js': {
       statements: 72,
@@ -152,10 +164,10 @@ module.exports = {
       lines: 83
     },
     './scripts/automation/daily-sync.js': {
-      statements: 78,
-      branches: 62,
-      functions: 75,
-      lines: 78
+      statements: 80,
+      branches: 64,
+      functions: 80,
+      lines: 80
     },
     './scripts/automation/db-maintenance.js': {
       statements: 75,

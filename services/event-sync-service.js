@@ -1,5 +1,5 @@
 // node-fetch v3 is ESM-only; use dynamic import for CommonJS services.
-const fetch = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+let fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
 const { logger } = require('../utils/logger');
 const { getSquiggleGamesSseConfig } = require('../utils/squiggle-request');
 const resultUpdateService = require('./result-update-service');
@@ -151,7 +151,7 @@ class EventSyncService {
 
     await resultUpdateService.recordConnectionState('connecting', { url: sseUrl });
 
-    const response = await fetch(sseUrl, {
+    const response = await fetchImpl(sseUrl, {
       ...options,
       signal: this.abortController.signal
     });
@@ -455,7 +455,13 @@ module.exports = new EventSyncService();
 module.exports.__testables = {
   buildGameFingerprint,
   extractYearFromGame,
-  shouldTriggerCompletedGameFlow,
   isGameActiveForSync,
-  normalizeTrackedGame
+  normalizeTrackedGame,
+  resetFetchImpl() {
+    fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+  },
+  setFetchImpl(nextFetchImpl) {
+    fetchImpl = nextFetchImpl;
+  },
+  shouldTriggerCompletedGameFlow
 };

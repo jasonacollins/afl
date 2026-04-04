@@ -42,6 +42,7 @@ const {
   hasCompletedResultChanges,
   regenerateEloHistory,
   regenerateSeasonSimulation,
+  runPostResultRecompute,
   runFallbackReconciliation,
   dailySync
 } = require('../daily-sync');
@@ -311,6 +312,56 @@ describe('daily-sync automation orchestration', () => {
     );
   });
 
+  test('regenerateSeasonSimulation resolves with the output path on success', async () => {
+    spawn.mockImplementation(() => queueChildResult({ stdout: ['sim ok\n'] }));
+
+    await expect(regenerateSeasonSimulation(2026)).resolves.toEqual({
+      success: true,
+      message: 'Season simulation updated',
+      outputPath: expect.stringContaining('season_simulation_2026.json')
+    });
+  });
+
+  test('regenerateEloHistory rejects when the history generator exits non-zero', async () => {
+    spawn.mockImplementation(() => queueChildResult({ code: 2, stderr: ['history failed'] }));
+
+    await expect(regenerateEloHistory({ mode: 'incremental' })).rejects.toThrow(
+      'ELO history generator failed with code 2: history failed'
+    );
+  });
+
+  test('runPostResultRecompute skips season simulation for non-current seasons', async () => {
+    const priorYear = new Date().getFullYear() - 1;
+
+    runEloPredictions.mockResolvedValue({
+      message: 'Predictions updated',
+      predictionsCount: 4
+    });
+    fs.existsSync.mockReturnValue(false);
+    spawn.mockImplementation(() => queueChildResult());
+
+    const result = await runPostResultRecompute(priorYear, { source: 'historical-refresh' });
+
+    expect(runEloPredictions).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledWith(
+      'python3',
+      expect.arrayContaining([
+        'scripts/elo_history_generator.py',
+        '--mode',
+        'incremental'
+      ]),
+      expect.any(Object)
+    );
+    expect(result).toEqual({
+      year: priorYear,
+      source: 'historical-refresh',
+      eloResults: expect.objectContaining({ predictionsCount: 4 }),
+      simulationResults: null,
+      historyResults: { success: true, message: 'ELO history updated' }
+    });
+  });
+
   test('runFallbackReconciliation performs full recompute when completed results are detected', async () => {
     const currentYear = new Date().getFullYear();
 
@@ -466,6 +517,53 @@ describe('daily-sync automation orchestration', () => {
     expect(runEloPredictions).not.toHaveBeenCalled();
     expect(spawn).not.toHaveBeenCalled();
     expect(result.recomputeResults).toBeNull();
+  });
+
+  test('runFallbackReconciliation refreshes predictions and simulation when the current snapshot is missing', async () => {
+    const currentYear = new Date().getFullYear();
+
+    mockGetQuery.mockResolvedValue([]);
+    syncGamesFromAPI.mockResolvedValue({
+      insertCount: 0,
+      updateCount: 0,
+      skipCount: 0,
+      completedInsertCount: 0,
+      completedUpdateCount: 0
+    });
+    refreshAPIData.mockResolvedValue({
+      insertCount: 0,
+      updateCount: 0,
+      scoresUpdated: 0
+    });
+    runEloPredictions.mockResolvedValue({
+      message: 'Predictions updated',
+      predictionsCount: 9
+    });
+    fs.existsSync.mockImplementation((targetPath) => {
+      const normalizedPath = String(targetPath);
+      return normalizedPath.endsWith(`season_simulation_${currentYear}.json`);
+    });
+    fs.readFileSync.mockReturnValue(JSON.stringify({
+      year: currentYear,
+      round_snapshots: []
+    }));
+    spawn.mockImplementation(() => queueChildResult());
+
+    const result = await runFallbackReconciliation(currentYear, { source: 'snapshot-gap' });
+
+    expect(runEloPredictions).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(result).toEqual(expect.objectContaining({
+      source: 'snapshot-gap',
+      year: currentYear,
+      matchDataChanged: false,
+      resultChangesDetected: false,
+      recomputeResults: expect.objectContaining({
+        eloResults: expect.objectContaining({ predictionsCount: 9 }),
+        simulationResults: expect.objectContaining({ success: true }),
+        historyResults: { success: true, message: 'ELO history updated' }
+      })
+    }));
   });
 
   test('dailySync exits successfully when fallback reconciliation completes', async () => {

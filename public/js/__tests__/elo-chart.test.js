@@ -407,6 +407,38 @@ describe('public/js/elo-chart.js', () => {
     ])).toBe('Year 2025');
   });
 
+  test('chart callbacks handle click highlighting, year-range ticks, and tooltip fallbacks', async () => {
+    await initializeChart();
+
+    const initialConfig = chartInstances[chartInstances.length - 1].config;
+    initialConfig.options.onClick(null, [{ datasetIndex: 1 }]);
+
+    expect(document.querySelector('.legend-item[data-team="Swans"]').classList.contains('highlighted')).toBe(true);
+
+    await window.eloChart.handleModeChange('yearRange');
+    await flushPromises();
+
+    const yearRangeConfig = chartInstances[chartInstances.length - 1].config;
+    const axis = { ticks: [] };
+    yearRangeConfig.options.scales.x.afterBuildTicks(axis);
+    expect(axis.ticks).toEqual([
+      { value: 0, label: '2025' },
+      { value: 10, label: '2026' }
+    ]);
+    expect(yearRangeConfig.options.scales.x.ticks.callback(10)).toBe('2026');
+
+    await window.eloChart.handleModeChange('year');
+    await flushPromises();
+
+    const singleYearConfig = chartInstances[chartInstances.length - 1].config;
+    expect(singleYearConfig.options.plugins.tooltip.callbacks.title([
+      {
+        raw: {},
+        parsed: { x: 1 }
+      }
+    ])).toBe('Round 1');
+  });
+
   test('shows a chart creation error when Chart.js throws', async () => {
     await initializeChart();
 

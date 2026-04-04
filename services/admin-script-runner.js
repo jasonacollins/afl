@@ -1463,6 +1463,11 @@ module.exports = {
   recoverInterruptedRuns,
   getExistingActiveRun,
   __testables: {
-    buildScriptCommand
+    assertActivePredictor,
+    buildScriptCommand,
+    chooseDefaultPredictorId,
+    normalizeBoolean,
+    normalizeRepoPath,
+    toInteger
   }
 };

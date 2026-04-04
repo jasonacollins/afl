@@ -1,3 +1,18 @@
+const mockGetQuery = jest.fn();
+
+jest.mock('../../models/db', () => ({
+  getQuery: (...args) => mockGetQuery(...args)
+}));
+
+jest.mock('../../utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn()
+  }
+}));
+
 const fs = require('fs');
 const eloService = require('../elo-service');
 
@@ -48,6 +63,10 @@ function createMatchPair({
 }
 
 describe('EloService season start chart points', () => {
+  beforeEach(() => {
+    mockGetQuery.mockReset();
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -494,5 +513,41 @@ describe('EloService season start chart points', () => {
       data: [{ x: 0, year: 2026, round: 'Season start', Cats: 1500 }],
       teamColors: { Cats: '#123456' }
     });
+  });
+
+  test('getChartTeamsForYearRange returns team names from the database rows', async () => {
+    mockGetQuery.mockResolvedValue([
+      { name: 'Cats' },
+      { name: 'Swans' },
+      { name: null }
+    ]);
+
+    await expect(eloService.getChartTeamsForYearRange(2025, 2026)).resolves.toEqual([
+      'Cats',
+      'Swans'
+    ]);
+  });
+
+  test('getChartTeamsForYearRange returns an empty list when the database query fails', async () => {
+    mockGetQuery.mockRejectedValue(new Error('db down'));
+
+    await expect(eloService.getChartTeamsForYearRange(2025, 2026)).resolves.toEqual([]);
+  });
+
+  test('getTeamColors maps colour_hex values to CSS colors and ignores blanks', async () => {
+    mockGetQuery.mockResolvedValue([
+      { name: 'Cats', colour_hex: '123456' },
+      { name: 'Swans', colour_hex: null }
+    ]);
+
+    await expect(eloService.getTeamColors(['Cats', 'Swans'])).resolves.toEqual({
+      Cats: '#123456'
+    });
+  });
+
+  test('getTeamColors returns an empty map when the database query fails', async () => {
+    mockGetQuery.mockRejectedValue(new Error('db down'));
+
+    await expect(eloService.getTeamColors(['Cats'])).resolves.toEqual({});
   });
 });

@@ -9,10 +9,12 @@ jest.mock('../../utils/logger', () => ({
 
 jest.mock('../result-update-service', () => ({
   EVENT_SYNC_STATE_KEYS: {
-    LAST_ERROR: 'event_sync.last_error'
+    LAST_ERROR: 'event_sync.last_error',
+    LAST_RECONCILIATION: 'event_sync.last_reconciliation'
   },
   clearState: jest.fn(),
   getLastFingerprintForGame: jest.fn(),
+  getStateValue: jest.fn(),
   getTrackedActiveGames: jest.fn(),
   ingestCompletedGameResult: jest.fn(),
   recordConnectionState: jest.fn(),
@@ -31,13 +33,18 @@ const resultUpdateService = require('../result-update-service');
 const { logger } = require('../../utils/logger');
 const { getSquiggleGamesSseConfig } = require('../../utils/squiggle-request');
 
+const originalNodeEnv = process.env.NODE_ENV;
+const originalEventSyncEnabled = process.env.EVENT_SYNC_ENABLED;
+
 describe('event-sync-service helpers', () => {
   const {
     buildGameFingerprint,
     extractYearFromGame,
-    shouldTriggerCompletedGameFlow,
     isGameActiveForSync,
-    normalizeTrackedGame
+    normalizeTrackedGame,
+    resetFetchImpl,
+    setFetchImpl,
+    shouldTriggerCompletedGameFlow
   } = eventSyncService.__testables;
 
   test('builds stable game fingerprints from completed game state', () => {
@@ -101,6 +108,10 @@ describe('event-sync-service helpers', () => {
 describe('event-sync-service snapshot handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    eventSyncService.stop();
+    eventSyncService.reconnectDelayMs = 5000;
+    eventSyncService.__testables.resetFetchImpl();
+    resultUpdateService.getStateValue = jest.fn().mockResolvedValue(null);
     resultUpdateService.recordConnectionState.mockResolvedValue();
     resultUpdateService.recordLastError.mockResolvedValue();
     resultUpdateService.recordHeartbeat.mockResolvedValue();
@@ -110,6 +121,141 @@ describe('event-sync-service snapshot handling', () => {
     resultUpdateService.getLastFingerprintForGame.mockResolvedValue(null);
     resultUpdateService.setLastFingerprintForGame.mockResolvedValue();
     resultUpdateService.ingestCompletedGameResult.mockResolvedValue();
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+    process.env.EVENT_SYNC_ENABLED = originalEventSyncEnabled;
+    eventSyncService.stop();
+  });
+
+  test('start skips initialization when disabled by environment', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.EVENT_SYNC_ENABLED = '0';
+
+    const connectSpy = jest.spyOn(eventSyncService, 'connect').mockResolvedValue();
+
+    try {
+      await eventSyncService.start();
+
+      expect(logger.info).toHaveBeenCalledWith('Event sync service is disabled by environment');
+      expect(connectSpy).not.toHaveBeenCalled();
+      expect(resultUpdateService.recordConnectionState).not.toHaveBeenCalled();
+      expect(resultUpdateService.scheduleWorker).not.toHaveBeenCalled();
+    } finally {
+      connectSpy.mockRestore();
+    }
+  });
+
+  test('start records starting state, schedules the worker, and kicks off connect when enabled', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.EVENT_SYNC_ENABLED = '1';
+
+    const connectSpy = jest.spyOn(eventSyncService, 'connect').mockResolvedValue();
+
+    try {
+      await eventSyncService.start();
+
+      expect(eventSyncService.running).toBe(true);
+      expect(resultUpdateService.recordConnectionState).toHaveBeenCalledWith('starting', {
+        url: 'https://sse.squiggle.com.au/games'
+      });
+      expect(resultUpdateService.scheduleWorker).toHaveBeenCalledTimes(1);
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      connectSpy.mockRestore();
+    }
+  });
+
+  test('start schedules reconnect when the initial connect attempt fails', async () => {
+    process.env.NODE_ENV = 'development';
+    process.env.EVENT_SYNC_ENABLED = '1';
+
+    const connectSpy = jest.spyOn(eventSyncService, 'connect').mockRejectedValue(new Error('startup failed'));
+    const reconnectSpy = jest.spyOn(eventSyncService, 'scheduleReconnect').mockImplementation(() => {});
+
+    try {
+      await eventSyncService.start();
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'Event sync service failed during startup connect',
+        {
+          error: 'startup failed',
+          url: 'https://sse.squiggle.com.au/games'
+        }
+      );
+      expect(reconnectSpy).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'startup failed'
+      }));
+    } finally {
+      connectSpy.mockRestore();
+      reconnectSpy.mockRestore();
+    }
+  });
+
+  test('connect records connection lifecycle state and resets reconnect delay after success', async () => {
+    const body = new EventEmitter();
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true, body });
+    eventSyncService.__testables.setFetchImpl(fetchMock);
+    eventSyncService.running = true;
+    eventSyncService.reconnectDelayMs = 30000;
+
+    const consumeSpy = jest.spyOn(eventSyncService, 'consumeStream').mockResolvedValue();
+    const reconcileSpy = jest.spyOn(eventSyncService, 'maybeReconcileCurrentSeason').mockResolvedValue();
+
+    try {
+      await eventSyncService.connect();
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://sse.squiggle.com.au/games',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Accept: 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'AFL Predictions - jason@jasoncollins.me'
+          }),
+          signal: eventSyncService.abortController.signal
+        })
+      );
+      expect(resultUpdateService.recordConnectionState).toHaveBeenNthCalledWith(1, 'connecting', {
+        url: 'https://sse.squiggle.com.au/games'
+      });
+      expect(resultUpdateService.recordConnectionState).toHaveBeenNthCalledWith(
+        2,
+        'connected',
+        expect.objectContaining({
+          url: 'https://sse.squiggle.com.au/games',
+          connected_at: expect.any(String)
+        })
+      );
+      expect(resultUpdateService.clearState).toHaveBeenCalledWith('event_sync.last_error');
+      expect(resultUpdateService.recordHeartbeat).toHaveBeenCalledWith({ type: 'connected' });
+      expect(reconcileSpy).toHaveBeenCalledWith('event-sync-startup-reconcile');
+      expect(consumeSpy).toHaveBeenCalledWith(body);
+      expect(eventSyncService.reconnectDelayMs).toBe(5000);
+    } finally {
+      consumeSpy.mockRestore();
+      reconcileSpy.mockRestore();
+    }
+  });
+
+  test('connect rejects non-OK SSE responses', async () => {
+    eventSyncService.__testables.setFetchImpl(jest.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable'
+    }));
+    eventSyncService.running = true;
+
+    await expect(eventSyncService.connect()).rejects.toThrow(
+      'Squiggle SSE request failed: 503 Service Unavailable'
+    );
+
+    expect(resultUpdateService.recordConnectionState).toHaveBeenCalledWith('connecting', {
+      url: 'https://sse.squiggle.com.au/games'
+    });
+    expect(resultUpdateService.clearState).not.toHaveBeenCalled();
   });
 
   test('reconciles previously tracked games that disappear from a snapshot', async () => {
@@ -173,6 +319,18 @@ describe('event-sync-service snapshot handling', () => {
     });
 
     eventSyncService.stop();
+  });
+
+  test('stop aborts the in-flight SSE request controller', () => {
+    const abort = jest.fn();
+    eventSyncService.running = true;
+    eventSyncService.abortController = { abort };
+
+    eventSyncService.stop();
+
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(eventSyncService.running).toBe(false);
+    expect(eventSyncService.abortController).toBeNull();
   });
 
   test('maybeReconcileCurrentSeason skips reconciliation when the last run was recent', async () => {

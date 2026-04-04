@@ -24,7 +24,14 @@ const { getOne } = require('../../models/db');
 const { spawn } = require('child_process');
 const adminScriptRunner = require('../admin-script-runner');
 
-const { buildScriptCommand } = adminScriptRunner.__testables;
+const {
+  assertActivePredictor,
+  buildScriptCommand,
+  chooseDefaultPredictorId,
+  normalizeBoolean,
+  normalizeRepoPath,
+  toInteger
+} = adminScriptRunner.__testables;
 
 function createMockChildProcess() {
   const child = new EventEmitter();
@@ -354,6 +361,87 @@ describe('Admin Script Runner - additional command builder coverage', () => {
     await expect(buildScriptCommand('win-train', {
       marginParams: 'data/models/win/optimal_elo_params_win_trained_to_2025.json'
     })).rejects.toThrow('marginParams must reference an optimal_margin_methods artifact');
+  });
+
+  test('accepts string boolean form inputs for margin predictions', async () => {
+    const commandSpec = await buildScriptCommand('margin-predictions', {
+      startYear: '2026',
+      modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      predictorId: '8',
+      saveToDb: '0',
+      overrideCompleted: 'yes'
+    });
+
+    expect(commandSpec.normalizedParams).toEqual(expect.objectContaining({
+      predictorId: 8,
+      saveToDb: false,
+      overrideCompleted: true
+    }));
+    expect(commandSpec.args).toEqual(expect.arrayContaining([
+      '--predictor-id', '8',
+      '--no-save-to-db',
+      '--override-completed'
+    ]));
+  });
+
+  test('rejects invalid boolean form inputs through command normalization', async () => {
+    await expect(buildScriptCommand('combined-predictions', {
+      startYear: 2026,
+      winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+      marginModelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+      predictorId: 8,
+      futureOnly: 'maybe'
+    })).rejects.toThrow('Invalid boolean value');
+  });
+});
+
+describe('Admin Script Runner - helper validation coverage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('normalizeBoolean supports common form values and fallback defaults', () => {
+    expect(normalizeBoolean(undefined, true)).toBe(true);
+    expect(normalizeBoolean('YES')).toBe(true);
+    expect(normalizeBoolean('off')).toBe(false);
+    expect(() => normalizeBoolean('sometimes')).toThrow('Invalid boolean value');
+  });
+
+  test('toInteger enforces required, numeric, and range validation', () => {
+    expect(toInteger('42', 'year', { required: true, min: 1, max: 100 })).toBe(42);
+    expect(() => toInteger('', 'year', { required: true })).toThrow('year is required');
+    expect(() => toInteger('abc', 'year')).toThrow('year must be an integer');
+    expect(() => toInteger('0', 'year', { min: 1, max: 5 })).toThrow('year must be between 1 and 5');
+  });
+
+  test('normalizeRepoPath enforces approved data-directory bases', () => {
+    expect(normalizeRepoPath('data/models/win/afl_elo_win_trained_to_2025.json', 'modelPath')).toBe(
+      'data/models/win/afl_elo_win_trained_to_2025.json'
+    );
+    expect(() => normalizeRepoPath('package.json', 'modelPath')).toThrow(
+      'modelPath must be under an approved data directory'
+    );
+  });
+
+  test('chooseDefaultPredictorId prefers the configured predictor and falls back to the first active entry', () => {
+    expect(chooseDefaultPredictorId([
+      { predictor_id: 1 },
+      { predictor_id: 6 },
+      { predictor_id: 8 }
+    ])).toBe(6);
+    expect(chooseDefaultPredictorId([
+      { predictor_id: 1 },
+      { predictor_id: 8 }
+    ])).toBe(1);
+    expect(chooseDefaultPredictorId([])).toBeNull();
+  });
+
+  test('assertActivePredictor rejects inactive predictor ids', async () => {
+    getOne.mockResolvedValue(null);
+
+    await expect(assertActivePredictor(999)).rejects.toThrow(
+      'predictorId must reference an active predictor'
+    );
   });
 });
 
