@@ -84,6 +84,59 @@ def test_evaluate_model_walkforward_rejects_unknown_model_type():
         optimise.evaluate_model_walkforward([25, 30, 0.4, 0.6, 90], build_matches_df(), model_type='mystery')
 
 
+def test_get_elo_parameter_space_requires_scikit_optimize(monkeypatch):
+    monkeypatch.setattr(optimise, 'SKOPT_AVAILABLE', False)
+
+    with pytest.raises(ImportError, match='scikit-optimize is required'):
+        optimise.get_elo_parameter_space()
+
+
+def test_evaluate_parameters_walkforward_returns_detailed_metrics_for_draw_results():
+    matches_df = pd.DataFrame([
+        {
+            'match_id': 1,
+            'year': 2024,
+            'round_number': '1',
+            'match_date': pd.Timestamp('2024-03-15'),
+            'home_team': 'Richmond',
+            'away_team': 'Carlton',
+            'hscore': 100,
+            'ascore': 90,
+            'venue': 'MCG',
+            'venue_state': 'VIC',
+            'home_team_state': 'VIC',
+            'away_team_state': 'VIC',
+        },
+        {
+            'match_id': 2,
+            'year': 2025,
+            'round_number': '1',
+            'match_date': pd.Timestamp('2025-03-15'),
+            'home_team': 'Richmond',
+            'away_team': 'Carlton',
+            'hscore': 80,
+            'ascore': 80,
+            'venue': 'MCG',
+            'venue_state': 'VIC',
+            'home_team_state': 'VIC',
+            'away_team_state': 'VIC',
+        },
+    ])
+
+    detailed = optimise.evaluate_parameters_walkforward(
+        [25, 20, 60, 0.4, 0.6, 90],
+        matches_df,
+        return_detailed=True,
+    )
+
+    assert detailed['total_predictions'] == 1
+    assert detailed['predictions'][0]['actual_result'] == 'draw'
+    assert detailed['brier_score'] >= 0
+    assert detailed['log_loss'] >= 0
+    assert len(detailed['split_brier_scores']) == 1
+    assert len(detailed['split_bits_scores']) == 1
+
+
 def test_parameter_tuning_grid_search_unified_builds_margin_combinations_and_picks_best(monkeypatch):
     scores = []
 

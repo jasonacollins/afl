@@ -368,6 +368,32 @@ describe('public/js/elo-chart.js', () => {
     expect(global.alert).toHaveBeenCalledWith('Please select both start and end years');
   });
 
+  test('falls back to the current year when the years endpoint returns an API error payload', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/elo/years') {
+        return Promise.resolve({
+          json: async () => ({ success: false, error: 'years unavailable' })
+        });
+      }
+
+      if (url === '/api/elo/ratings/2026') {
+        return Promise.resolve({
+          json: async () => buildSingleYearResponse()
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('elo-chart.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(window.eloChart.availableYears).toEqual([2026]);
+    expect(document.getElementById('year-selector').innerHTML).toContain('2026');
+  });
+
   test('filters invalid available years, picks the latest valid year, and falls back to palette colors', async () => {
     global.fetch.mockImplementation((url) => {
       if (url === '/api/elo/years') {
@@ -493,6 +519,39 @@ describe('public/js/elo-chart.js', () => {
     ])).toBe('Round 1');
   });
 
+  test('highlighted chart callbacks fade non-selected teams and preserve tooltip fallbacks', async () => {
+    await initializeChart();
+
+    window.eloChart.highlightedTeams = new Set(['Cats']);
+    window.eloChart.createChartWithHighlighting();
+
+    const highlightedConfig = chartInstances[chartInstances.length - 1].config;
+    const highlightedDatasets = highlightedConfig.data.datasets;
+    const catsDataset = highlightedDatasets.find((dataset) => dataset.label === 'Cats');
+    const swansDataset = highlightedDatasets.find((dataset) => dataset.label === 'Swans');
+
+    expect(catsDataset.segment.borderColor({ p0DataIndex: 0, p1DataIndex: 1 })).toBe('#123456');
+    expect(swansDataset.segment.borderColor({ p0DataIndex: 0, p1DataIndex: 1 })).toBe('#cccccc');
+    expect(highlightedConfig.options.plugins.tooltip.callbacks.label({
+      dataset: { label: 'Cats' },
+      parsed: { y: 1501.04 },
+      raw: {}
+    })).toBe('Cats: 1501');
+
+    await window.eloChart.handleModeChange('yearRange');
+    await flushPromises();
+
+    const yearRangeConfig = chartInstances[chartInstances.length - 1].config;
+    expect(yearRangeConfig.options.scales.x.ticks.callback(3)).toBe('');
+    expect(yearRangeConfig.options.plugins.tooltip.callbacks.title([
+      {
+        raw: {},
+        parsed: { x: 999 }
+      }
+    ])).toBe('Year Range');
+    expect(yearRangeConfig.options.plugins.tooltip.callbacks.title([])).toBe('');
+  });
+
   test('shows a chart creation error when Chart.js throws', async () => {
     await initializeChart();
 
@@ -515,6 +574,18 @@ describe('public/js/elo-chart.js', () => {
     window.eloChart.createChart();
 
     expect(document.getElementById('elo-chart').textContent).toContain('No teams data available');
+  });
+
+  test('logs a highlighting error when no chart data is available for the highlighted render path', async () => {
+    await initializeChart();
+
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    window.eloChart.createChartWithHighlights(null, ['Cats'], new Set(['Cats']));
+
+    expect(errorSpy).toHaveBeenCalledWith('No chart data available for highlighting');
+
+    errorSpy.mockRestore();
   });
 
   test('reports a missing chart container when no container can be recreated', async () => {

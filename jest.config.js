@@ -91,6 +91,12 @@ module.exports = {
       functions: 90,
       lines: 87
     },
+    './services/featured-predictions.js': {
+      statements: 81,
+      branches: 69,
+      functions: 77,
+      lines: 80
+    },
     './services/elo-service.js': {
       statements: 82,
       branches: 66,
@@ -102,6 +108,30 @@ module.exports = {
       branches: 78,
       functions: 75,
       lines: 90
+    },
+    './services/predictor-service.js': {
+      statements: 80,
+      branches: 84,
+      functions: 87,
+      lines: 80
+    },
+    './services/result-update-service.js': {
+      statements: 86,
+      branches: 68,
+      functions: 84,
+      lines: 86
+    },
+    './services/round-service.js': {
+      statements: 89,
+      branches: 76,
+      functions: 95,
+      lines: 88
+    },
+    './models/db.js': {
+      statements: 89,
+      branches: 67,
+      functions: 100,
+      lines: 89
     },
     './public/js/admin-scripts.js': {
       statements: 84,

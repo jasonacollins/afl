@@ -241,6 +241,23 @@ describe('public/js/admin.js', () => {
     expect(global.alert).toHaveBeenCalledWith('Please select a user first');
   });
 
+  test('clearPredictionDirectly restores the original button state when the server rejects the clear request', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: false, error: 'Clear blocked' })
+    });
+
+    loadBrowserScript('admin.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.clearPredictionDirectly('44', '7', button);
+    await flushPromises();
+
+    expect(button.textContent).toBe('Save Prediction');
+    expect(button.disabled).toBe(false);
+    expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('Old metrics');
+  });
+
   test('admin savePrediction override posts the selected user prediction and refreshes metrics', async () => {
     global.getMatchDataById = jest.fn(() => ({
       match_id: 44,
@@ -374,6 +391,30 @@ describe('public/js/admin.js', () => {
     expect(button.disabled).toBe(false);
   });
 
+  test('admin savePrediction restores the original button state when the save is rejected', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: false, error: 'Save denied' })
+    });
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const input = document.querySelector('.home-prediction');
+    const button = document.querySelector('.save-prediction');
+
+    input.value = '62';
+    button.textContent = 'Update Prediction';
+
+    window.savePrediction('44', '62', button);
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('Save denied');
+    expect(button.textContent).toBe('Update Prediction');
+    expect(button.disabled).toBe(false);
+    expect(input.dataset.originalValue).toBe('61');
+  });
+
   test('refresh form submits API refresh options and renders skipped games', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
@@ -438,6 +479,41 @@ describe('public/js/admin.js', () => {
     expect(window.location.reload).toHaveBeenCalled();
   });
 
+  test('refresh form and upload form re-enable their submit buttons after failure responses', async () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: false, message: 'Refresh blocked' })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: false, message: 'Upload blocked' })
+      });
+
+    const refreshForm = document.getElementById('refreshApiForm');
+    const refreshSubmit = refreshForm.querySelector('button[type="submit"]');
+    refreshForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(document.getElementById('refreshStatus').innerHTML).toContain('Refresh blocked');
+    expect(refreshSubmit.disabled).toBe(false);
+
+    const fileInput = document.getElementById('databaseFile');
+    setInputFiles(fileInput, [{ name: 'afl_predictions.db' }]);
+
+    const uploadForm = document.getElementById('uploadDatabaseForm');
+    const uploadSubmit = uploadForm.querySelector('button[type="submit"]');
+    uploadForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    expect(document.getElementById('uploadStatus').innerHTML).toContain('Upload blocked');
+    expect(uploadSubmit.disabled).toBe(false);
+    expect(window.location.reload).not.toHaveBeenCalled();
+  });
+
   test('modal helper functions and delegated actions update the modal state', () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
@@ -462,6 +538,31 @@ describe('public/js/admin.js', () => {
     expect(document.getElementById('resetUserName').textContent).toBe('Carol');
 
     window.onclick({ target: document.getElementById('deleteUserModal') });
+    expect(document.getElementById('deleteUserModal').style.display).toBe('none');
+  });
+
+  test('button click handlers open refresh and upload modals, and outside clicks close each modal type', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.getElementById('refreshApiButton').click();
+    document.getElementById('uploadDatabaseButton').click();
+    window.showResetPasswordForm('12', 'Alice');
+    window.confirmDeleteUser('21', 'Bob');
+
+    expect(document.getElementById('refreshApiModal').style.display).toBe('block');
+    expect(document.getElementById('uploadDatabaseModal').style.display).toBe('block');
+    expect(document.getElementById('resetPasswordModal').style.display).toBe('block');
+    expect(document.getElementById('deleteUserModal').style.display).toBe('block');
+
+    window.onclick({ target: document.getElementById('refreshApiModal') });
+    window.onclick({ target: document.getElementById('uploadDatabaseModal') });
+    window.onclick({ target: document.getElementById('resetPasswordModal') });
+    window.onclick({ target: document.getElementById('deleteUserModal') });
+
+    expect(document.getElementById('refreshApiModal').style.display).toBe('none');
+    expect(document.getElementById('uploadDatabaseModal').style.display).toBe('none');
+    expect(document.getElementById('resetPasswordModal').style.display).toBe('none');
     expect(document.getElementById('deleteUserModal').style.display).toBe('none');
   });
 });

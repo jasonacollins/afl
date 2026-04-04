@@ -313,6 +313,45 @@ describe('public/js/main.js', () => {
     expect(global.calculateTipPoints).toHaveBeenCalledWith(70, 80, 80, 'home');
   });
 
+  test('renderMatches shows locked match details, pending lock messaging, and GWS abbreviations', () => {
+    window.userPredictions = {
+      22: {
+        probability: 50,
+        tippedTeam: 'away'
+      }
+    };
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'ENGIE Stadium',
+        home_team: 'Greater Western Sydney',
+        home_team_abbrev: 'GWS',
+        away_team: 'Swans',
+        away_team_abbrev: 'SYD',
+        hscore: null,
+        ascore: null,
+        isLocked: true
+      }
+    ]);
+
+    const matchText = document.getElementById('matches-container').textContent;
+    expect(matchText).toContain('Your prediction: 50% for GWS');
+    expect(matchText).toContain('Tipped: Swans to win');
+    expect(matchText).toContain('Match has started - predictions locked');
+  });
+
+  test('renderMatches shows an empty state when a round has no fixtures', () => {
+    loadBrowserScript('main.js');
+
+    window.renderMatches([]);
+
+    expect(document.getElementById('matches-container').textContent).toContain('No matches available for this round');
+  });
+
   test('updateRoundButtonStates marks unfinished rounds needing predictions and tolerates fetch failures', async () => {
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -369,6 +408,58 @@ describe('public/js/main.js', () => {
     expect(window.userPredictions['22']).toBeUndefined();
     expect(document.querySelector('.home-prediction').dataset.originalValue).toBe('');
     expect(button.textContent).toBe('Cleared');
+  });
+
+  test('savePrediction restores the original button state when the server rejects the save', async () => {
+    document.querySelector('.round-buttons').innerHTML = '';
+    document.getElementById('matches-container').innerHTML = `
+      <div class="match-card">
+        <input class="home-prediction" data-match-id="22" data-original-value="64" value="70">
+        <button class="save-prediction" data-match-id="22">Update Prediction</button>
+      </div>
+    `;
+
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ success: false, error: 'Save rejected' })
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('22', '70', button);
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('Save rejected');
+    expect(button.textContent).toBe('Update Prediction');
+    expect(button.disabled).toBe(false);
+  });
+
+  test('savePrediction shows a generic alert when the request throws', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    document.querySelector('.round-buttons').innerHTML = '';
+    document.getElementById('matches-container').innerHTML = `
+      <div class="match-card">
+        <input class="home-prediction" data-match-id="22" data-original-value="64" value="70">
+        <button class="save-prediction" data-match-id="22">Update Prediction</button>
+      </div>
+    `;
+
+    global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('22', '70', button);
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('An error occurred. Please try again.');
+    expect(button.textContent).toBe('Update Prediction');
+    expect(button.disabled).toBe(false);
+
+    errorSpy.mockRestore();
   });
 
   test('fetchMatchesForRound shows an error state when the request fails', async () => {
@@ -507,6 +598,27 @@ describe('public/js/main.js', () => {
     });
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9');
     expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026');
+  });
+
+  test('selectUser logs fetch failures without mutating the current predictions state', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    global.fetch = jest.fn().mockRejectedValue(new Error('user predictions down'));
+    window.fetch = global.fetch;
+    window.location.pathname = '/admin';
+
+    loadBrowserScript('main.js');
+
+    const initialPredictions = window.userPredictions;
+    window.selectUser('9', 'Analyst');
+    await flushPromises();
+
+    expect(document.getElementById('selected-user').textContent).toBe('Analyst');
+    expect(document.getElementById('selected-user-id').value).toBe('9');
+    expect(window.userPredictions).toBe(initialPredictions);
+    expect(errorSpy).toHaveBeenCalledWith('Error fetching user predictions:', expect.any(Error));
+
+    errorSpy.mockRestore();
   });
 
   test('formatDateToLocalTimezone falls back to the original string for invalid dates', () => {
