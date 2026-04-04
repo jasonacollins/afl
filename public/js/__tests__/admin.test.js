@@ -183,6 +183,24 @@ describe('public/js/admin.js', () => {
     expect(button.closest('tr').classList.contains('inactive-predictor')).toBe(true);
   });
 
+  test('toggleActiveStatus surfaces HTTP errors from the server response body', async () => {
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'Maintenance window'
+    });
+
+    loadBrowserScript('admin.js');
+
+    const button = document.querySelector('.toggle-active');
+    window.toggleActiveStatus('12', true, button);
+    await flushPromises();
+
+    expect(global.alert).toHaveBeenCalledWith('Error updating predictor status: HTTP 503: Maintenance window');
+    expect(button.textContent).toBe('Inactive');
+    expect(button.disabled).toBe(false);
+  });
+
   test('clearPredictionDirectly clears inputs and posts the admin save request with CSRF protection', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
@@ -257,6 +275,56 @@ describe('public/js/admin.js', () => {
     expect(global.updateStoredPrediction).toHaveBeenCalledWith('44', 50, 'away');
     expect(document.querySelector('.home-prediction').dataset.originalValue).toBe('50');
     expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('<p>metrics</p>');
+  });
+
+  test('refresh API form includes forceScoreUpdate and renders skipped game details', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        message: 'Refresh completed',
+        skippedGames: ['Cats vs Swans', 'Lions vs Dockers']
+      })
+    });
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.getElementById('forceScoreUpdate').checked = true;
+    document.getElementById('refreshApiForm').dispatchEvent(new window.Event('submit', {
+      bubbles: true,
+      cancelable: true
+    }));
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/admin/api-refresh', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'X-CSRF-Token': 'admin-csrf-token'
+      })
+    }));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      year: '2026',
+      forceScoreUpdate: true
+    });
+    expect(document.getElementById('refreshStatus').textContent).toContain('Refresh completed');
+    expect(document.getElementById('refreshStatus').textContent).toContain('Skipped Games');
+    expect(document.getElementById('refreshStatus').textContent).toContain('Cats vs Swans');
+    expect(document.querySelector('#refreshApiForm button[type="submit"]').disabled).toBe(false);
+  });
+
+  test('upload form blocks submission when no database file is selected', () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    setInputFiles(document.getElementById('databaseFile'), []);
+
+    document.getElementById('uploadDatabaseForm').dispatchEvent(new window.Event('submit', {
+      bubbles: true,
+      cancelable: true
+    }));
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(document.getElementById('uploadStatus').textContent).toContain('Please select a database file.');
   });
 
   test('DOMContentLoaded adds clear buttons that route through savePrediction with an empty payload', () => {

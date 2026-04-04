@@ -32,6 +32,24 @@ function loadRealAppModule(dbPath, mocks = {}) {
       jest.unmock('../services/admin-script-runner');
     }
 
+    if (mocks.roundService) {
+      jest.doMock('../services/round-service', () => mocks.roundService);
+    } else {
+      jest.unmock('../services/round-service');
+    }
+
+    if (mocks.featuredPredictions) {
+      jest.doMock('../services/featured-predictions', () => mocks.featuredPredictions);
+    } else {
+      jest.unmock('../services/featured-predictions');
+    }
+
+    if (mocks.predictionService) {
+      jest.doMock('../services/prediction-service', () => mocks.predictionService);
+    } else {
+      jest.unmock('../services/prediction-service');
+    }
+
     loaded = {
       appModule: require('../app'),
       dbModule: require('../models/db')
@@ -39,6 +57,62 @@ function loadRealAppModule(dbPath, mocks = {}) {
   });
 
   return loaded;
+}
+
+function loadRenderedAppModule(mocks = {}) {
+  let appModule;
+
+  jest.isolateModules(() => {
+    jest.doMock('../utils/logger', () => ({
+      logger: {
+        info: jest.fn(),
+        debug: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn()
+      },
+      requestLogger: (req, res, next) => next()
+    }));
+
+    if (mocks.db) {
+      jest.doMock('../models/db', () => mocks.db);
+    } else {
+      jest.unmock('../models/db');
+    }
+
+    if (mocks.roundService) {
+      jest.doMock('../services/round-service', () => mocks.roundService);
+    } else {
+      jest.unmock('../services/round-service');
+    }
+
+    if (mocks.featuredPredictions) {
+      jest.doMock('../services/featured-predictions', () => mocks.featuredPredictions);
+    } else {
+      jest.unmock('../services/featured-predictions');
+    }
+
+    if (mocks.predictionService) {
+      jest.doMock('../services/prediction-service', () => mocks.predictionService);
+    } else {
+      jest.unmock('../services/prediction-service');
+    }
+
+    if (mocks.predictorService) {
+      jest.doMock('../services/predictor-service', () => mocks.predictorService);
+    } else {
+      jest.unmock('../services/predictor-service');
+    }
+
+    if (mocks.adminScriptRunner) {
+      jest.doMock('../services/admin-script-runner', () => mocks.adminScriptRunner);
+    } else {
+      jest.unmock('../services/admin-script-runner');
+    }
+
+    appModule = require('../app');
+  });
+
+  return appModule;
 }
 
 async function unloadDbModule(dbModule) {
@@ -66,6 +140,10 @@ function extractCsrfToken(html) {
 
   const metaTokenMatch = html.match(/<meta name="csrf-token" content="([^"]+)"/);
   return metaTokenMatch ? metaTokenMatch[1] : null;
+}
+
+function hasInlineScriptTag(html) {
+  return /<script(?![^>]*\bsrc=)[^>]*>/i.test(html);
 }
 
 async function seedAuthenticatedRouteData(dbModule) {
@@ -406,6 +484,90 @@ describe('app integration route stack', () => {
     expect(simulationResponse.status).toBe(200);
     expect(simulationResponse.text).toContain('Season Simulation');
     expect(simulationResponse.text).toContain('Before-Round Snapshots');
+    expect(simulationResponse.text).toContain('/js/simulation.js');
+  });
+
+  test('public page templates keep navigation and scripts CSP-safe through rendered HTML', async () => {
+    const appModule = loadRenderedAppModule({
+      db: {
+        getQuery: jest.fn().mockResolvedValue([
+          {
+            match_id: 2001,
+            round_number: '2',
+            match_date: '2099-04-20T09:30:00.000Z',
+            hscore: null,
+            ascore: null,
+            home_team: 'Cats',
+            away_team: 'Swans',
+            venue: 'MCG'
+          }
+        ]),
+        initializeDatabase: jest.fn()
+      },
+      roundService: {
+        resolveYear: jest.fn().mockResolvedValue({ selectedYear: 2026 }),
+        getRoundsForYear: jest.fn().mockResolvedValue([
+          { round_number: '1' },
+          { round_number: '2' }
+        ]),
+        combineRoundsForDisplay: jest.fn((rounds) => rounds),
+        normalizeRoundForDisplay: jest.fn((round) => round)
+      },
+      featuredPredictions: {
+        getDefaultFeaturedPredictor: jest.fn().mockResolvedValue({
+          predictor_id: 6,
+          display_name: "Dad's AI"
+        }),
+        getPredictionYearsForPredictor: jest.fn().mockResolvedValue([{ year: '2026' }]),
+        getPredictionsForRound: jest.fn().mockResolvedValue({
+          predictor: { predictor_id: 6, display_name: "Dad's AI" },
+          matches: [{ match_id: 2001, home_team: 'Cats', away_team: 'Swans', venue: 'MCG', match_date: '2099-04-20T09:30:00.000Z' }],
+          predictions: { 2001: { probability: 64, predicted_margin: 11.2, tipped_team: 'home' } }
+        })
+      },
+      predictionService: {
+        getPredictionsWithResultsForYear: jest.fn().mockResolvedValue([
+          {
+            home_win_probability: 64,
+            hscore: 95,
+            ascore: 80,
+            tipped_team: 'home',
+            predicted_margin: 10
+          }
+        ])
+      },
+      predictorService: {
+        getPredictorByName: jest.fn(),
+        getPredictorById: jest.fn()
+      },
+      adminScriptRunner: {
+        recoverInterruptedRuns: jest.fn()
+      }
+    });
+
+    const app = appModule.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    const homeResponse = await request(app).get('/?year=2026');
+    const eloResponse = await request(app).get('/elo');
+    const simulationResponse = await request(app).get('/simulation');
+
+    for (const response of [homeResponse, eloResponse, simulationResponse]) {
+      expect(response.status).toBe(200);
+      expect(response.text).toContain('Model predictions');
+      expect(response.text).toContain('ELO');
+      expect(response.text).toContain('Simulation');
+      expect(response.text).toContain('/js/mobile-nav.js');
+      expect(response.text).not.toContain('onclick=');
+      expect(hasInlineScriptTag(response.text)).toBe(false);
+    }
+
+    expect(homeResponse.text).toContain('Select Season');
+    expect(homeResponse.text).toContain('Select Round');
+    expect(homeResponse.text).toContain('/js/home.js');
+    expect(eloResponse.text).toContain('/js/elo-chart.js');
     expect(simulationResponse.text).toContain('/js/simulation.js');
   });
 });

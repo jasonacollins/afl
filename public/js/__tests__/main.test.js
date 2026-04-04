@@ -257,6 +257,94 @@ describe('public/js/main.js', () => {
     expect(global.alert).toHaveBeenCalledWith('Please select which team you think will win');
   });
 
+  test('savePrediction defaults 50 percent submissions to a home-team tip when no tiebreaker is selected', async () => {
+    document.querySelector('.round-buttons').innerHTML = '';
+    document.getElementById('matches-container').innerHTML = `
+      <div class="match-card">
+        <input class="home-prediction" data-match-id="44" data-original-value="" value="50">
+        <button class="save-prediction" data-match-id="44">Save Prediction</button>
+      </div>
+    `;
+
+    global.fetch = jest.fn().mockResolvedValue({
+      json: async () => ({ success: true })
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('44', '50', button);
+    await flushPromises();
+
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      matchId: '44',
+      probability: 50,
+      tippedTeam: 'home'
+    });
+  });
+
+  test('renderMatches shows partial draw accuracy for non-50 admin tips', () => {
+    window.isAdmin = true;
+    window.userPredictions = {
+      22: {
+        probability: 70,
+        tippedTeam: 'home'
+      }
+    };
+    global.calculateTipPoints = jest.fn(() => 0.5);
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: 80,
+        ascore: 80,
+        isLocked: false
+      }
+    ]);
+
+    expect(document.querySelector('.admin-metrics-display').innerHTML).toContain('partial');
+    expect(global.calculateTipPoints).toHaveBeenCalledWith(70, 80, 80, 'home');
+  });
+
+  test('updateRoundButtonStates marks unfinished rounds needing predictions and tolerates fetch failures', async () => {
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    global.fetch = jest.fn((url) => {
+      if (url === '/predictions/round/1?year=2026') {
+        return Promise.resolve({
+          json: async () => ([
+            { match_id: 11, hscore: null, ascore: null }
+          ])
+        });
+      }
+
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.reject(new Error('round state failed'));
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    window.updateRoundButtonStates();
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.querySelector('.round-button[data-round="1"]').classList.contains('needs-predictions')).toBe(true);
+    expect(errorSpy).toHaveBeenCalledWith('Error checking round state:', expect.any(Error));
+
+    errorSpy.mockRestore();
+  });
+
   test('savePrediction clears existing stored predictions on delete success', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     document.getElementById('matches-container').innerHTML = `

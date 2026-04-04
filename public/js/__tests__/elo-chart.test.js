@@ -418,4 +418,29 @@ describe('public/js/elo-chart.js', () => {
 
     expect(document.getElementById('elo-chart').textContent).toContain('Failed to create chart: chart failed');
   });
+
+  test('shows an explicit teams error when chart data loads without team metadata', async () => {
+    await initializeChart();
+
+    window.eloChart.chartData = [
+      { x: 0, round: 'Season start', year: 2026, Cats: 1500 }
+    ];
+    window.eloChart.teams = [];
+    window.eloChart.createChart();
+
+    expect(document.getElementById('elo-chart').textContent).toContain('No teams data available');
+  });
+
+  test('shows a year-range error when the range fetch fails', async () => {
+    await initializeChart({
+      '/api/elo/ratings/range?startYear=2025&endYear=2026': () => Promise.reject(new Error('range down'))
+    });
+
+    document.getElementById('start-year').value = '2025';
+    document.getElementById('end-year').value = '2026';
+    await window.eloChart.handleModeChange('yearRange');
+    await flushPromises();
+
+    expect(document.getElementById('elo-chart').textContent).toContain('Failed to load data for selected year range');
+  });
 });

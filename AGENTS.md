@@ -11,7 +11,7 @@ For comprehensive project information including architecture, features, and setu
 ### Core Commands
 - `npm start` - Start the production server
 - `npm run dev` - Start development server with nodemon (auto-restart on changes)
-- `npm test` - Run the JavaScript and Python test suites
+- `npm test` - Run the coverage-gated JavaScript suite and the Python suite
 - `npm run test:watch` - Run the JavaScript suite in watch mode
 - `npm run test:coverage` - Run JavaScript coverage plus the Python suite
 
@@ -161,6 +161,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - Keep client-side scripts under `public/js/` directly testable in the Node-based Jest harness; avoid browser-only assumptions that require a real browser runtime
 - Treat standalone page entrypoints under `public/js/` as part of the covered test surface: when adding one, include it in `jest.config.js` coverage collection and keep its DOM interactions testable in the lightweight harness
 - Keep Python tests in `scripts/tests` runnable under `pytest` so they remain part of the default `npm test` workflow
+- Treat the default `npm test` JavaScript path as coverage-gated as well: Jest runs with coverage enabled there, so global and per-file thresholds in `jest.config.js` must stay intentionally maintained
 - Treat the default Python test workflow as a per-file coverage gate defined in `scripts/tests/run_pytest_with_coverage.py` for the covered core/model/history/prediction/simulation scripts; do not rely on Python coverage as report-only output
 - Treat critical JavaScript files in `jest.config.js` as potential per-file coverage gates as well; when you raise or relax meaningful test scope, update those thresholds intentionally
 - For app/security changes, prefer at least one real `createApp()` integration test over fully mocked router wiring so CSP, session, CSRF, and middleware ordering are exercised together

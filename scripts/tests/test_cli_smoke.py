@@ -310,3 +310,81 @@ def test_combined_predict_cli_saves_future_predictions_and_history(afl_cli_works
     assert fetch_prediction_count(afl_cli_workspace['db_path'], predictor_id) == 5
     assert (workspace / 'data' / 'predictions' / 'combined' / 'combined_elo_predictions_2026_2026.csv').exists()
     assert (output_dir / 'combined_elo_rating_history_from_2026.csv').exists()
+
+
+def test_margin_methods_predict_cli_requires_predictor_id_when_saving_to_db(afl_cli_workspace, monkeypatch):
+    workspace = afl_cli_workspace['workspace']
+    artifact_path = workspace / 'params' / 'win_margin_methods.json'
+    artifact_path.write_text(json.dumps({
+        'artifact_version': 2,
+        'artifact_type': 'win_margin_methods',
+        'best_method': 'simple',
+        'all_methods': {
+            'simple': {'score': 10.0, 'params': {'scale_factor': 0.12}}
+        },
+        'required_win_model': {
+            'model_type': 'win_elo',
+            'train_end_year': 2025,
+            'parameter_signature': {}
+        }
+    }), encoding='utf-8')
+
+    exit_code = run_script_cli(
+        'scripts/elo_margin_methods_predict.py',
+        [
+            '--start-year', '2026',
+            '--elo-model', afl_cli_workspace['win_model_path'],
+            '--margin-methods', artifact_path,
+            '--db-path', afl_cli_workspace['db_path'],
+        ],
+        monkeypatch,
+        workspace,
+    )
+
+    assert exit_code == 2
+
+
+def test_margin_methods_predict_cli_rejects_incompatible_artifact_without_writing_db(afl_cli_workspace, monkeypatch):
+    workspace = afl_cli_workspace['workspace']
+    predictor_id = 91
+    artifact_path = workspace / 'params' / 'incompatible_win_margin_methods.json'
+    artifact_path.write_text(json.dumps({
+        'artifact_version': 2,
+        'artifact_type': 'win_margin_methods',
+        'best_method': 'simple',
+        'all_methods': {
+            'simple': {'score': 10.0, 'params': {'scale_factor': 0.12}}
+        },
+        'required_win_model': {
+            'model_type': 'win_elo',
+            'train_end_year': 2025,
+            'parameter_signature': {
+                'base_rating': 1500,
+                'k_factor': 999,
+                'home_advantage': 30,
+                'default_home_advantage': 30,
+                'interstate_home_advantage': 60,
+                'margin_factor': 0.35,
+                'season_carryover': 0.6,
+                'max_margin': 100,
+                'beta': 0.05,
+                'team_states': {}
+            }
+        }
+    }), encoding='utf-8')
+
+    with pytest.raises(ValueError, match='Win model parameter mismatch'):
+        run_script_cli(
+            'scripts/elo_margin_methods_predict.py',
+            [
+                '--start-year', '2026',
+                '--elo-model', afl_cli_workspace['win_model_path'],
+                '--margin-methods', artifact_path,
+                '--db-path', afl_cli_workspace['db_path'],
+                '--predictor-id', str(predictor_id),
+            ],
+            monkeypatch,
+            workspace,
+        )
+
+    assert fetch_prediction_count(afl_cli_workspace['db_path'], predictor_id) == 0
