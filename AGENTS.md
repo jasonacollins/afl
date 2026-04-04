@@ -57,7 +57,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 
 ## AI-Specific Architecture Notes
 
-**Dual-Environment Code**: The scoring service (`services/scoring-service.js`) is uniquely designed to work in both Node.js and browser environments - it's served as a client-side script via `/js/scoring-service.js`.
+**Dual-Environment Code**: The scoring service (`services/scoring-service.js`) is uniquely designed to work in both Node.js and browser environments - it's served as a client-side script via `/js/scoring-service.js`. Keep its scoring behavior aligned with the Python helpers in `scripts/core/scoring.py`.
 
 **Security Architecture**: The application implements strict Content Security Policy (CSP) for security:
 - All JavaScript must be in external files (`public/js/`) - no inline scripts allowed
@@ -162,7 +162,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 - Treat standalone page entrypoints under `public/js/` as part of the covered test surface: when adding one, include it in `jest.config.js` coverage collection and keep its DOM interactions testable in the lightweight harness
 - Keep Python tests in `scripts/tests` runnable under `pytest` so they remain part of the default `npm test` workflow
 - Treat the default `npm test` JavaScript path as coverage-gated as well: Jest runs with coverage enabled there, so global and per-file thresholds in `jest.config.js` must stay intentionally maintained
-- Treat the default Python test workflow as a per-file coverage gate defined in `scripts/tests/run_pytest_with_coverage.py` for the covered core/model/history/prediction/simulation scripts; do not rely on Python coverage as report-only output
+- Treat the default Python test workflow as a per-file coverage gate defined in `scripts/tests/run_pytest_with_coverage.py` for the covered core/model/history/prediction/simulation scripts; when `coverage.py` is available it also enforces branch minimums for selected branch-heavy files. Do not rely on Python coverage as report-only output
 - Treat critical JavaScript files in `jest.config.js` as potential per-file coverage gates as well; when you raise or relax meaningful test scope, update those thresholds intentionally
 - For app/security changes, prefer at least one real `createApp()` integration test over fully mocked router wiring so CSP, session, CSRF, and middleware ordering are exercised together
 - For DB-sensitive Python or automation changes, prefer isolated temporary fixtures for behavior tests and keep at least one smoke test that boots a fresh database through `initializeDatabase()` to catch schema drift against the real app bootstrap path

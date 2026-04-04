@@ -93,6 +93,26 @@ describe('Featured Predictions Service', () => {
     });
   });
 
+  describe('getHomepageAvailablePredictors', () => {
+    it('should return homepage available predictors with details', async () => {
+      getQuery.mockResolvedValue([
+        { predictor_id: 1, name: 'one', display_name: 'One', is_default_featured: 1 }
+      ]);
+
+      const predictors = await featuredPredictions.getHomepageAvailablePredictors();
+
+      expect(predictors).toEqual([
+        { predictor_id: 1, name: 'one', display_name: 'One', is_default_featured: 1 }
+      ]);
+    });
+
+    it('should return an empty list when fetching predictors fails', async () => {
+      getQuery.mockRejectedValue(new Error('DB Error'));
+
+      await expect(featuredPredictions.getHomepageAvailablePredictors()).resolves.toEqual([]);
+    });
+  });
+
   describe('getPredictionsForRound', () => {
     it('should return a full prediction object with calculated metrics', async () => {
       // Arrange: Mock all dependencies
@@ -142,10 +162,58 @@ describe('Featured Predictions Service', () => {
       expect(Object.keys(result.predictions).length).toBe(0);
     });
 
+    it('should default missing tipped teams to home and mark drawn matches as partial', async () => {
+      predictorService.getPredictorById.mockResolvedValue({ predictor_id: 'pred-2', name: 'Draw Model' });
+      matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([
+        { match_id: 4, hscore: 88, ascore: 88 }
+      ]);
+      predictionService.getPredictionsForUser.mockResolvedValue([
+        { match_id: 4, home_win_probability: 50, predicted_margin: 0 }
+      ]);
+      scoringService.calculateTipPoints.mockReturnValue(0);
+      scoringService.calculateBrierScore.mockReturnValue(0);
+      scoringService.calculateBitsScore.mockReturnValue(1);
+
+      const result = await featuredPredictions.getPredictionsForRound('pred-2', 'Finals Week 2', 2026);
+
+      expect(matchService.getMatchesByRoundSelectionAndYear).toHaveBeenCalledWith('Finals Week 2', 2026);
+      expect(result.predictions[4]).toEqual({
+        probability: 50,
+        tipped_team: 'home',
+        predicted_margin: 0
+      });
+      expect(result.matches[0].metrics).toEqual({
+        tipPoints: 0,
+        brierScore: 0,
+        bitsScore: 1,
+        correct: false,
+        incorrect: false,
+        partial: true
+      });
+    });
+
     it('should throw AppError on failure', async () => {
       predictorService.getPredictorById.mockRejectedValue(new Error('Predictor DB Error'));
 
       await expect(featuredPredictions.getPredictionsForRound('pred-1', 1, 2024)).rejects.toThrow();
+    });
+  });
+
+  describe('getPredictionYearsForPredictor', () => {
+    it('should return prediction years for a predictor', async () => {
+      getQuery.mockResolvedValue([{ year: 2026 }, { year: 2025 }]);
+
+      await expect(featuredPredictions.getPredictionYearsForPredictor(6)).resolves.toEqual([
+        { year: 2026 },
+        { year: 2025 }
+      ]);
+    });
+
+    it('should return an empty list when predictor id is missing or the query fails', async () => {
+      await expect(featuredPredictions.getPredictionYearsForPredictor(null)).resolves.toEqual([]);
+
+      getQuery.mockRejectedValue(new Error('DB Error'));
+      await expect(featuredPredictions.getPredictionYearsForPredictor(6)).resolves.toEqual([]);
     });
   });
 });

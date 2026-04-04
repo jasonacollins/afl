@@ -38,10 +38,10 @@ module.exports = {
 
   coverageThreshold: {
     global: {
-      statements: 84,
-      branches: 69,
-      functions: 86,
-      lines: 85
+      statements: 85,
+      branches: 70,
+      functions: 87,
+      lines: 86
     },
     './app.js': {
       statements: 90,
@@ -62,10 +62,10 @@ module.exports = {
       lines: 91
     },
     './routes/elo.js': {
-      statements: 77,
-      branches: 78,
+      statements: 90,
+      branches: 90,
       functions: 100,
-      lines: 77
+      lines: 90
     },
     './routes/matches.js': {
       statements: 98,
@@ -92,10 +92,10 @@ module.exports = {
       lines: 87
     },
     './services/featured-predictions.js': {
-      statements: 81,
-      branches: 69,
-      functions: 77,
-      lines: 80
+      statements: 90,
+      branches: 85,
+      functions: 100,
+      lines: 90
     },
     './services/elo-service.js': {
       statements: 82,
@@ -164,16 +164,16 @@ module.exports = {
       lines: 77
     },
     './public/js/home.js': {
-      statements: 72,
-      branches: 58,
-      functions: 100,
-      lines: 72
-    },
-    './public/js/predictions.js': {
       statements: 85,
-      branches: 50,
+      branches: 75,
       functions: 100,
       lines: 85
+    },
+    './public/js/predictions.js': {
+      statements: 95,
+      branches: 90,
+      functions: 100,
+      lines: 95
     },
     './public/js/simulation.js': {
       statements: 85,

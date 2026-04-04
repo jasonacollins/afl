@@ -1,6 +1,7 @@
 # Testing dependencies for AFL predictions optimization scripts
 pytest>=7.0.0
 pytest-cov>=4.0.0
+coverage>=7.0.0
 numpy>=1.21.0
 pandas>=1.3.0
 scikit-optimize>=0.9.0

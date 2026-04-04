@@ -1,3 +1,6 @@
+const path = require('path');
+const { execFileSync } = require('child_process');
+
 describe('Scoring Service', () => {
   afterEach(() => {
     delete global.window;
@@ -53,5 +56,56 @@ describe('Scoring Service', () => {
     expect(window.calculateBrierScore).toBe(scoringService.calculateBrierScore);
     expect(window.calculateBitsScore).toBe(scoringService.calculateBitsScore);
     expect(window.calculateTipPoints).toBe(scoringService.calculateTipPoints);
+  });
+
+  test('matches the Python scoring helpers for shared Brier and Bits formulas', () => {
+    const scoringService = require('../scoring-service');
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    const cases = [
+      { probability: 0, outcome: 1 },
+      { probability: 25, outcome: 0 },
+      { probability: 50, outcome: 0.5 },
+      { probability: 70, outcome: 1 },
+      { probability: 100, outcome: 0 }
+    ];
+
+    const jsResults = cases.map(({ probability, outcome }) => ({
+      brier: scoringService.calculateBrierScore(probability, outcome),
+      bits: scoringService.calculateBitsScore(probability, outcome)
+    }));
+
+    const pythonResults = JSON.parse(execFileSync(
+      'python3',
+      [
+        '-c',
+        [
+          'import json',
+          'import sys',
+          'from pathlib import Path',
+          'repo_root = Path.cwd()',
+          "sys.path.insert(0, str(repo_root / 'scripts'))",
+          'from core import scoring',
+          'cases = json.loads(sys.argv[1])',
+          'results = []',
+          'for case in cases:',
+          "    results.append({",
+          "        'brier': scoring.calculate_brier_score(case['probability'], case['outcome']),",
+          "        'bits': scoring.calculate_bits_score(case['probability'], case['outcome']),",
+          '    })',
+          'print(json.dumps(results))'
+        ].join('\n'),
+        JSON.stringify(cases)
+      ],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8'
+      }
+    ));
+
+    expect(pythonResults).toHaveLength(jsResults.length);
+    pythonResults.forEach((pythonResult, index) => {
+      expect(pythonResult.brier).toBeCloseTo(jsResults[index].brier, 10);
+      expect(pythonResult.bits).toBeCloseTo(jsResults[index].bits, 10);
+    });
   });
 });
