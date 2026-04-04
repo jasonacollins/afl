@@ -35,21 +35,24 @@ function close(db) {
 
 function loadDbModule(dbPath) {
   let dbModule;
+  let loggerMock;
 
   jest.isolateModules(() => {
     process.env.DB_PATH = dbPath;
+    loggerMock = {
+      info: jest.fn(),
+      debug: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn()
+    };
     jest.doMock('../../utils/logger', () => ({
-      logger: {
-        info: jest.fn(),
-        debug: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn()
-      }
+      logger: loggerMock
     }));
 
     dbModule = require('../db');
   });
 
+  dbModule.__testLogger = loggerMock;
   return dbModule;
 }
 
@@ -78,6 +81,74 @@ async function waitForFile(filePath, attempts = 20) {
 
   throw new Error(`Timed out waiting for file: ${filePath}`);
 }
+
+describe('models/db query error paths', () => {
+  afterEach(() => {
+    jest.resetModules();
+    delete process.env.DB_PATH;
+    jest.clearAllMocks();
+  });
+
+  test('runQuery rejects and logs when the database returns an error', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afl-db-err-'));
+    const dbPath = path.join(tempDir, 'err.db');
+    const dbModule = loadDbModule(dbPath);
+
+    try {
+      await expect(
+        dbModule.runQuery('INSERT INTO nonexistent_table (col) VALUES (?)', ['val'])
+      ).rejects.toThrow(/no such table/);
+
+      expect(dbModule.__testLogger.error).toHaveBeenCalledWith(
+        'Database query error',
+        expect.objectContaining({ error: expect.stringContaining('no such table') })
+      );
+    } finally {
+      await unloadDbModule(dbModule);
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('getQuery rejects and logs when the database returns an error', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afl-db-err-'));
+    const dbPath = path.join(tempDir, 'err.db');
+    const dbModule = loadDbModule(dbPath);
+
+    try {
+      await expect(
+        dbModule.getQuery('SELECT * FROM nonexistent_table')
+      ).rejects.toThrow(/no such table/);
+
+      expect(dbModule.__testLogger.error).toHaveBeenCalledWith(
+        'Database query error',
+        expect.objectContaining({ error: expect.stringContaining('no such table') })
+      );
+    } finally {
+      await unloadDbModule(dbModule);
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('getOne rejects and logs when the database returns an error', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afl-db-err-'));
+    const dbPath = path.join(tempDir, 'err.db');
+    const dbModule = loadDbModule(dbPath);
+
+    try {
+      await expect(
+        dbModule.getOne('SELECT * FROM nonexistent_table WHERE id = ?', [1])
+      ).rejects.toThrow(/no such table/);
+
+      expect(dbModule.__testLogger.error).toHaveBeenCalledWith(
+        'Database query error',
+        expect.objectContaining({ error: expect.stringContaining('no such table') })
+      );
+    } finally {
+      await unloadDbModule(dbModule);
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe('models/db initializeDatabase', () => {
   afterEach(() => {
@@ -244,6 +315,128 @@ describe('models/db initializeDatabase', () => {
 
       const journalModeRow = await dbModule.getOne('PRAGMA journal_mode');
       expect(String(Object.values(journalModeRow)[0]).toLowerCase()).toBe('wal');
+    } finally {
+      await unloadDbModule(dbModule);
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('backfills venue_id on matches with a matching venue name', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afl-db-backfill-'));
+    const dbPath = path.join(tempDir, 'backfill.db');
+    const dbModule = loadDbModule(dbPath);
+
+    try {
+      await dbModule.initializeDatabase();
+
+      // Seed venue and a match with a venue name but no venue_id
+      await dbModule.runQuery(
+        'INSERT INTO venues (venue_id, name, city, state) VALUES (?, ?, ?, ?)',
+        [1, 'MCG', 'Melbourne', 'VIC']
+      );
+      await dbModule.runQuery(
+        'INSERT INTO teams (team_id, name) VALUES (?, ?), (?, ?)',
+        [1, 'Richmond', 2, 'Carlton']
+      );
+      await dbModule.runQuery(
+        `INSERT INTO matches (match_id, match_number, round_number, venue, home_team_id, away_team_id, year, complete)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [1, 100, '1', 'MCG', 1, 2, 2026, 0]
+      );
+
+      // Verify venue_id is NULL before re-initialization
+      const before = await dbModule.getOne('SELECT venue_id FROM matches WHERE match_id = ?', [1]);
+      expect(before.venue_id).toBeNull();
+
+      // Re-run initialization to trigger backfill
+      dbModule.__testLogger.info.mockClear();
+      await dbModule.initializeDatabase();
+
+      const after = await dbModule.getOne('SELECT venue_id FROM matches WHERE match_id = ?', [1]);
+      expect(after.venue_id).toBe(1);
+
+      expect(dbModule.__testLogger.info).toHaveBeenCalledWith(
+        'Backfilled missing venue_id values on matches table',
+        expect.objectContaining({ rowsUpdated: 1 })
+      );
+    } finally {
+      await unloadDbModule(dbModule);
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rolls back migration and propagates error when legacy data violates the new schema', async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afl-db-rollback-'));
+    const dbPath = path.join(tempDir, 'rollback.db');
+    const seedDb = openSqlite(dbPath);
+
+    try {
+      // Create legacy tables with a row that has NULL script_key,
+      // which violates NOT NULL on the new schema and triggers ROLLBACK.
+      await run(
+        seedDb,
+        `CREATE TABLE predictors (
+          predictor_id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL
+        )`
+      );
+      await run(
+        seedDb,
+        'INSERT INTO predictors (predictor_id, name, password) VALUES (?, ?, ?)',
+        [7, 'rollback-admin', 'hashed-password']
+      );
+      await run(
+        seedDb,
+        `CREATE TABLE admin_script_runs (
+          run_id INTEGER PRIMARY KEY,
+          script_key TEXT,
+          status TEXT,
+          created_by_predictor_id INTEGER,
+          created_at TEXT,
+          started_at TEXT,
+          finished_at TEXT,
+          exit_code INTEGER,
+          error_message TEXT,
+          params_json TEXT,
+          command_json TEXT
+        )`
+      );
+      // Insert a row with NULL script_key to cause NOT NULL violation during migration
+      await run(
+        seedDb,
+        `INSERT INTO admin_script_runs (
+          run_id, script_key, status, created_by_predictor_id, created_at
+        ) VALUES (?, ?, ?, ?, ?)`,
+        [1, null, 'succeeded', 7, '2026-04-01T00:00:00.000Z']
+      );
+    } finally {
+      await close(seedDb);
+    }
+
+    const dbModule = loadDbModule(dbPath);
+
+    try {
+      await expect(dbModule.initializeDatabase()).rejects.toThrow();
+
+      // Verify the error was logged at the top-level catch
+      expect(dbModule.__testLogger.error).toHaveBeenCalledWith(
+        'Error initializing database',
+        expect.objectContaining({ error: expect.any(String) })
+      );
+
+      // Verify the original table was preserved (rollback worked)
+      const originalTable = await dbModule.getOne(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'admin_script_runs'"
+      );
+      expect(originalTable).toBeDefined();
+
+      // Verify the original row is still intact
+      const originalRow = await dbModule.getOne(
+        'SELECT run_id, script_key FROM admin_script_runs WHERE run_id = ?',
+        [1]
+      );
+      expect(originalRow).toEqual({ run_id: 1, script_key: null });
     } finally {
       await unloadDbModule(dbModule);
       await fs.rm(tempDir, { recursive: true, force: true });

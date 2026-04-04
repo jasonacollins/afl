@@ -363,6 +363,137 @@ describe('api-refresh operational flows', () => {
     }));
   });
 
+  test('refreshAPIData throws on invalid API data structure (no games key)', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ matches: [] })
+    }));
+
+    await expect(apiRefresh.refreshAPIData(2026)).rejects.toMatchObject({
+      isOperational: true,
+      statusCode: 400,
+      errorCode: 'API_ERROR',
+      message: 'Invalid data structure received from Squiggle API'
+    });
+  });
+
+  test('refreshAPIData skips games that are missing squiggle ID or date', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          { id: null, date: '2026-04-05T05:20:00Z', venue: 'MCG', hteamid: 1, ateamid: 2, complete: 0 },
+          { id: 38515, date: null, venue: 'MCG', hteamid: 1, ateamid: 2, complete: 0 },
+          { id: 38516, date: '2026-04-05T05:20:00Z', venue: 'MCG', hteamid: 1, ateamid: 2, complete: 0 }
+        ]
+      })
+    }));
+
+    getOne.mockResolvedValueOnce({
+      match_date: '2026-04-05T05:20:00Z',
+      venue: 'MCG',
+      home_team_id: 1,
+      away_team_id: 2
+    });
+
+    const result = await apiRefresh.refreshAPIData(2026);
+
+    // Only the third game (with valid id and date) should be processed
+    expect(getOne).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      updateCount: 0
+    }));
+  });
+
+  test('refreshAPIData catches and reports fixture update DB errors without aborting', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            id: 38517,
+            date: '2026-04-06T05:20:00Z',
+            venue: 'SCG',
+            hteamid: 3,
+            ateamid: 4,
+            complete: 0
+          }
+        ]
+      })
+    }));
+
+    getOne.mockResolvedValueOnce({
+      match_date: '2026-04-05T05:20:00Z',
+      venue: 'MCG',
+      home_team_id: 3,
+      away_team_id: 4
+    }).mockResolvedValueOnce({ venue_id: 5 });
+
+    runQuery.mockRejectedValueOnce(new Error('SQLITE_BUSY'));
+
+    const result = await apiRefresh.refreshAPIData(2026);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Error updating fixture info for match_number 38517',
+      { error: 'SQLITE_BUSY' }
+    );
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      updateCount: 0,
+      skippedFixtureUpdateCount: 1
+    }));
+  });
+
+  test('refreshAPIData reports skip when score update finds no matching match in DB', async () => {
+    setFetchImplementationForTests(jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        games: [
+          {
+            id: 38518,
+            date: '2026-04-19T05:20:00Z',
+            venue: 'Optus Stadium',
+            hteamid: 6,
+            ateamid: 7,
+            complete: 100,
+            hscore: 81,
+            ascore: 70,
+            hgoals: 12,
+            hbehinds: 9,
+            agoals: 10,
+            abehinds: 10
+          }
+        ]
+      })
+    }));
+
+    // Fixture lookup finds the match (no changes needed)
+    getOne.mockResolvedValueOnce({
+      match_date: '2026-04-19T05:20:00Z',
+      venue: 'Optus Stadium',
+      home_team_id: 6,
+      away_team_id: 7
+    });
+
+    // Score update returns no changes
+    runQuery.mockResolvedValueOnce({ changes: 0 });
+
+    // Post-update lookup returns null — match not found
+    getOne.mockResolvedValueOnce(null);
+
+    const result = await apiRefresh.refreshAPIData(2026);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Skipping score update for Game ID 38518: Match not found in database'
+    );
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      scoresUpdated: 0,
+      skippedScoreUpdateCount: 1
+    }));
+  });
+
   test('cli exits non-zero and reports invalid year parsing errors', () => {
     const scriptPath = path.resolve(__dirname, '../api-refresh.js');
     const result = spawnSync(process.execPath, [scriptPath, '--year', 'nope'], {

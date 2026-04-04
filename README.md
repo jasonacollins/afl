@@ -252,7 +252,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - Coverage is collected from `app.js`, `services/`, `routes/`, `models/`, `middleware/`, `scripts/automation/`, `utils/`, and the browser entrypoints under `public/js/`
 - Coverage thresholds are enforced in `jest.config.js`; keep them aligned with intentional test coverage rather than treating coverage as report-only
 - In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`
-- Security-sensitive metadata/config modules and state-heavy frontend entrypoints should be treated as eligible for explicit per-file gates in `jest.config.js`, not only broad global coverage
+- Security-sensitive metadata/config modules, infrastructure utilities (error handling, logging, password hashing), and state-heavy frontend entrypoints should be treated as eligible for explicit per-file gates in `jest.config.js`, not only broad global coverage
 - Shared contract modules such as CSRF enforcement, Squiggle request configuration, and cross-runtime scoring logic are good candidates for explicit per-file JavaScript gates when they are part of the critical app contract
 - Route and app integration tests use `supertest`
 - Security-sensitive app behavior should be covered with real `createApp()` integration tests where practical so CSP, session, CSRF, and middleware ordering regressions are caught by the suite
@@ -264,6 +264,8 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 - When a script owns CLI exit-code behavior, prefer a thin exported CLI wrapper around the core callable so tests can cover success/failure exits separately from the underlying work
 - For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught
+- Database migration tests should cover rollback paths so schema integrity is verified on failure, not just on the happy path
+- `models/__tests__/db.test.js` uses a `loadDbModule` helper that creates an isolated SQLite instance via `jest.isolateModules`; the helper exposes `__testLogger` for asserting on logger calls from within the isolated module scope
 - For automation scripts that mutate data, prefer a mix of collaborator-mocked unit tests and temporary SQLite integration tests so persistence contracts are exercised directly
 - For `scripts/season_simulator.py`, keep direct tests around core probability/rating helpers and finals constraints in addition to snapshot/CLI coverage so simulation math regressions are caught close to the source
 - `scripts/tests/run_pytest_with_coverage.py` should not rely on leaving a repo-root `.coverage` artifact behind; treat any such file as disposable local state, not a project output

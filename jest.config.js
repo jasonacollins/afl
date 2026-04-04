@@ -36,10 +36,10 @@ module.exports = {
       lines: 86
     },
     './app.js': {
-      statements: 90,
-      branches: 65,
+      statements: 93,
+      branches: 75,
       functions: 90,
-      lines: 91
+      lines: 93
     },
     './routes/admin.js': {
       statements: 90,
@@ -66,16 +66,16 @@ module.exports = {
       lines: 99
     },
     './routes/predictions.js': {
-      statements: 84,
-      branches: 61,
+      statements: 94,
+      branches: 85,
       functions: 100,
-      lines: 85
+      lines: 95
     },
     './routes/simulation.js': {
-      statements: 81,
-      branches: 80,
+      statements: 91,
+      branches: 82,
       functions: 100,
-      lines: 81
+      lines: 91
     },
     './services/admin-script-runner.js': {
       statements: 88,
@@ -90,10 +90,10 @@ module.exports = {
       lines: 100
     },
     './services/featured-predictions.js': {
-      statements: 90,
-      branches: 85,
+      statements: 94,
+      branches: 92,
       functions: 100,
-      lines: 90
+      lines: 94
     },
     './services/elo-service.js': {
       statements: 88,
@@ -119,6 +119,24 @@ module.exports = {
       functions: 85,
       lines: 90
     },
+    './services/match-service.js': {
+      statements: 84,
+      branches: 77,
+      functions: 100,
+      lines: 83
+    },
+    './services/password-service.js': {
+      statements: 100,
+      branches: 85,
+      functions: 100,
+      lines: 100
+    },
+    './services/prediction-service.js': {
+      statements: 91,
+      branches: 97,
+      functions: 100,
+      lines: 91
+    },
     './services/scoring-service.js': {
       statements: 100,
       branches: 95,
@@ -132,10 +150,10 @@ module.exports = {
       lines: 88
     },
     './models/db.js': {
-      statements: 89,
-      branches: 67,
+      statements: 93,
+      branches: 72,
       functions: 100,
-      lines: 89
+      lines: 93
     },
     './middleware/csrf.js': {
       statements: 100,
@@ -144,10 +162,10 @@ module.exports = {
       lines: 100
     },
     './public/js/admin-scripts.js': {
-      statements: 84,
+      statements: 88,
       branches: 70,
       functions: 92,
-      lines: 85
+      lines: 90
     },
     './public/js/mobile-nav.js': {
       statements: 95,
@@ -174,10 +192,10 @@ module.exports = {
       lines: 86
     },
     './public/js/home.js': {
-      statements: 88,
-      branches: 78,
+      statements: 92,
+      branches: 87,
       functions: 100,
-      lines: 88
+      lines: 92
     },
     './public/js/predictions.js': {
       statements: 95,
@@ -197,6 +215,18 @@ module.exports = {
       functions: 100,
       lines: 90
     },
+    './utils/error-handler.js': {
+      statements: 93,
+      branches: 72,
+      functions: 85,
+      lines: 93
+    },
+    './utils/logger.js': {
+      statements: 92,
+      branches: 66,
+      functions: 64,
+      lines: 92
+    },
     './utils/squiggle-request.js': {
       statements: 100,
       branches: 100,
@@ -204,10 +234,10 @@ module.exports = {
       lines: 100
     },
     './scripts/automation/api-refresh.js': {
-      statements: 81,
-      branches: 83,
+      statements: 84,
+      branches: 85,
       functions: 58,
-      lines: 83
+      lines: 87
     },
     './scripts/automation/daily-sync.js': {
       statements: 90,
@@ -216,10 +246,10 @@ module.exports = {
       lines: 90
     },
     './scripts/automation/db-maintenance.js': {
-      statements: 75,
-      branches: 65,
-      functions: 76,
-      lines: 75
+      statements: 89,
+      branches: 77,
+      functions: 85,
+      lines: 89
     },
     './scripts/automation/elo-predictions.js': {
       statements: 85,
