@@ -368,6 +368,60 @@ describe('public/js/elo-chart.js', () => {
     expect(global.alert).toHaveBeenCalledWith('Please select both start and end years');
   });
 
+  test('filters invalid available years, picks the latest valid year, and falls back to palette colors', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/elo/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: ['bad', '2024', '2026', null] })
+        });
+      }
+
+      if (url === '/api/elo/ratings/2026') {
+        return Promise.resolve({
+          json: async () => buildSingleYearResponse()
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('elo-chart.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(window.eloChart.availableYears).toEqual([2026, 2024]);
+    expect(window.eloChart.currentYear).toBe(2026);
+    expect(window.eloChart.getTeamColor('Unknown Team', 1)).toBe('#00AA00');
+  });
+
+  test('disables the selector when the API reports no available years', async () => {
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/elo/years') {
+        return Promise.resolve({
+          json: async () => ({ success: true, years: [] })
+        });
+      }
+
+      if (url === '/api/elo/ratings/2026') {
+        return Promise.resolve({
+          json: async () => buildSingleYearResponse()
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('elo-chart.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(window.eloChart.availableYears).toEqual([]);
+    expect(document.getElementById('year-selector').disabled).toBe(true);
+    expect(document.getElementById('year-selector').innerHTML).toContain('No years available');
+  });
+
   test('tooltip callbacks format round, year-range, and match detail content', async () => {
     await initializeChart();
 
@@ -461,6 +515,41 @@ describe('public/js/elo-chart.js', () => {
     window.eloChart.createChart();
 
     expect(document.getElementById('elo-chart').textContent).toContain('No teams data available');
+  });
+
+  test('reports a missing chart container when no container can be recreated', async () => {
+    await initializeChart();
+
+    document.getElementById('elo-chart-canvas').remove();
+    document.querySelector('.elo-chart-container').remove();
+    window.eloChart.createChart();
+
+    expect(window.eloChart.container.textContent).toContain('Chart container not found');
+  });
+
+  test('updates legend state for exclusive selection and hidden datasets', async () => {
+    await initializeChart();
+
+    window.eloChart.selectTeamExclusive('Cats');
+    expect(document.querySelector('.legend-item[data-team="Cats"]').classList.contains('highlighted')).toBe(true);
+    expect(document.querySelector('.legend-item[data-team="Swans"]').classList.contains('highlighted')).toBe(false);
+
+    window.eloChart.selectTeamExclusive('Cats');
+    expect(document.querySelector('.legend-item[data-team="Cats"]').classList.contains('highlighted')).toBe(false);
+
+    window.eloChart.chart.getDatasetMeta = jest.fn((index) => ({ hidden: index === 1 }));
+    window.eloChart.createLegend();
+    expect(document.querySelector('.legend-item[data-team="Swans"]').classList.contains('hidden')).toBe(true);
+  });
+
+  test('ignores legend creation when the chart section is unavailable', async () => {
+    await initializeChart();
+
+    document.getElementById('elo-chart-legend').remove();
+    document.querySelector('.elo-chart-section').remove();
+
+    expect(() => window.eloChart.createLegend()).not.toThrow();
+    expect(document.getElementById('elo-chart-legend')).toBeNull();
   });
 
   test('shows a year-range error when the range fetch fails', async () => {

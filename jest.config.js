@@ -38,10 +38,10 @@ module.exports = {
 
   coverageThreshold: {
     global: {
-      statements: 79,
-      branches: 65,
-      functions: 82,
-      lines: 79
+      statements: 84,
+      branches: 69,
+      functions: 86,
+      lines: 85
     },
     './app.js': {
       statements: 90,
@@ -86,16 +86,16 @@ module.exports = {
       lines: 81
     },
     './services/admin-script-runner.js': {
-      statements: 85,
-      branches: 72,
-      functions: 88,
-      lines: 85
+      statements: 87,
+      branches: 74,
+      functions: 90,
+      lines: 87
     },
     './services/elo-service.js': {
-      statements: 78,
-      branches: 64,
-      functions: 80,
-      lines: 80
+      statements: 82,
+      branches: 66,
+      functions: 85,
+      lines: 83
     },
     './services/event-sync-service.js': {
       statements: 88,
@@ -128,10 +128,10 @@ module.exports = {
       lines: 76
     },
     './public/js/elo-chart.js': {
-      statements: 72,
-      branches: 52,
-      functions: 75,
-      lines: 73
+      statements: 76,
+      branches: 55,
+      functions: 77,
+      lines: 77
     },
     './public/js/home.js': {
       statements: 72,
@@ -164,10 +164,10 @@ module.exports = {
       lines: 83
     },
     './scripts/automation/daily-sync.js': {
-      statements: 80,
-      branches: 64,
-      functions: 80,
-      lines: 80
+      statements: 90,
+      branches: 75,
+      functions: 88,
+      lines: 90
     },
     './scripts/automation/db-maintenance.js': {
       statements: 75,

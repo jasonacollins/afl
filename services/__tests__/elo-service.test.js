@@ -14,6 +14,8 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const eloService = require('../elo-service');
 
 function createMatchPair({
@@ -481,6 +483,12 @@ describe('EloService season start chart points', () => {
     expect(result).toBeLessThan(0);
   });
 
+  test('getRowTimestamp returns null for blank or invalid values and a timestamp for valid dates', () => {
+    expect(eloService.getRowTimestamp('')).toBeNull();
+    expect(eloService.getRowTimestamp('not-a-date')).toBeNull();
+    expect(eloService.getRowTimestamp('2026-03-01 08:00:00+00:00')).toEqual(expect.any(Number));
+  });
+
   test('getEloRatingsForYear returns an empty payload when the CSV is missing', async () => {
     jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/missing-elo-history.csv');
     jest.spyOn(fs, 'existsSync').mockReturnValue(false);
@@ -493,6 +501,62 @@ describe('EloService season start chart points', () => {
       year: 2026,
       error: 'No ELO data available for 2026'
     });
+  });
+
+  test('readEloCSV parses a real CSV file', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'elo-csv-'));
+    const csvPath = path.join(tempDir, 'history.csv');
+
+    fs.writeFileSync(
+      csvPath,
+      'year,match_id,team,round,date,rating_before,rating_after\n'
+        + '2026,1,Cats,1,2026-03-01 08:00:00+00:00,1500,1510\n',
+      'utf8'
+    );
+
+    try {
+      await expect(eloService.readEloCSV(csvPath)).resolves.toEqual([
+        {
+          year: '2026',
+          match_id: '1',
+          team: 'Cats',
+          round: '1',
+          date: '2026-03-01 08:00:00+00:00',
+          rating_before: '1500',
+          rating_after: '1510'
+        }
+      ]);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('getEloRatingsForYear appends colors on the happy path', async () => {
+    jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/elo-history.csv');
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(eloService, 'readEloCSV').mockResolvedValue([{ year: '2026' }]);
+    jest.spyOn(eloService, 'getChartTeamsForYearRange').mockResolvedValue(['Cats']);
+    jest.spyOn(eloService, 'processEloData').mockReturnValue({
+      teams: ['Cats'],
+      data: [{ x: 0, year: 2026, round: 'Season start', Cats: 1500 }]
+    });
+    jest.spyOn(eloService, 'getTeamColors').mockResolvedValue({ Cats: '#123456' });
+
+    const result = await eloService.getEloRatingsForYear(2026);
+
+    expect(result).toEqual({
+      teams: ['Cats'],
+      data: [{ x: 0, year: 2026, round: 'Season start', Cats: 1500 }],
+      teamColors: { Cats: '#123456' }
+    });
+  });
+
+  test('getEloRatingsForYear rethrows processing failures', async () => {
+    jest.spyOn(eloService, 'getEloDataPath').mockReturnValue('/tmp/elo-history.csv');
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+    jest.spyOn(eloService, 'readEloCSV').mockRejectedValue(new Error('csv broken'));
+
+    await expect(eloService.getEloRatingsForYear(2026)).rejects.toThrow('csv broken');
   });
 
   test('getEloRatingsForYearRange appends team colors to processed data', async () => {
@@ -543,6 +607,11 @@ describe('EloService season start chart points', () => {
     await expect(eloService.getTeamColors(['Cats', 'Swans'])).resolves.toEqual({
       Cats: '#123456'
     });
+  });
+
+  test('getTeamColors returns an empty map when no teams are requested', async () => {
+    await expect(eloService.getTeamColors([])).resolves.toEqual({});
+    expect(mockGetQuery).not.toHaveBeenCalled();
   });
 
   test('getTeamColors returns an empty map when the database query fails', async () => {

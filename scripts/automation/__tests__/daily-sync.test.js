@@ -35,10 +35,17 @@ jest.mock('../../../utils/logger', () => ({
 }));
 
 const {
+  normalizeRoundText,
+  resolveFinalsRoundKey,
   buildRoundSnapshotMetadata,
   buildCurrentRoundSnapshotMetadata,
+  isMatchCompleted,
+  compareMatchesForProgression,
   determineCurrentRoundSnapshotMetadata,
   buildPostSeasonSnapshotMetadata,
+  loadExistingRoundSnapshots,
+  evaluateSimulationSnapshotState,
+  hasMatchDataChanges,
   hasCompletedResultChanges,
   regenerateEloHistory,
   regenerateSeasonSimulation,
@@ -232,6 +239,13 @@ describe('daily-sync round snapshot metadata', () => {
 });
 
 describe('daily-sync completed result detection', () => {
+  test('hasMatchDataChanges ignores sync-only update noise and detects meaningful changes', () => {
+    expect(hasMatchDataChanges({ updateCount: 4 }, { insertCount: 0, updateCount: 0, scoresUpdated: 0 })).toBe(false);
+    expect(hasMatchDataChanges({ insertCount: 1 }, { insertCount: 0, updateCount: 0, scoresUpdated: 0 })).toBe(true);
+    expect(hasMatchDataChanges({ insertCount: 0 }, { insertCount: 0, updateCount: 2, scoresUpdated: 0 })).toBe(true);
+    expect(hasMatchDataChanges({ insertCount: 0 }, { insertCount: 0, updateCount: 0, scoresUpdated: 1 })).toBe(true);
+  });
+
   test('returns true when api-refresh reports score updates', () => {
     expect(hasCompletedResultChanges({ scoresUpdated: 2 }, {})).toBe(true);
   });
@@ -261,6 +275,78 @@ describe('daily-sync completed result detection', () => {
         { completedInsertCount: 0, completedUpdateCount: 0 }
       )
     ).toBe(false);
+  });
+});
+
+describe('daily-sync helper branches', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockGetQuery.mockReset();
+    fs.existsSync.mockReset();
+    fs.readFileSync.mockReset();
+  });
+
+  test('normalizeRoundText and resolveFinalsRoundKey handle aliases and punctuation', () => {
+    expect(normalizeRoundText('  Preliminary-Final. ')).toBe('preliminary final');
+    expect(resolveFinalsRoundKey('WC')).toBe('wildcard_round');
+    expect(resolveFinalsRoundKey('Grand Finals')).toBe('grand_final');
+    expect(resolveFinalsRoundKey('Round 4')).toBeNull();
+  });
+
+  test('isMatchCompleted ignores incomplete 0-0 placeholders and accepts reliable scores', () => {
+    expect(isMatchCompleted({ complete: 0, hscore: 0, ascore: 0 })).toBe(false);
+    expect(isMatchCompleted({ complete: null, hscore: 81, ascore: 72 })).toBe(true);
+    expect(isMatchCompleted({ complete: 100, hscore: 0, ascore: 0 })).toBe(true);
+  });
+
+  test('compareMatchesForProgression falls back from date to match number and match id', () => {
+    expect(compareMatchesForProgression(
+      { match_date: '2026-03-01', match_number: 2, match_id: 9 },
+      { match_date: '2026-03-02', match_number: 1, match_id: 1 }
+    )).toBeLessThan(0);
+
+    expect(compareMatchesForProgression(
+      { match_date: null, match_number: 2, match_id: 9 },
+      { match_date: null, match_number: 3, match_id: 1 }
+    )).toBeLessThan(0);
+
+    expect(compareMatchesForProgression(
+      { match_date: null, match_number: null, match_id: 4 },
+      { match_date: null, match_number: null, match_id: 7 }
+    )).toBeLessThan(0);
+  });
+
+  test('loadExistingRoundSnapshots returns empty results for missing, mismatched, or invalid files', () => {
+    fs.existsSync.mockReturnValue(false);
+    expect(loadExistingRoundSnapshots('/tmp/missing.json', 2026)).toEqual([]);
+
+    fs.existsSync.mockReturnValue(true);
+    fs.readFileSync.mockReturnValue(JSON.stringify({ year: 2025, round_snapshots: [{ round_key: 'round-or' }] }));
+    expect(loadExistingRoundSnapshots('/tmp/mismatch.json', 2026)).toEqual([]);
+
+    fs.readFileSync.mockImplementation(() => {
+      throw new Error('bad json');
+    });
+    expect(loadExistingRoundSnapshots('/tmp/invalid.json', 2026)).toEqual([]);
+  });
+
+  test('evaluateSimulationSnapshotState reports whether the current snapshot already exists', async () => {
+    const currentYear = new Date().getFullYear();
+    mockGetQuery.mockResolvedValue([]);
+    fs.existsSync.mockReturnValue(true);
+    fs.readFileSync.mockReturnValue(JSON.stringify({
+      year: currentYear,
+      round_snapshots: [{ round_key: 'round-or' }]
+    }));
+
+    await expect(
+      evaluateSimulationSnapshotState(currentYear, `/tmp/season_simulation_${currentYear}.json`)
+    ).resolves.toEqual({
+      currentRoundKey: 'round-or',
+      currentRoundLabel: 'Before Opening Round',
+      hasCurrentRoundSnapshot: true,
+      existingSnapshotCount: 1
+    });
   });
 });
 

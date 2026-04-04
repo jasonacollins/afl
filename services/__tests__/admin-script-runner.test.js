@@ -645,6 +645,86 @@ describe('Admin Script Runner - persisted logs and recovery', () => {
     }
   });
 
+  test('startScriptRun marks the run failed when log persistence fails mid-run', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+    const appendFileSpy = jest.spyOn(fs, 'appendFile');
+    let absoluteLogPath = null;
+
+    appendFileSpy
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error('disk full'));
+
+    spawn.mockReturnValue(child);
+    getOne.mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ lastID: 44 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    try {
+      const run = await adminScriptRunner.startScriptRun('sync-games', { year: 2026 }, 9);
+      const logPath = runQuery.mock.calls[1][1][2];
+      absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+      await waitFor(() => child.kill.mock.calls.length === 1);
+      child.emit('close', 1);
+      await waitFor(() => runQuery.mock.calls.length >= 3);
+
+      expect(run.runId).toBe(44);
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(runQuery).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('UPDATE admin_script_runs'),
+        ['failed', 1, 'Failed to write run log: disk full', expect.any(String), 44]
+      );
+    } finally {
+      appendFileSpy.mockRestore();
+      if (absoluteLogPath) {
+        await fs.rm(absoluteLogPath, { force: true });
+      }
+    }
+  });
+
+  test('startScriptRun marks the run failed when the child exits non-zero', async () => {
+    const { runQuery } = require('../../models/db');
+    const child = createMockChildProcess();
+
+    spawn.mockReturnValue(child);
+    getOne.mockResolvedValueOnce(null);
+    runQuery
+      .mockResolvedValueOnce({ lastID: 45 })
+      .mockResolvedValueOnce({ changes: 1 })
+      .mockResolvedValueOnce({ changes: 1 });
+
+    const run = await adminScriptRunner.startScriptRun('sync-games', { year: 2026 }, 9);
+    const logPath = runQuery.mock.calls[1][1][2];
+    const absoluteLogPath = path.join(__dirname, '..', '..', logPath);
+
+    child.emit('close', 3);
+    await waitFor(() => runQuery.mock.calls.length >= 3);
+
+    const logLines = (await fs.readFile(absoluteLogPath, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line).message);
+
+    try {
+      expect(run.runId).toBe(45);
+      expect(runQuery).toHaveBeenNthCalledWith(
+        3,
+        expect.stringContaining('UPDATE admin_script_runs'),
+        ['failed', 3, 'Process exited with code 3', expect.any(String), 45]
+      );
+      expect(logLines).toEqual(expect.arrayContaining([
+        'Starting command: node scripts/automation/sync-games.js year 2026',
+        'Process exited with code 3'
+      ]));
+    } finally {
+      await fs.rm(absoluteLogPath, { force: true });
+    }
+  });
+
   test('getRunLogs parses structured log lines and falls back to system messages for plain text', async () => {
     const runId = 401;
     const relativeLogPath = path.posix.join(

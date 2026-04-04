@@ -166,7 +166,7 @@ function normalizeRoundText(roundNumber) {
     return '';
   }
 
-  return raw.replace(/[.\-]/g, ' ').replace(/\s+/g, ' ');
+  return raw.replace(/[.\-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 const FINALS_ROUND_ALIASES = {
