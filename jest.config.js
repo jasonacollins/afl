@@ -146,10 +146,10 @@ module.exports = {
       lines: 95
     },
     './public/js/main.js': {
-      statements: 78,
-      branches: 60,
-      functions: 71,
-      lines: 79
+      statements: 80,
+      branches: 65,
+      functions: 75,
+      lines: 80
     },
     './public/js/admin.js': {
       statements: 75,

@@ -331,6 +331,106 @@ def test_split_matches_and_current_standings_ignore_finals_results():
     assert simulator.current_records['A']['losses'] == 0
 
 
+def test_predict_match_probability_applies_home_advantage_and_base_rating_fallback():
+    """Win probability should use home advantage and default missing-team ratings."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.base_rating = 1500
+    simulator.home_advantage = 40
+
+    probability = simulator.predict_match_probability(
+        'Team A',
+        'Team B',
+        {'Team A': 1520}
+    )
+
+    expected = 1.0 / (1.0 + 10 ** (-(1520 + 40 - 1500) / 400))
+    assert probability == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ('random_value', 'expected_result'),
+    [
+        (0.004, 'draw'),
+        (0.30, 'home'),
+        (0.90, 'away'),
+    ]
+)
+def test_simulate_match_handles_draw_home_and_away_paths(monkeypatch, random_value, expected_result):
+    """Single-match simulation should cover draw, home, and away thresholds."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.base_rating = 1500
+    simulator.home_advantage = 0
+
+    monkeypatch.setattr(season_simulator_module.np.random, 'random', lambda: random_value)
+
+    result = simulator.simulate_match(
+        'Team A',
+        'Team B',
+        {'Team A': 1500, 'Team B': 1500}
+    )
+
+    assert result == expected_result
+
+
+def test_update_ratings_from_completed_matches_updates_margin_only_ratings():
+    """Margin-only mode should update simulation ratings from margin error."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.combined_mode = False
+    simulator.base_rating = 1500
+    simulator.home_advantage = 50
+    simulator.margin_scale = 0.1
+    simulator.scaling_factor = 10
+    simulator.margin_k_factor = 20
+    simulator.max_margin = 100
+    simulator.initial_ratings = {'Team A': 1500, 'Team B': 1500}
+    simulator.completed_matches = pd.DataFrame({
+        'home_team': ['Team A'],
+        'away_team': ['Team B'],
+        'hscore': [80],
+        'ascore': [70],
+        'match_date': pd.to_datetime(['2026-03-15'])
+    })
+
+    simulator.update_ratings_from_completed_matches()
+
+    assert simulator.initial_ratings['Team A'] == pytest.approx(1510.0)
+    assert simulator.initial_ratings['Team B'] == pytest.approx(1490.0)
+
+
+def test_update_ratings_from_completed_matches_updates_combined_win_and_margin_ratings():
+    """Combined mode should update win ratings and separate margin ratings."""
+    simulator = SeasonSimulator.__new__(SeasonSimulator)
+    simulator.combined_mode = True
+    simulator.base_rating = 1500
+    simulator.home_advantage = 50
+    simulator.margin_scale = 0.1
+    simulator.scaling_factor = 10
+    simulator.max_margin = 50
+    simulator.margin_factor = 0.1
+    simulator.win_k_factor = 20
+    simulator.margin_k_factor = 20
+    simulator.initial_ratings = {'Team A': 1500, 'Team B': 1500}
+    simulator.margin_ratings = {'Team A': 1500, 'Team B': 1500}
+    simulator.completed_matches = pd.DataFrame({
+        'home_team': ['Team A'],
+        'away_team': ['Team B'],
+        'hscore': [100],
+        'ascore': [0],
+        'match_date': pd.to_datetime(['2026-03-15'])
+    })
+
+    simulator.update_ratings_from_completed_matches()
+
+    win_prob = 1.0 / (1.0 + 10 ** (-50 / 400))
+    expected_win_change = 20 * (1.0 - win_prob)
+    expected_margin_change = -20 * ((50 * 0.1) - 100) / 10
+
+    assert simulator.initial_ratings['Team A'] == pytest.approx(1500 + expected_win_change)
+    assert simulator.initial_ratings['Team B'] == pytest.approx(1500 - expected_win_change)
+    assert simulator.margin_ratings['Team A'] == pytest.approx(1500 + expected_margin_change)
+    assert simulator.margin_ratings['Team B'] == pytest.approx(1500 - expected_margin_change)
+
+
 def test_forced_finals_results_keep_eliminated_teams_out_of_sf_plus():
     """Completed EF results should force losers to have 0 chance of SF+."""
     simulator = SeasonSimulator.__new__(SeasonSimulator)

@@ -5,11 +5,36 @@ const bcrypt = require('bcrypt');
 const request = require('supertest');
 const session = require('express-session');
 
+function buildExpressMock(listenSpy) {
+  const actualExpress = jest.requireActual('express');
+
+  const expressMock = () => {
+    const app = actualExpress();
+    app.listen = listenSpy;
+    return app;
+  };
+
+  Object.assign(expressMock, actualExpress);
+  expressMock.Router = actualExpress.Router;
+  expressMock.json = actualExpress.json;
+  expressMock.urlencoded = actualExpress.urlencoded;
+  expressMock.static = actualExpress.static;
+  expressMock.request = actualExpress.request;
+  expressMock.response = actualExpress.response;
+  expressMock.application = actualExpress.application;
+
+  return expressMock;
+}
+
 function loadRealAppModule(dbPath, mocks = {}) {
   let loaded;
 
   jest.isolateModules(() => {
     process.env.DB_PATH = dbPath;
+    if (mocks.expressMock) {
+      jest.doMock('express', () => mocks.expressMock);
+    }
+
     jest.doMock('../utils/logger', () => ({
       logger: {
         info: jest.fn(),
@@ -30,6 +55,12 @@ function loadRealAppModule(dbPath, mocks = {}) {
       jest.doMock('../services/admin-script-runner', () => mocks.adminScriptRunner);
     } else {
       jest.unmock('../services/admin-script-runner');
+    }
+
+    if (mocks.eventSyncService) {
+      jest.doMock('../services/event-sync-service', () => mocks.eventSyncService);
+    } else {
+      jest.unmock('../services/event-sync-service');
     }
 
     if (mocks.roundService) {
@@ -460,6 +491,69 @@ describe('app integration security stack', () => {
     expect(scriptsResponse.text).toContain('Run Sync Games');
     expect(scriptsResponse.text).toContain('Run Predictions');
     expect(scriptsResponse.text).toContain('/js/admin-scripts.js');
+  });
+});
+
+describe('app integration startup path', () => {
+  let tempDir;
+  let loaded;
+
+  beforeEach(async () => {
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afl-app-startup-'));
+  });
+
+  afterEach(async () => {
+    await unloadDbModule(loaded && loaded.dbModule);
+    await fs.rm(tempDir, { recursive: true, force: true });
+    jest.clearAllMocks();
+  });
+
+  test('startServer initializes the real database before recovery and event sync, then begins listening', async () => {
+    const lifecycle = [];
+    const listenSpy = jest.fn((port, host, callback) => {
+      lifecycle.push(`listen:${port}:${host}`);
+      if (typeof callback === 'function') {
+        callback();
+      }
+      return { close: jest.fn() };
+    });
+
+    const recoverInterruptedRuns = jest.fn(async () => {
+      const predictorsTable = await loaded.dbModule.getOne(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ['predictors']
+      );
+      expect(predictorsTable).toEqual({ name: 'predictors' });
+      lifecycle.push('recover');
+    });
+    const eventSyncStart = jest.fn(async () => {
+      lifecycle.push('event-sync');
+    });
+
+    loaded = loadRealAppModule(path.join(tempDir, 'startup.db'), {
+      expressMock: buildExpressMock(listenSpy),
+      adminScriptRunner: {
+        recoverInterruptedRuns
+      },
+      eventSyncService: {
+        start: eventSyncStart,
+        stop: jest.fn()
+      }
+    });
+
+    await loaded.appModule.startServer({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    expect(recoverInterruptedRuns).toHaveBeenCalledTimes(1);
+    expect(eventSyncStart).toHaveBeenCalledTimes(1);
+    expect(listenSpy).toHaveBeenCalledWith(3001, '0.0.0.0', expect.any(Function));
+    expect(lifecycle).toEqual([
+      'recover',
+      'event-sync',
+      'listen:3001:0.0.0.0'
+    ]);
   });
 });
 

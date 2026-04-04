@@ -455,6 +455,65 @@ describe('public/js/main.js', () => {
     errorSpy.mockRestore();
   });
 
+  test('selectUser refreshes admin predictions and re-renders the selected round when matches are visible', async () => {
+    window.location.pathname = '/admin';
+    document.querySelector('.round-buttons').innerHTML = `
+      <button class="round-button selected" data-round="2">Round 2</button>
+    `;
+    document.getElementById('matches-container').innerHTML = '<div class="match-card">Existing match</div>';
+
+    global.fetch = jest.fn((url) => {
+      if (url === '/admin/predictions/7') {
+        return Promise.resolve({
+          json: async () => ({
+            predictions: {
+              22: {
+                probability: 58,
+                tippedTeam: 'away'
+              }
+            }
+          })
+        });
+      }
+
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.resolve({
+          json: async () => ([
+            {
+              match_id: 22,
+              match_date: '2026-04-10T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: null,
+              ascore: null,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    window.selectUser('7', 'Selected User');
+    await flushPromises();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenNthCalledWith(1, '/admin/predictions/7');
+    expect(global.fetch).toHaveBeenNthCalledWith(2, '/predictions/round/2?year=2026');
+    expect(window.userPredictions).toEqual({
+      22: {
+        probability: 58,
+        tippedTeam: 'away'
+      }
+    });
+    expect(document.getElementById('matches-container').textContent).toContain('Cats');
+  });
+
   test('savePrediction clears existing stored predictions on delete success', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     document.getElementById('matches-container').innerHTML = `

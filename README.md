@@ -252,6 +252,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - In addition to the global JavaScript thresholds, critical app, frontend, service, and automation files may have per-file minimums in `jest.config.js`
 - Route and app integration tests use `supertest`
 - Security-sensitive app behavior should be covered with real `createApp()` integration tests where practical so CSP, session, CSRF, and middleware ordering regressions are caught by the suite
+- When startup behavior changes meaningfully, keep at least one test around `startServer()` with the real initialization path so database bootstrap, recovery ordering, and listener startup are exercised together
 - Browser-oriented tests run in the standard Node Jest environment using a lightweight DOM harness, so client-side scripts should remain testable without depending on a real browser runtime
 - The shared scoring formulas used by `services/scoring-service.js` and `scripts/core/scoring.py` are covered by cross-runtime contract tests and should remain behaviorally aligned
 - When adding a new standalone page script under `public/js/`, add it to `jest.config.js` coverage collection and keep its DOM interactions mockable in the lightweight harness
@@ -259,6 +260,7 @@ The project uses Jest for JavaScript unit and integration coverage, and pytest f
 - Automation CLI scripts should use a `require.main === module` entrypoint guard and export their main callable functions where practical, so tests can import them without triggering `process.exit()` side effects
 - For database-sensitive work, keep behavioral tests isolated with temporary fixtures, but retain at least one smoke test that boots a fresh database through `initializeDatabase()` so schema drift against the real app bootstrap path is caught
 - For automation scripts that mutate data, prefer a mix of collaborator-mocked unit tests and temporary SQLite integration tests so persistence contracts are exercised directly
+- For `scripts/season_simulator.py`, keep direct tests around core probability/rating helpers and finals constraints in addition to snapshot/CLI coverage so simulation math regressions are caught close to the source
 
 Core commands:
 
