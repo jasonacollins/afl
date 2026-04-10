@@ -284,33 +284,6 @@ def test_known_good_params():
         print("  → Simple params are noticeably worse. Need to expand search space.")
     
     return optimal_score, simple_score
-    
-    print("Test parameters:")
-    for key, value in test_params.items():
-        print(f"  {key}: {value}")
-    
-    # Load data
-    matches_df = fetch_afl_data('data/database/afl_predictions.db', start_year=1990, end_year=2024)
-    print(f"Loaded {len(matches_df)} matches")
-    
-    # Test with walk-forward validation
-    from core.optimise import evaluate_parameters_walkforward
-    score = evaluate_parameters_walkforward(
-        [
-            test_params['k_factor'],
-            test_params['default_home_advantage'],
-            test_params['interstate_home_advantage'],
-            test_params['margin_factor'],
-            test_params['season_carryover'],
-            test_params['max_margin'],
-        ],
-        matches_df,
-        verbose=True
-    )
-    
-    print(f"\nBrier score with known good params: {score:.4f}")
-    print("(Should be around 0.22 if evaluation is working correctly)")
-    return score
 
 
 def main():

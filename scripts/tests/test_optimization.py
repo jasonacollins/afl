@@ -466,3 +466,22 @@ class TestOptimizationIntegration:
         elo_win_optimize.main()
 
         assert calls == {'sampling': 1, 'save': 0}
+
+    def test_main_dispatches_to_known_params_mode_without_saving(self, monkeypatch):
+        calls = {'known': 0, 'save': 0}
+
+        monkeypatch.setattr(sys, 'argv', ['elo_win_optimize.py', '--test-known-params'])
+        monkeypatch.setattr(
+            elo_win_optimize,
+            'test_known_good_params',
+            lambda: calls.__setitem__('known', calls['known'] + 1),
+        )
+        monkeypatch.setattr(
+            elo_win_optimize,
+            'save_optimization_results',
+            lambda payload, path: calls.__setitem__('save', calls['save'] + 1),
+        )
+
+        elo_win_optimize.main()
+
+        assert calls == {'known': 1, 'save': 0}

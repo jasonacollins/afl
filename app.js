@@ -25,7 +25,7 @@ const adminRoutes = require('./routes/admin');
 const eloRoutes = require('./routes/elo');
 const simulationRoutes = require('./routes/simulation');
 
-const port = process.env.PORT || 3001;
+const port = Number(process.env.PORT) || 3001;
 
 function createSessionStore() {
   return new SqliteStore({
