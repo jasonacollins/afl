@@ -6,15 +6,24 @@
     </div>
 
     <div class="card simulation-card">
-        <div class="card-header">
-            <div class="card-title">Season Projection</div>
-            <div class="controls">
+        <div class="card-header simulation-card-header">
+            <div class="simulation-card-heading">
+                <div class="card-title">Season Projection</div>
+            </div>
+            <div class="simulation-toolbar">
                 <div class="control-group">
                     <label for="year-select">Season</label>
                     <select id="year-select">
                         <option value="<%= selectedYear %>" selected><%= selectedYear %></option>
                     </select>
                 </div>
+                <% if (locals.isAdmin) { %>
+                <a
+                    id="simulation-download-link"
+                    class="button secondary-button simulation-download-button"
+                    href="/api/simulation/export?year=<%= selectedYear %>"
+                >Download JSON</a>
+                <% } %>
             </div>
         </div>
 

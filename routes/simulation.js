@@ -5,6 +5,25 @@ const { logger } = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
 
+async function resolveSimulationFilePath(year) {
+  const standardPath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
+
+  try {
+    await fs.access(standardPath);
+    return standardPath;
+  } catch (error) {
+    const fromScratchPath = path.join(__dirname, '../data/simulations', `season_simulation_${year}_from_scratch.json`);
+    try {
+      await fs.access(fromScratchPath);
+      return fromScratchPath;
+    } catch (fallbackError) {
+      const notFoundError = new Error(`No simulation data available for year ${year}`);
+      notFoundError.code = 'ENOENT';
+      throw notFoundError;
+    }
+  }
+}
+
 /**
  * GET /api/simulation/years
  * Get list of available years with simulation data
@@ -63,6 +82,65 @@ router.get('/years', catchAsync(async (req, res) => {
 }));
 
 /**
+ * GET /api/simulation/export?year=YYYY
+ * Download raw simulation JSON for a specific year
+ */
+router.get('/export', catchAsync(async (req, res) => {
+  if (!(req.session?.user && req.session?.isAdmin)) {
+    logger.warn('Unauthorized simulation download attempt', {
+      userId: req.session?.user ? req.session.user.id : 'anonymous',
+      path: req.originalUrl,
+      ip: req.ip
+    });
+
+    return res.status(403).json({
+      success: false,
+      error: 'Admin access required'
+    });
+  }
+
+  const requestUrl = new URL(req.originalUrl, 'http://localhost');
+  const year = parseInt(requestUrl.searchParams.get('year'), 10);
+
+  if (isNaN(year) || year < 2020 || year > new Date().getFullYear() + 5) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid year parameter. Must be a valid year between 2020 and current year + 5.'
+    });
+  }
+
+  try {
+    const filePath = await resolveSimulationFilePath(year);
+    const filename = path.basename(filePath);
+
+    logger.info(`Simulation download requested for year ${year}`, {
+      userAgent: req.get('User-Agent'),
+      ip: req.ip,
+      filePath
+    });
+
+    res.download(filePath, filename, (error) => {
+      if (error) {
+        logger.error(`Failed to send simulation download for year ${year}`, {
+          error: error.message,
+          filePath
+        });
+      }
+    });
+  } catch (error) {
+    logger.warn(`Simulation download not found for year ${year}`, {
+      error: error.message
+    });
+
+    res.status(404).json({
+      success: false,
+      error: `No simulation data available for year ${year}`,
+      year
+    });
+  }
+}));
+
+/**
  * GET /api/simulation/:year
  * Get simulation results for a specific year
  */
@@ -82,26 +160,7 @@ router.get('/:year', catchAsync(async (req, res) => {
   });
 
   try {
-    // Try standard filename first, then from_scratch variant
-    let filePath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
-
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      // Try from_scratch variant
-      const fromScratchPath = path.join(__dirname, '../data/simulations', `season_simulation_${year}_from_scratch.json`);
-      try {
-        await fs.access(fromScratchPath);
-        filePath = fromScratchPath;
-      } catch (err) {
-        logger.warn(`Simulation data not found for year ${year}`, { filePath, fromScratchPath });
-        return res.status(404).json({
-          success: false,
-          error: `No simulation data available for year ${year}`,
-          year: year
-        });
-      }
-    }
+    const filePath = await resolveSimulationFilePath(year);
 
     // Read and parse the file
     const fileContent = await fs.readFile(filePath, 'utf-8');
@@ -133,6 +192,18 @@ router.get('/:year', catchAsync(async (req, res) => {
       ...simulationData
     });
   } catch (error) {
+    if (error.code === 'ENOENT') {
+      logger.warn(`Simulation data not found for year ${year}`, {
+        error: error.message
+      });
+
+      return res.status(404).json({
+        success: false,
+        error: `No simulation data available for year ${year}`,
+        year
+      });
+    }
+
     logger.error(`Failed to get simulation data for year ${year}`, {
       error: error.message,
       stack: error.stack
@@ -161,25 +232,7 @@ router.get('/:year/summary', catchAsync(async (req, res) => {
   }
 
   try {
-    // Try standard filename first, then from_scratch variant
-    let filePath = path.join(__dirname, '../data/simulations', `season_simulation_${year}.json`);
-
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      // Try from_scratch variant
-      const fromScratchPath = path.join(__dirname, '../data/simulations', `season_simulation_${year}_from_scratch.json`);
-      try {
-        await fs.access(fromScratchPath);
-        filePath = fromScratchPath;
-      } catch (err) {
-        return res.status(404).json({
-          success: false,
-          error: `No simulation data available for year ${year}`,
-          year: year
-        });
-      }
-    }
+    const filePath = await resolveSimulationFilePath(year);
 
     // Read and parse the file
     const fileContent = await fs.readFile(filePath, 'utf-8');
@@ -209,6 +262,14 @@ router.get('/:year/summary', catchAsync(async (req, res) => {
       ...summary
     });
   } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({
+        success: false,
+        error: `No simulation data available for year ${year}`,
+        year
+      });
+    }
+
     logger.error(`Failed to get simulation summary for year ${year}`, {
       error: error.message,
       stack: error.stack

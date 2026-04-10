@@ -149,6 +149,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - Clean separation between operational data (database) and analytical data (CSV)
 
 **Season Simulation**: `scripts/season_simulator.py` runs 50,000 Monte Carlo iterations and saves outputs to `data/simulations/season_simulation_YYYY.json` for the `/simulation` page. `npm run daily-sync` regenerates the current season simulation when fixture/result data changed or when the current round snapshot is missing (to ensure round tabs remain available). The simulation page supports round snapshot tabs (before each round/finals stage + post-season), plus a dedicated `Current` tab when a round is in progress so round-start snapshots remain preserved. When updating the simulator:
+- Treat `data/simulations/*.json` as generated runtime artifacts. They are intentionally excluded from Git and should not be re-added to version control.
 - Keep season-specific finals structure and seeding logic intact (pre-2026 top-8; 2026+ top-10 with `Wildcard Finals` feeding `Finals Week 2`).
 - Preserve combined simulation mode behavior (`--win-model` + `--model-path` margin).
 - Treat completed finals matches as hard constraints for later-round simulations (eliminated teams must stay eliminated).

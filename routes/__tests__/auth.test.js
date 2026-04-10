@@ -120,7 +120,7 @@ describe('auth routes', () => {
     expect(bcrypt.compare).toHaveBeenCalledWith('secret', 'hashed');
   });
 
-  test('GET /logout destroys the session and redirects to login', async () => {
+  test('GET /logout destroys the session and redirects to home', async () => {
     const app = createRouterTestApp(authRouter, {
       sessionData: { user: { id: 12 } }
     });
@@ -128,7 +128,7 @@ describe('auth routes', () => {
     const response = await request(app).get('/logout');
 
     expect(response.status).toBe(302);
-    expect(response.headers.location).toBe('/login');
+    expect(response.headers.location).toBe('/');
   });
 
   test('GET /featured-predictions/:round falls back to the default featured predictor', async () => {

@@ -31,6 +31,7 @@
     const top8Header = document.getElementById('top8-header');
     const wildcardHeader = document.getElementById('wildcard-header');
     const finalsWeekHeader = document.getElementById('finals-week-header');
+    const simulationDownloadLink = document.getElementById('simulation-download-link');
 
     // Color palette for probability visualization (low → high)
     const PROBABILITY_COLOR_STOPS = [
@@ -141,7 +142,16 @@
      */
     async function handleYearChange() {
         const selectedYear = yearSelect.value;
+        updateSimulationDownloadLink(selectedYear);
         await loadSimulationData(selectedYear);
+    }
+
+    function updateSimulationDownloadLink(year) {
+        if (!simulationDownloadLink) {
+            return;
+        }
+
+        simulationDownloadLink.href = `/api/simulation/export?year=${encodeURIComponent(year)}`;
     }
 
     /**
@@ -149,6 +159,7 @@
      */
     async function loadSimulationData(year) {
         showLoading();
+        updateSimulationDownloadLink(year);
 
         try {
             const response = await fetch(`/api/simulation/${year}`);
