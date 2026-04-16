@@ -1,11 +1,11 @@
 <%- include('partials/header') %>
 
 <div class="container">
-  <h1>Admin Scripts</h1>
-
   <div class="tab-navigation">
-    <a href="/admin" class="tab">Admin Panel</a>
+    <a href="/admin" class="tab">Predictor Management</a>
+    <a href="/admin/user-predictions" class="tab">Manage User Predictions</a>
     <a href="/admin/scripts" class="tab active">Scripts</a>
+    <a href="/admin/operations" class="tab">Operations</a>
   </div>
 
   <% if (locals.success) { %>
@@ -22,7 +22,6 @@
 
   <div class="admin-container scripts-layout">
     <div class="admin-section">
-      <h2>Scripts</h2>
       <p>Only one script can run at a time. Each run is stored in job history.</p>
 
       <div class="script-cards">

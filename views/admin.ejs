@@ -1,70 +1,11 @@
 <%- include('partials/header') %>
 
 <div class="container">
-  <h1>Admin Dashboard</h1>
-
-  <div class="export-actions">
-    <a href="/admin/export/predictions" class="button secondary-button">
-      Export All Predictions (CSV)
-    </a>
-    <a href="/admin/export/database" class="button secondary-button">
-      Export Database
-    </a>
-    <button id="refreshApiButton" class="button primary-button">
-      Refresh API Data
-    </button>
-    <button id="uploadDatabaseButton" class="button primary-button">
-      Upload Database
-    </button>
-  </div>
-  
-  <!-- Add a modal for API refresh -->
-  <div id="refreshApiModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <span class="close" data-action="close-refresh-modal">&times;</span>
-      <h3>Refresh API Data</h3>
-      <p>Select a year to refresh data from the Squiggle API:</p>
-      <form id="refreshApiForm">
-        <div class="form-group">
-          <label for="refreshYear">Year:</label>
-          <select id="refreshYear" name="year">
-            <% years.forEach(year => { %>
-              <option value="<%= year.year %>" <%= year.year === selectedYear ? 'selected' : '' %>><%= year.year %></option>
-            <% }); %>
-          </select>
-        </div>
-        <div class="form-group checkbox">
-          <input type="checkbox" id="forceScoreUpdate" name="forceScoreUpdate">
-          <label for="forceScoreUpdate">Force score updates (override completed matches)</label>
-        </div>
-        <div id="refreshStatus"></div>
-        <button type="submit" class="button primary-button">Start Refresh</button>
-      </form>
-    </div>
-  </div>
-  
-  <!-- Add a modal for database upload -->
-  <div id="uploadDatabaseModal" class="modal" style="display: none;">
-    <div class="modal-content">
-      <span class="close" data-action="close-upload-modal">&times;</span>
-      <h3>Upload Database</h3>
-      <div class="warning-message">
-        <strong>Warning:</strong> This will replace the entire database. Make sure you have a backup!
-      </div>
-      <form id="uploadDatabaseForm" enctype="multipart/form-data">
-        <div class="form-group">
-          <label for="databaseFile">Select SQLite Database File:</label>
-          <input type="file" id="databaseFile" name="databaseFile" accept=".db,.sqlite" required>
-        </div>
-        <div id="uploadStatus"></div>
-        <button type="submit" class="button primary-button">Upload & Replace Database</button>
-      </form>
-    </div>
-  </div>
-  
   <div class="tab-navigation">
-    <a href="/admin" class="tab active">Admin Panel</a>
+    <a href="/admin" class="tab active">Predictor Management</a>
+    <a href="/admin/user-predictions" class="tab">Manage User Predictions</a>
     <a href="/admin/scripts" class="tab">Scripts</a>
+    <a href="/admin/operations" class="tab">Operations</a>
   </div>
   
   <% if (locals.success) { %>
@@ -198,58 +139,6 @@
         </tbody>
       </table>
     </div>
-    
-    <div class="admin-section">
-      <h2>Manage User Predictions</h2>
-      
-      <div class="user-selection">
-        <h3>Select User</h3>
-        <div class="user-buttons">
-          <% predictors.forEach(predictor => { %>
-            <button
-              class="user-button"
-              data-user-id="<%= predictor.predictor_id %>"
-              data-display-name="<%= predictor.display_name %>"
-            >
-              <%= predictor.display_name %>
-            </button>
-          <% }) %>
-        </div>
-      </div>
-      
-      <div id="user-predictions" class="user-predictions">
-        <div class="selected-user-info">
-          <p>Selected user: <span id="selected-user">None</span></p>
-          <input type="hidden" id="selected-user-id" value="">
-        </div>
-        
-        <div class="round-selector">
-          <h3>Select Round</h3>
-          <div class="round-buttons">
-            <% rounds.forEach(round => { %>
-              <button 
-                data-round="<%= round.round_number %>" 
-                class="round-button"
-              >
-                <% if (round.round_number === 'OR') { %>
-                  Opening Round
-                <% } else if (!isNaN(round.round_number)) { %>
-                  Round <%= round.round_number %>
-                <% } else { %>
-                  <%= round.round_number %>
-                <% } %>
-              </button>
-            <% }) %>
-          </div>
-        </div>
-        
-        <div id="matches-container" class="matches-container">
-          <div class="no-selection">
-            Please select a user and a round to manage predictions
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -268,8 +157,6 @@
     </form>
   </div>
 </div>
-
-<script src="/js/main.js"></script>
 
 <!-- Add a hidden modal for delete confirmation -->
 <div id="deleteUserModal" class="modal" style="display: none;">

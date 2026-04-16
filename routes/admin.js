@@ -19,6 +19,41 @@ const resultUpdateService = require('../services/result-update-service');
 router.use(isAuthenticated);
 router.use(isAdmin);
 
+async function getPredictorManagementViewModel() {
+  const predictors = await predictorService.getAllPredictors();
+  const featuredPredictionsService = require('../services/featured-predictions');
+  const featuredPredictorId = await featuredPredictionsService.getDefaultFeaturedPredictorId();
+
+  return {
+    predictors,
+    featuredPredictorId
+  };
+}
+
+async function getUserPredictionsViewModel(yearQuery) {
+  const { selectedYear, years } = await roundService.resolveYear(yearQuery);
+  const predictors = await predictorService.getAllPredictors();
+  const rawRounds = await roundService.getRoundsForYear(selectedYear);
+  const rounds = roundService.combineRoundsForDisplay(rawRounds, selectedYear);
+
+  return {
+    predictors,
+    rounds,
+    years,
+    selectedYear,
+    selectedUser: null
+  };
+}
+
+async function getOperationsViewModel(yearQuery) {
+  const { selectedYear, years } = await roundService.resolveYear(yearQuery);
+
+  return {
+    years,
+    selectedYear
+  };
+}
+
 // API endpoints for managing predictor exclusions
 router.get('/api/excluded-predictors', catchAsync(async (req, res) => {
   const excludedPredictors = await getQuery(
@@ -71,28 +106,38 @@ router.getExcludedPredictors = async function() {
 
 // Admin dashboard
 router.get('/', catchAsync(async (req, res) => {
-  const { selectedYear, years } = await roundService.resolveYear(req.query.year);
-  
   logger.info(`Admin dashboard accessed by user ${req.session.user.id}`);
-  
-  // Get all predictors
-  const predictors = await predictorService.getAllPredictors();
-  
-  // Get all rounds for the selected year with grouped finals display labels
-  const rawRounds = await roundService.getRoundsForYear(selectedYear);
-  const rounds = roundService.combineRoundsForDisplay(rawRounds, selectedYear);
-  
-  // Get featured predictor ID
-  const featuredPredictionsService = require('../services/featured-predictions');
-  const featuredPredictorId = await featuredPredictionsService.getDefaultFeaturedPredictorId();
-  
+
+  const viewModel = await getPredictorManagementViewModel();
+
   res.render('admin', {
-    predictors,
-    rounds,
-    years,
-    selectedYear,
-    selectedUser: null,
-    featuredPredictorId,
+    ...viewModel,
+    success: req.query.success || null,
+    error: req.query.error || null,
+    isAdmin: true
+  });
+}));
+
+router.get('/user-predictions', catchAsync(async (req, res) => {
+  logger.info(`Admin user predictions page accessed by user ${req.session.user.id}`);
+
+  const viewModel = await getUserPredictionsViewModel(req.query.year);
+
+  res.render('admin-user-predictions', {
+    ...viewModel,
+    success: req.query.success || null,
+    error: req.query.error || null,
+    isAdmin: true
+  });
+}));
+
+router.get('/operations', catchAsync(async (req, res) => {
+  logger.info(`Admin operations page accessed by user ${req.session.user.id}`);
+
+  const viewModel = await getOperationsViewModel(req.query.year);
+
+  res.render('admin-operations', {
+    ...viewModel,
     success: req.query.success || null,
     error: req.query.error || null,
     isAdmin: true

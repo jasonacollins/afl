@@ -27,8 +27,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Interactive ELO Chart**: Visualize team strength over time with multi-team highlighting
 - **Dedicated ELO Model Page**: ELO chart and filters are available on `/elo`
 - **Dedicated Simulation Page**: Monte Carlo season outcomes are available on `/simulation`
-- **Admin Dashboard**: Tools for managing users and overseeing the prediction platform
-- **Admin Scripts Runner**: Dedicated `/admin/scripts` page to run sync, prediction, simulation, and model training jobs with persisted run history and file-backed logs
+- **Admin Area**: Separate pages for predictor management, user prediction management, scripts, and operational exports/actions
 - **Featured Predictor System**: Homepage shows one admin-selected model with performance metrics and round predictions
 - **Unified Finals Week Display**: `Elimination Final` and `Qualifying Final` are grouped into one selector slot:
   - pre-2026 seasons: `Finals Week 1`
@@ -41,7 +40,10 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - `/` - Predictions homepage (featured model performance + round prediction table)
 - `/elo` - ELO team ratings chart and historical filters
 - `/simulation` - Season simulation outputs and ladder probability matrices
+- `/admin` - Predictor management (featured predictor, add predictor, current predictors)
+- `/admin/user-predictions` - Admin editing for user predictions
 - `/admin/scripts` - Admin-only scripts runner for operational and training workflows
+- `/admin/operations` - Prediction export, database export/upload, and API refresh actions
 - Primary nav labels are `Model predictions` (`/`), `ELO` (`/elo`), and `Simulation` (`/simulation`)
 - When logged in, nav also includes `Predictor page` (`/predictions`); admins also see `Admin panel` (`/admin`)
 - On mobile/laptop breakpoints, homepage season and round selectors are intentionally stacked vertically for readability

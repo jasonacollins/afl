@@ -1,0 +1,79 @@
+<%- include('partials/header') %>
+
+<div class="container">
+  <div class="tab-navigation">
+    <a href="/admin" class="tab">Predictor Management</a>
+    <a href="/admin/user-predictions" class="tab active">Manage User Predictions</a>
+    <a href="/admin/scripts" class="tab">Scripts</a>
+    <a href="/admin/operations" class="tab">Operations</a>
+  </div>
+
+  <% if (locals.success) { %>
+    <div class="alert success">
+      <%= success %>
+    </div>
+  <% } %>
+
+  <% if (locals.error) { %>
+    <div class="alert error">
+      <%= error %>
+    </div>
+  <% } %>
+
+  <div class="admin-container">
+    <div class="admin-section">
+      <div class="user-selection">
+        <h3>Select User</h3>
+        <div class="user-buttons">
+          <% predictors.forEach(predictor => { %>
+            <button
+              class="user-button"
+              data-user-id="<%= predictor.predictor_id %>"
+              data-display-name="<%= predictor.display_name %>"
+            >
+              <%= predictor.display_name %>
+            </button>
+          <% }) %>
+        </div>
+      </div>
+
+      <div id="user-predictions" class="user-predictions">
+        <div class="selected-user-info">
+          <p>Selected user: <span id="selected-user">None</span></p>
+          <input type="hidden" id="selected-user-id" value="">
+        </div>
+
+        <div class="round-selector">
+          <h3>Select Round</h3>
+          <div class="round-buttons">
+            <% rounds.forEach(round => { %>
+              <button
+                data-round="<%= round.round_number %>"
+                class="round-button"
+              >
+                <% if (round.round_number === 'OR') { %>
+                  Opening Round
+                <% } else if (!isNaN(round.round_number)) { %>
+                  Round <%= round.round_number %>
+                <% } else { %>
+                  <%= round.round_number %>
+                <% } %>
+              </button>
+            <% }) %>
+          </div>
+        </div>
+
+        <div id="matches-container" class="matches-container">
+          <div class="no-selection">
+            Please select a user and a round to manage predictions
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/main.js"></script>
+<script src="/js/admin.js"></script>
+
+<%- include('partials/footer') %>

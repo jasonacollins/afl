@@ -164,7 +164,25 @@ describe('admin routes', () => {
     expect(response.body.scripts).toEqual([{ key: 'sync-games' }]);
   });
 
-  test('GET / renders the admin dashboard with grouped rounds and featured predictor', async () => {
+  test('GET / renders the predictor management page with featured predictor data', async () => {
+    predictorService.getAllPredictors.mockResolvedValue([{ predictor_id: 5, name: 'Dad' }]);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(response.body.view).toBe('admin');
+    expect(response.body.locals).toEqual(expect.objectContaining({
+      predictors: [{ predictor_id: 5, name: 'Dad' }],
+      featuredPredictorId: 6,
+      isAdmin: true
+    }));
+  });
+
+  test('GET /user-predictions renders the user predictions management page', async () => {
     predictorService.getAllPredictors.mockResolvedValue([{ predictor_id: 5, name: 'Dad' }]);
     require('../../services/round-service').resolveYear.mockResolvedValue({
       selectedYear: 2026,
@@ -181,18 +199,47 @@ describe('admin routes', () => {
       sessionData: { user: { id: 1 }, isAdmin: true }
     });
 
-    const response = await request(app).get('/');
+    const response = await request(app).get('/user-predictions');
 
     expect(response.status).toBe(200);
-    expect(response.body.view).toBe('admin');
-    expect(response.body.locals).toEqual(expect.objectContaining({
-      predictors: [{ predictor_id: 5, name: 'Dad' }],
-      rounds: [{ round_number: 'Round 1' }],
-      years: [2026, 2025],
+    expect(response.body).toEqual({
+      view: 'admin-user-predictions',
+      locals: {
+        predictors: [{ predictor_id: 5, name: 'Dad' }],
+        rounds: [{ round_number: 'Round 1' }],
+        years: [2026, 2025],
+        selectedYear: 2026,
+        selectedUser: null,
+        success: null,
+        error: null,
+        isAdmin: true
+      }
+    });
+  });
+
+  test('GET /operations renders the admin operations page', async () => {
+    require('../../services/round-service').resolveYear.mockResolvedValue({
       selectedYear: 2026,
-      featuredPredictorId: 6,
-      isAdmin: true
-    }));
+      years: [2026, 2025]
+    });
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/operations');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      view: 'admin-operations',
+      locals: {
+        years: [2026, 2025],
+        selectedYear: 2026,
+        isAdmin: true,
+        success: null,
+        error: null
+      }
+    });
   });
 
   test('GET /scripts renders the admin scripts page', async () => {
