@@ -88,6 +88,128 @@ const ensureDefaultPredictions = catchAsync(async (selectedYear) => {
   logger.info(`Default predictions check completed - created ${defaultPredictionsCreated} predictions`);
 });
 
+function calculatePredictorStats(predictor, predictionResults) {
+  let tipPoints = 0;
+  let totalBrierScore = 0;
+  let totalBitsScore = 0;
+  const totalPredictions = predictionResults.length;
+  let marginErrorSum = 0;
+  let marginPredictionCount = 0;
+
+  predictionResults.forEach(pred => {
+    const homeWon = pred.hscore > pred.ascore;
+    const tie = pred.hscore === pred.ascore;
+    const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
+
+    totalBrierScore += scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
+    totalBitsScore += scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
+
+    const tippedTeam = pred.tipped_team || 'home';
+    tipPoints += scoringService.calculateTipPoints(
+      pred.home_win_probability,
+      pred.hscore,
+      pred.ascore,
+      tippedTeam
+    );
+
+    if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
+      const actualMargin = pred.hscore - pred.ascore;
+      marginErrorSum += Math.abs(actualMargin - pred.predicted_margin);
+      marginPredictionCount++;
+    }
+  });
+
+  return {
+    id: predictor.predictor_id,
+    name: predictor.name,
+    display_name: predictor.display_name,
+    tipPoints,
+    totalPredictions,
+    tipAccuracy: totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0,
+    brierScore: totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0,
+    bitsScore: totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0,
+    marginMAE: marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null,
+    marginPredictionCount
+  };
+}
+
+function filterPredictionsByRounds(predictionResults, sourceRounds) {
+  if (!Array.isArray(sourceRounds) || sourceRounds.length === 0) {
+    return predictionResults;
+  }
+
+  const selectedRounds = new Set(sourceRounds);
+  return predictionResults.filter(prediction => selectedRounds.has(prediction.round_number));
+}
+
+function buildPredictorStats(predictors, predictorPredictions, options = {}) {
+  const {
+    includeInactiveWithoutPredictions = true,
+    sourceRounds = null
+  } = options;
+
+  return predictors.reduce((stats, predictor) => {
+    const yearPredictions = predictorPredictions.get(predictor.predictor_id) || [];
+    const predictionResults = filterPredictionsByRounds(yearPredictions, sourceRounds);
+
+    if (!includeInactiveWithoutPredictions && predictor.active === 0 && predictionResults.length === 0) {
+      return stats;
+    }
+
+    stats.push(calculatePredictorStats(predictor, predictionResults));
+    return stats;
+  }, []);
+}
+
+function filterAndSortPredictorStats(predictorStats, predictors) {
+  const predictorMap = new Map(
+    predictors.map(predictor => [predictor.predictor_id, predictor])
+  );
+
+  return predictorStats
+    .filter(stat => {
+      const predictor = predictorMap.get(stat.id);
+      return predictor && !predictor.is_admin;
+    })
+    .sort((a, b) => parseFloat(a.brierScore) - parseFloat(b.brierScore));
+}
+
+function getSourceRoundsForSelection(rounds, roundSelection) {
+  const selectedRound = rounds.find(round => round.round_number === roundSelection);
+
+  if (selectedRound && Array.isArray(selectedRound.source_round_numbers)) {
+    return selectedRound.source_round_numbers;
+  }
+
+  return roundService.expandRoundSelection(roundSelection);
+}
+
+function getSourceRoundsThroughSelection(rounds, roundSelection) {
+  const roundIndex = rounds.findIndex(round => round.round_number === roundSelection);
+
+  if (roundIndex === -1) {
+    return getSourceRoundsForSelection(rounds, roundSelection);
+  }
+
+  const sourceRounds = [];
+  const seenRounds = new Set();
+
+  rounds.slice(0, roundIndex + 1).forEach(round => {
+    const roundSourceNumbers = Array.isArray(round.source_round_numbers)
+      ? round.source_round_numbers
+      : [round.round_number];
+
+    roundSourceNumbers.forEach(sourceRound => {
+      if (!seenRounds.has(sourceRound)) {
+        seenRounds.add(sourceRound);
+        sourceRounds.push(sourceRound);
+      }
+    });
+  });
+
+  return sourceRounds;
+}
+
 // Get all matches
 router.get('/round/:round', catchAsync(async (req, res) => {
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
@@ -186,80 +308,16 @@ router.get('/stats', catchAsync(async (req, res) => {
   // Get current user's predictions for completed matches in the selected year
   const userPredictions = await predictionService.getPredictionsForUser(req.session.user.id);
 
-  // Calculate accuracy for each predictor with additional metrics
-  const predictorStats = [];
+  const predictorPredictions = new Map(await Promise.all(
+    predictors.map(async predictor => ([
+      predictor.predictor_id,
+      await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, selectedYear)
+    ]))
+  ));
 
-  for (const predictor of predictors) {
-    // Get all predictions for this predictor with results for the selected year
-    const predictionResults = await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, selectedYear);
-
-    // Skip inactive predictors who have no predictions for this year
-    // (This allows historical data to show for periods when they were active)
-    if (predictor.active === 0 && predictionResults.length === 0) {
-      continue;
-    }
-    
-    let tipPoints = 0;
-    let totalBrierScore = 0;
-    let totalBitsScore = 0;
-    let totalPredictions = predictionResults.length;
-    let marginErrorSum = 0;
-    let marginPredictionCount = 0;
-    
-    // Calculate metrics for each prediction
-    predictionResults.forEach(pred => {
-      const homeWon = pred.hscore > pred.ascore;
-      const awayWon = pred.hscore < pred.ascore;
-      const tie = pred.hscore === pred.ascore;
-      
-      // Determine outcome (1 if home team won, 0.5 if tie, 0 if away team won)
-      const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
-      
-      // Use scoring service
-      const brierScore = scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
-      totalBrierScore += brierScore;
-      
-      const bitsScore = scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
-      totalBitsScore += bitsScore;
-      
-      // Get tipped team (default to home if not stored)
-      const tippedTeam = pred.tipped_team || 'home';
-      
-      // Calculate tip points
-      const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
-      tipPoints += tipPointsForPred;
-      
-      // Calculate margin error if predicted_margin exists
-      if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
-        const actualMargin = pred.hscore - pred.ascore;
-        const marginError = Math.abs(actualMargin - pred.predicted_margin);
-        marginErrorSum += marginError;
-        marginPredictionCount++;
-      }
-    });
-    
-    // Calculate averages and percentages
-    const avgBrierScore = totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0;
-    const bitsScoreSum = totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0;
-    const tipAccuracy = totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0;
-    const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
-    
-    predictorStats.push({
-      id: predictor.predictor_id,
-      name: predictor.name,
-      display_name: predictor.display_name,
-      tipPoints,
-      totalPredictions,
-      tipAccuracy,
-      brierScore: avgBrierScore,
-      bitsScore: bitsScoreSum,
-      marginMAE: marginMAE,
-      marginPredictionCount: marginPredictionCount
-    });
-  }
-  
-  // Sort predictors by tip accuracy (highest first)
-  predictorStats.sort((a, b) => parseFloat(b.tipAccuracy) - parseFloat(a.tipAccuracy));
+  const predictorStats = buildPredictorStats(predictors, predictorPredictions, {
+    includeInactiveWithoutPredictions: false
+  });
   
   // Format dates for completed matches
   completedMatches.forEach(match => {
@@ -281,13 +339,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   });
   
   // Filter out admin users from leaderboard
-  const filteredPredictorStats = predictorStats.filter(stat => {
-    const predictor = predictors.find(p => p.predictor_id === stat.id);
-    return predictor && !predictor.is_admin;
-  });
-
-  // Sort by Brier score (lower is better)
-  filteredPredictorStats.sort((a, b) => parseFloat(a.brierScore) - parseFloat(b.brierScore));
+  const filteredPredictorStats = filterAndSortPredictorStats(predictorStats, predictors);
 
   // Determine current round (first incomplete round) from the rounds data
   let currentRound = null;
@@ -305,6 +357,7 @@ router.get('/stats', catchAsync(async (req, res) => {
 
   // Calculate round-by-round statistics if a round is selected
   let roundPredictorStats = [];
+  let cumulativePredictorStats = [];
   let completedMatchesForRound = [];
   const roundToShow = selectedRound || defaultRound;
   
@@ -314,80 +367,21 @@ router.get('/stats', catchAsync(async (req, res) => {
     // Get completed matches for the specific round
     completedMatchesForRound = await matchService.getCompletedMatchesForRoundSelection(selectedYear, roundToShow);
     
-    // Calculate round-specific statistics for each predictor
-    for (const predictor of predictors) {
-      // Get predictions for this predictor for the specific round
-      const roundPredictionResults = await predictionService.getPredictionsWithResultsForRoundSelection(
-        predictor.predictor_id,
-        selectedYear,
-        roundToShow
-      );
-      
-      let tipPoints = 0;
-      let totalBrierScore = 0;
-      let totalBitsScore = 0;
-      let totalPredictions = roundPredictionResults.length;
-      let marginErrorSum = 0;
-      let marginPredictionCount = 0;
-      
-      // Calculate metrics for each prediction in this round
-      roundPredictionResults.forEach(pred => {
-        const homeWon = pred.hscore > pred.ascore;
-        const awayWon = pred.hscore < pred.ascore;
-        const tie = pred.hscore === pred.ascore;
-        
-        // Determine outcome (1 if home team won, 0.5 if tie, 0 if away team won)
-        const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
-        
-        // Use scoring service
-        const brierScore = scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
-        totalBrierScore += brierScore;
-        
-        const bitsScore = scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
-        totalBitsScore += bitsScore;
-        
-        // Get tipped team (default to home if not stored)
-        const tippedTeam = pred.tipped_team || 'home';
-        
-        // Calculate tip points
-        const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
-        tipPoints += tipPointsForPred;
-        
-        // Calculate margin error if predicted_margin exists
-        if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
-          const actualMargin = pred.hscore - pred.ascore;
-          const marginError = Math.abs(actualMargin - pred.predicted_margin);
-          marginErrorSum += marginError;
-          marginPredictionCount++;
-        }
-      });
-      
-      // Calculate averages and percentages for round
-      const avgBrierScore = totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0;
-      const bitsScoreSum = totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0;
-      const tipAccuracy = totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0;
-      const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
-      
-      roundPredictorStats.push({
-        id: predictor.predictor_id,
-        name: predictor.name,
-        display_name: predictor.display_name,
-        tipPoints,
-        totalPredictions,
-        tipAccuracy,
-        brierScore: avgBrierScore,
-        bitsScore: bitsScoreSum,
-        marginMAE: marginMAE,
-        marginPredictionCount: marginPredictionCount
-      });
-    }
-    
-    // Filter out admin users from round leaderboard and sort by Brier score
-    roundPredictorStats = roundPredictorStats.filter(stat => {
-      const predictor = predictors.find(p => p.predictor_id === stat.id);
-      return predictor && !predictor.is_admin;
-    });
-    roundPredictorStats.sort((a, b) => parseFloat(a.brierScore) - parseFloat(b.brierScore));
+    const roundSourceRounds = getSourceRoundsForSelection(rounds, roundToShow);
+    const cumulativeSourceRounds = getSourceRoundsThroughSelection(rounds, roundToShow);
+
+    roundPredictorStats = filterAndSortPredictorStats(
+      buildPredictorStats(predictors, predictorPredictions, {
+        sourceRounds: roundSourceRounds
+      }),
+      predictors
+    );
+    cumulativePredictorStats = filterAndSortPredictorStats(
+      buildPredictorStats(predictors, predictorPredictions, {
+        sourceRounds: cumulativeSourceRounds
+      }),
+      predictors
+    );
     
     logger.info(`Round ${roundToShow} statistics calculated for ${roundPredictorStats.length} predictors`);
   }
@@ -429,6 +423,7 @@ router.get('/stats', catchAsync(async (req, res) => {
     currentRound: currentRound,
     defaultRound,
     roundPredictorStats,
+    cumulativePredictorStats,
     completedMatchesForRound
   });
 }));
@@ -447,86 +442,34 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   // Get all predictors, but include admin status and filter out excluded ones
   const allPredictors = await predictorService.getPredictorsWithAdminStatus();
   const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
+  const rounds = roundService.combineRoundsForDisplay(
+    await roundService.getRoundsForYear(selectedYear),
+    selectedYear
+  );
   
   // Get completed matches for the specific round
   const completedMatchesForRound = await matchService.getCompletedMatchesForRoundSelection(selectedYear, roundNumber);
   
-  // Calculate round-specific statistics for each predictor
-  const roundPredictorStats = [];
-  
-  for (const predictor of predictors) {
-    // Get predictions for this predictor for the specific round
-    const roundPredictionResults = await predictionService.getPredictionsWithResultsForRoundSelection(
+  const predictorPredictions = new Map(await Promise.all(
+    predictors.map(async predictor => ([
       predictor.predictor_id,
-      selectedYear,
-      roundNumber
-    );
-    
-    let tipPoints = 0;
-    let totalBrierScore = 0;
-    let totalBitsScore = 0;
-    let totalPredictions = roundPredictionResults.length;
-    let marginErrorSum = 0;
-    let marginPredictionCount = 0;
-    
-    // Calculate metrics for each prediction in this round
-    roundPredictionResults.forEach(pred => {
-      const homeWon = pred.hscore > pred.ascore;
-      const awayWon = pred.hscore < pred.ascore;
-      const tie = pred.hscore === pred.ascore;
-      
-      // Determine outcome (1 if home team won, 0.5 if tie, 0 if away team won)
-      const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
-      
-      // Use scoring service
-      const brierScore = scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
-      totalBrierScore += brierScore;
-      
-      const bitsScore = scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
-      totalBitsScore += bitsScore;
-      
-      // Get tipped team (default to home if not stored)
-      const tippedTeam = pred.tipped_team || 'home';
-      
-      // Calculate tip points
-      const tipPointsForPred = scoringService.calculateTipPoints(pred.home_win_probability, pred.hscore, pred.ascore, tippedTeam);
-      tipPoints += tipPointsForPred;
-      
-      // Calculate margin error if predicted_margin exists
-      if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
-        const actualMargin = pred.hscore - pred.ascore;
-        const marginError = Math.abs(actualMargin - pred.predicted_margin);
-        marginErrorSum += marginError;
-        marginPredictionCount++;
-      }
-    });
-    
-    // Calculate averages and percentages for round
-    const avgBrierScore = totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0;
-    const bitsScoreSum = totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0;
-    const tipAccuracy = totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0;
-    const marginMAE = marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null;
-    
-    roundPredictorStats.push({
-      id: predictor.predictor_id,
-      name: predictor.name,
-      display_name: predictor.display_name,
-      tipPoints,
-      totalPredictions,
-      tipAccuracy,
-      brierScore: avgBrierScore,
-      bitsScore: bitsScoreSum,
-      marginMAE: marginMAE,
-      marginPredictionCount: marginPredictionCount
-    });
-  }
-  
-  // Filter out admin users from round leaderboard and sort by Brier score
-  const filteredRoundPredictorStats = roundPredictorStats.filter(stat => {
-    const predictor = predictors.find(p => p.predictor_id === stat.id);
-    return predictor && !predictor.is_admin;
-  });
-  filteredRoundPredictorStats.sort((a, b) => parseFloat(a.brierScore) - parseFloat(b.brierScore));
+      await predictionService.getPredictionsWithResultsForYear(predictor.predictor_id, selectedYear)
+    ]))
+  ));
+  const roundSourceRounds = getSourceRoundsForSelection(rounds, roundNumber);
+  const cumulativeSourceRounds = getSourceRoundsThroughSelection(rounds, roundNumber);
+  const filteredRoundPredictorStats = filterAndSortPredictorStats(
+    buildPredictorStats(predictors, predictorPredictions, {
+      sourceRounds: roundSourceRounds
+    }),
+    predictors
+  );
+  const cumulativePredictorStats = filterAndSortPredictorStats(
+    buildPredictorStats(predictors, predictorPredictions, {
+      sourceRounds: cumulativeSourceRounds
+    }),
+    predictors
+  );
   
   const processingTime = Date.now() - startTime;
   logger.info(`Round ${roundNumber} stats generated in ${processingTime}ms`, {
@@ -540,6 +483,7 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   res.json({
     success: true,
     roundPredictorStats: filteredRoundPredictorStats,
+    cumulativePredictorStats,
     completedMatchesForRound,
     selectedRound: roundNumber,
     selectedYear: selectedYear,

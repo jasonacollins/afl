@@ -24,6 +24,7 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - **Live Match Updates**: Automatic synchronisation with AFL match results
 - **User Leaderboards**: Competitive element to compare prediction performance
 - **Multi-Season Support**: Historical tracking of predictions across multiple years
+- **Round-Based Rankings**: The statistics page shows season leaderboard, selected-round performance, and cumulative standings through the selected round
 - **Interactive ELO Chart**: Visualize team strength over time with multi-team highlighting
 - **Dedicated ELO Model Page**: ELO chart and filters are available on `/elo`
 - **Dedicated Simulation Page**: Monte Carlo season outcomes are available on `/simulation`
@@ -40,6 +41,8 @@ The app synchronises with the Squiggle API to automatically retrieve match fixtu
 - `/` - Predictions homepage (featured model performance + round prediction table)
 - `/elo` - ELO team ratings chart and historical filters
 - `/simulation` - Season simulation outputs and ladder probability matrices
+- `/predictions` - Predictor picks by season and round
+- `/matches/stats` - Predictor statistics with season, round, and cumulative standings
 - `/admin` - Predictor management (featured predictor, add predictor, current predictors)
 - `/admin/user-predictions` - Admin editing for user predictions
 - `/admin/scripts` - Admin-only scripts runner for operational and training workflows

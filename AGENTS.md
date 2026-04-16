@@ -75,6 +75,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 - `/` is the predictions homepage (featured predictor performance and round predictions)
 - `/elo` is the dedicated ELO chart page
 - `/simulation` is the dedicated season simulation page
+- `/matches/stats` presents season leaderboard, selected-round results, and cumulative standings through the selected round
 - Primary nav labels are `Model predictions` (`/`), `ELO` (`/elo`), and `Simulation` (`/simulation`)
 - Logged-in users see `Predictor page` (`/predictions`) in nav; admins additionally see `Admin panel` (`/admin`)
 - On narrow viewports the primary nav collapses behind a toggle button and expands as a vertical menu

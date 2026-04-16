@@ -132,13 +132,21 @@ function loadRoundStats(roundNumber) {
   const roundContainer = document.getElementById('round-stats-container');
   const roundContent = document.getElementById('round-stats-content');
   const roundDisplay = document.getElementById('round-display');
+  const cumulativeContent = document.getElementById('cumulative-stats-content');
+  const cumulativeDisplay = document.getElementById('cumulative-display');
 
   // Show container and update round display
   roundContainer.classList.remove('is-hidden');
   roundDisplay.textContent = formatRoundDisplay(roundNumber);
+  if (cumulativeDisplay) {
+    cumulativeDisplay.textContent = formatRoundDisplay(roundNumber);
+  }
 
   // Show loading
   roundContent.innerHTML = '<div class="loading">Loading round statistics...</div>';
+  if (cumulativeContent) {
+    cumulativeContent.innerHTML = '<div class="loading">Loading cumulative statistics...</div>';
+  }
 
   // Fetch round data
   fetch(`/matches/stats/round/${encodeURIComponent(roundNumber)}?year=${currentSelectedYear}`)
@@ -148,21 +156,27 @@ function loadRoundStats(roundNumber) {
         updateRoundStatsTable(data);
       } else {
         roundContent.innerHTML = '<div class="no-stats"><p>Error loading round statistics.</p></div>';
+        if (cumulativeContent) {
+          cumulativeContent.innerHTML = '<div class="no-stats"><p>Error loading cumulative statistics.</p></div>';
+        }
       }
     })
     .catch(error => {
       console.error('Error loading round stats:', error);
       roundContent.innerHTML = '<div class="no-stats"><p>Error loading round statistics.</p></div>';
+      if (cumulativeContent) {
+        cumulativeContent.innerHTML = '<div class="no-stats"><p>Error loading cumulative statistics.</p></div>';
+      }
     });
 }
 
-function updateRoundStatsTable(data) {
-  const roundContent = document.getElementById('round-stats-content');
+function renderStatsTable(stats, options = {}) {
+  const {
+    emptyMessage = 'No prediction results available.'
+  } = options;
 
-  if (!data.roundPredictorStats || data.roundPredictorStats.length === 0 ||
-      data.roundPredictorStats.every(stat => stat.totalPredictions === 0)) {
-    roundContent.innerHTML = '<div class="no-stats"><p>No prediction results available for this round.</p></div>';
-    return;
+  if (!stats || stats.length === 0 || stats.every(stat => stat.totalPredictions === 0)) {
+    return `<div class="no-stats"><p>${emptyMessage}</p></div>`;
   }
 
   let tableHTML = `
@@ -182,19 +196,19 @@ function updateRoundStatsTable(data) {
       <tbody>`;
 
   let rank = 1;
-  data.roundPredictorStats.forEach(stats => {
-    if (stats.totalPredictions > 0) {
-      const isCurrentUser = stats.id === currentUserId;
+  stats.forEach(entry => {
+    if (entry.totalPredictions > 0) {
+      const isCurrentUser = entry.id === currentUserId;
       tableHTML += `
         <tr class="${isCurrentUser ? 'current-user' : ''}">
           <td data-label="Rank">${rank++}</td>
-          <td class="stack-primary" data-label="Name">${stats.display_name} ${isCurrentUser ? '(You)' : ''}</td>
-          <td data-label="Brier Score">${stats.brierScore}</td>
-          <td data-label="Bits Score">${stats.bitsScore}</td>
-          <td data-label="Correct Tips">${stats.tipPoints}</td>
-          <td data-label="Total Tips">${stats.totalPredictions}</td>
-          <td data-label="Tip Accuracy">${stats.tipAccuracy}%</td>
-          <td data-label="Margin MAE">${stats.marginMAE !== null ? stats.marginMAE : '-'}</td>
+          <td class="stack-primary" data-label="Name">${entry.display_name} ${isCurrentUser ? '(You)' : ''}</td>
+          <td data-label="Brier Score">${entry.brierScore}</td>
+          <td data-label="Bits Score">${entry.bitsScore}</td>
+          <td data-label="Correct Tips">${entry.tipPoints}</td>
+          <td data-label="Total Tips">${entry.totalPredictions}</td>
+          <td data-label="Tip Accuracy">${entry.tipAccuracy}%</td>
+          <td data-label="Margin MAE">${entry.marginMAE !== null ? entry.marginMAE : '-'}</td>
         </tr>`;
     }
   });
@@ -203,7 +217,21 @@ function updateRoundStatsTable(data) {
       </tbody>
     </table>`;
 
-  roundContent.innerHTML = tableHTML;
+  return tableHTML;
+}
+
+function updateRoundStatsTable(data) {
+  const roundContent = document.getElementById('round-stats-content');
+  const cumulativeContent = document.getElementById('cumulative-stats-content');
+
+  roundContent.innerHTML = renderStatsTable(data.roundPredictorStats, {
+    emptyMessage: 'No prediction results available for this round.'
+  });
+  if (cumulativeContent) {
+    cumulativeContent.innerHTML = renderStatsTable(data.cumulativePredictorStats, {
+      emptyMessage: 'No cumulative prediction results available through this round.'
+    });
+  }
 
   // Server handles exclusions, no need to apply client-side
 }

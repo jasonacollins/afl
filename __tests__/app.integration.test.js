@@ -747,12 +747,12 @@ describe('app integration security stack', () => {
       expect(hasInlineScriptTag(response.text)).toBe(false);
     }
 
-    expect(adminResponse.text).toContain('Admin Dashboard');
+    expect(adminResponse.text).toContain('Predictor Management');
     expect(adminResponse.text).toContain('Featured Predictor');
     expect(adminResponse.text).toContain('Dad&#39;s AI');
     expect(adminResponse.text).toContain('/js/admin.js');
 
-    expect(scriptsResponse.text).toContain('Admin Scripts');
+    expect(scriptsResponse.text).toContain('Scripts');
     expect(scriptsResponse.text).toContain('Run Sync Games');
     expect(scriptsResponse.text).toContain('Run Predictions');
     expect(scriptsResponse.text).toContain('/js/admin-scripts.js');
@@ -851,7 +851,7 @@ describe('app integration route stack', () => {
     const response = await agent.get('/predictions?year=2026&round=2');
 
     expect(response.status).toBe(200);
-    expect(response.text).toContain('AFL Match Predictions');
+    expect(response.text).toContain('Make Predictions');
     expect(response.text).toContain('Select Round');
     expect(response.text).toContain('Swans');
     expect(response.text).toContain('Lions');
@@ -909,10 +909,11 @@ describe('app integration route stack', () => {
     const response = await agent.get('/matches/stats?year=2026&round=1');
 
     expect(response.status).toBe(200);
-    expect(response.text).toContain('AFL Prediction Statistics');
+    expect(response.text).toContain('View Statistics');
     expect(response.text).toContain('Predictor Leaderboard - 2026 Season');
     expect(response.text).toContain('Member (You)');
     expect(response.text).toContain('Round Performance - 2026');
+    expect(response.text).toContain('Cumulative Performance - 2026 Through');
   });
 
   test('public homepage renders DB-backed featured predictor data and homepage controls', async () => {

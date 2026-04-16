@@ -27,6 +27,8 @@ describe('public/js/stats.js', () => {
       <div id="round-stats-container" class="is-hidden"></div>
       <div id="round-display"></div>
       <div id="round-stats-content"></div>
+      <div id="cumulative-display"></div>
+      <div id="cumulative-stats-content"></div>
     `, { url: 'https://example.test/matches/stats?year=2026' });
     restoreDomGlobals = installDomGlobals(dom);
 
@@ -127,6 +129,18 @@ describe('public/js/stats.js', () => {
                 tipAccuracy: '83.3',
                 marginMAE: '11.2'
               }
+            ],
+            cumulativePredictorStats: [
+              {
+                id: 7,
+                display_name: 'Dad\'s AI',
+                brierScore: '0.1400',
+                bitsScore: '1.2000',
+                tipPoints: 12,
+                totalPredictions: 15,
+                tipAccuracy: '80.0',
+                marginMAE: '10.5'
+              }
             ]
           })
         });
@@ -144,8 +158,10 @@ describe('public/js/stats.js', () => {
 
     expect(document.getElementById('round-stats-container').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('round-display').textContent).toBe('Round 1');
+    expect(document.getElementById('cumulative-display').textContent).toBe('Round 1');
     expect(document.getElementById('round-stats-content').textContent).toContain("Dad's AI");
     expect(document.getElementById('round-stats-content').textContent).toContain('(You)');
+    expect(document.getElementById('cumulative-stats-content').textContent).toContain("Dad's AI");
   });
 
   test('shows opening round label and empty-state message when no round results are available', async () => {
@@ -161,6 +177,9 @@ describe('public/js/stats.js', () => {
           json: async () => ({
             success: true,
             roundPredictorStats: [
+              { id: 7, totalPredictions: 0 }
+            ],
+            cumulativePredictorStats: [
               { id: 7, totalPredictions: 0 }
             ]
           })
@@ -178,8 +197,12 @@ describe('public/js/stats.js', () => {
     await flushPromises();
 
     expect(document.getElementById('round-display').textContent).toBe('Opening Round');
+    expect(document.getElementById('cumulative-display').textContent).toBe('Opening Round');
     expect(document.getElementById('round-stats-content').textContent).toContain(
       'No prediction results available for this round.'
+    );
+    expect(document.getElementById('cumulative-stats-content').textContent).toContain(
+      'No cumulative prediction results available through this round.'
     );
   });
 
@@ -251,6 +274,9 @@ describe('public/js/stats.js', () => {
 
     expect(document.getElementById('round-stats-content').textContent).toContain(
       'Error loading round statistics.'
+    );
+    expect(document.getElementById('cumulative-stats-content').textContent).toContain(
+      'Error loading cumulative statistics.'
     );
     expect(consoleErrorSpy).toHaveBeenCalled();
   });

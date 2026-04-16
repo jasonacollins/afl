@@ -152,7 +152,7 @@ async function getPredictionsWithResultsForYear(predictorId, year) {
     logger.debug(`Fetching predictions with results for predictor ${predictorId}, year ${year}`);
     
     const predictions = await getQuery(`
-      SELECT p.*, m.hscore, m.ascore
+      SELECT p.*, m.hscore, m.ascore, m.round_number
       FROM predictions p
       JOIN matches m ON p.match_id = m.match_id
       WHERE p.predictor_id = ?
@@ -179,7 +179,7 @@ async function getPredictionsWithResultsForRound(predictorId, year, round) {
     logger.debug(`Fetching predictions with results for predictor ${predictorId}, year ${year}, round ${round}`);
     
     const predictions = await getQuery(`
-      SELECT p.*, m.hscore, m.ascore
+      SELECT p.*, m.hscore, m.ascore, m.round_number
       FROM predictions p
       JOIN matches m ON p.match_id = m.match_id
       WHERE p.predictor_id = ?
@@ -226,7 +226,7 @@ async function getPredictionsWithResultsForRoundSelection(predictorId, year, rou
     const placeholders = sourceRounds.map(() => '?').join(', ');
     const predictions = await getQuery(
       `
-      SELECT p.*, m.hscore, m.ascore
+      SELECT p.*, m.hscore, m.ascore, m.round_number
       FROM predictions p
       JOIN matches m ON p.match_id = m.match_id
       WHERE p.predictor_id = ?

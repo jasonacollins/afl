@@ -123,7 +123,7 @@
     
     <div
       id="round-stats-container"
-      class="<%= selectedRound && roundPredictorStats && roundPredictorStats.length > 0 ? '' : 'is-hidden' %>"
+      class="<%= selectedRound && ((roundPredictorStats && roundPredictorStats.length > 0) || (cumulativePredictorStats && cumulativePredictorStats.length > 0)) ? '' : 'is-hidden' %>"
     >
       <div class="stats-card round-leaderboard">
         <h2 class="stats-heading" id="round-stats-heading">
@@ -163,6 +163,63 @@
                   %>
                     <tr class="<%= stats.id === currentUser.id ? 'current-user' : '' %>">
                       <td data-label="Rank"><%= roundRank++ %></td>
+                      <td class="stack-primary" data-label="Name"><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
+                      <td data-label="Brier Score"><%= stats.brierScore %></td>
+                      <td data-label="Bits Score"><%= stats.bitsScore %></td>
+                      <td data-label="Correct Tips"><%= stats.tipPoints %></td>
+                      <td data-label="Total Tips"><%= stats.totalPredictions %></td>
+                      <td data-label="Tip Accuracy"><%= stats.tipAccuracy %>%</td>
+                      <td data-label="Margin MAE"><%= stats.marginMAE !== null ? stats.marginMAE : '-' %></td>
+                    </tr>
+                  <% 
+                      }
+                    });
+                  %>
+                </tbody>
+              </table>
+            <% } %>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="stats-card round-leaderboard cumulative-leaderboard">
+        <h2 class="stats-heading" id="cumulative-stats-heading">
+          Cumulative Performance - <%= selectedYear %> Through
+          <span id="cumulative-display">
+            <%= selectedRound === 'OR' ? 'Opening Round' : 
+                isNaN(selectedRound) ? selectedRound : 
+                'Round ' + selectedRound %>
+          </span>
+        </h2>
+
+        <div id="cumulative-stats-content" class="table-scroll">
+          <% if (selectedRound && cumulativePredictorStats && cumulativePredictorStats.length > 0) { %>
+            <% if (cumulativePredictorStats.every(stat => stat.totalPredictions === 0)) { %>
+              <div class="no-stats">
+                <p>No cumulative prediction results available through this round.</p>
+              </div>
+            <% } else { %>
+              <table class="stats-table stack-mobile">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Name</th>
+                    <th>Brier Score</th>
+                    <th>Bits Score</th>
+                    <th>Correct Tips</th>
+                    <th>Total Tips</th>
+                    <th>Tip Accuracy</th>
+                    <th>Margin MAE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% 
+                    let cumulativeRank = 1;
+                    cumulativePredictorStats.forEach(stats => {
+                      if (stats.totalPredictions > 0) {
+                  %>
+                    <tr class="<%= stats.id === currentUser.id ? 'current-user' : '' %>">
+                      <td data-label="Rank"><%= cumulativeRank++ %></td>
                       <td class="stack-primary" data-label="Name"><%= stats.display_name %> <%= stats.id === currentUser.id ? '(You)' : '' %></td>
                       <td data-label="Brier Score"><%= stats.brierScore %></td>
                       <td data-label="Bits Score"><%= stats.bitsScore %></td>

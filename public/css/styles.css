@@ -2289,6 +2289,10 @@ main {
   margin-top: 0;
 }
 
+.stats-page .cumulative-leaderboard {
+  margin-top: 1rem;
+}
+
 .stats-page .loading {
   text-align: center;
   padding: 2rem;

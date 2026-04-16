@@ -25,7 +25,8 @@ jest.mock('../../services/round-service', () => ({
   resolveYear: jest.fn(),
   getRoundsForYear: jest.fn(),
   normalizeRoundForDisplay: jest.fn((round) => round),
-  combineRoundsForDisplay: jest.fn((rounds) => rounds)
+  combineRoundsForDisplay: jest.fn((rounds) => rounds),
+  expandRoundSelection: jest.fn((round) => [round])
 }));
 
 jest.mock('../../services/match-service', () => ({
@@ -196,6 +197,7 @@ describe('matches routes', () => {
             home_win_probability: 65,
             hscore: 100,
             ascore: 80,
+            round_number: '1',
             tipped_team: 'home',
             predicted_margin: 15
           }
@@ -210,6 +212,7 @@ describe('matches routes', () => {
             home_win_probability: 55,
             hscore: 100,
             ascore: 80,
+            round_number: '1',
             tipped_team: 'home',
             predicted_margin: null
           }
@@ -275,10 +278,32 @@ describe('matches routes', () => {
         marginMAE: '5.00'
       })
     ]);
+    expect(response.body.locals.cumulativePredictorStats).toEqual([
+      expect.objectContaining({
+        id: 3,
+        display_name: 'Inactive',
+        totalPredictions: 0,
+        marginMAE: null
+      }),
+      expect.objectContaining({
+        id: 1,
+        display_name: 'Dad',
+        totalPredictions: 1,
+        marginMAE: '5.00'
+      })
+    ]);
   });
 
-  test('GET /stats/round/:round returns round stats for non-excluded non-admin predictors', async () => {
+  test('GET /stats/round/:round returns round and cumulative stats for non-excluded non-admin predictors', async () => {
     roundService.normalizeRoundForDisplay.mockReturnValue('Finals Week 2');
+    roundService.expandRoundSelection.mockReturnValue(['Elimination Final', 'Qualifying Final']);
+    roundService.getRoundsForYear.mockResolvedValue([
+      { round_number: '1' },
+      {
+        round_number: 'Finals Week 2',
+        source_round_numbers: ['Elimination Final', 'Qualifying Final']
+      }
+    ]);
     predictorService.getPredictorsWithAdminStatus.mockResolvedValue([
       {
         predictor_id: 1,
@@ -300,13 +325,22 @@ describe('matches routes', () => {
     matchService.getCompletedMatchesForRoundSelection.mockResolvedValue([
       { match_id: 22, hscore: 90, ascore: 70 }
     ]);
-    predictionService.getPredictionsWithResultsForRoundSelection.mockImplementation(async (predictorId) => {
+    predictionService.getPredictionsWithResultsForYear.mockImplementation(async (predictorId) => {
       if (predictorId === 1) {
         return [
+          {
+            home_win_probability: 55,
+            hscore: 85,
+            ascore: 70,
+            round_number: '1',
+            tipped_team: 'home',
+            predicted_margin: 10
+          },
           {
             home_win_probability: 60,
             hscore: 90,
             ascore: 70,
+            round_number: 'Elimination Final',
             tipped_team: 'home',
             predicted_margin: 12
           }
@@ -317,6 +351,7 @@ describe('matches routes', () => {
           home_win_probability: 40,
           hscore: 90,
           ascore: 70,
+          round_number: 'Qualifying Final',
           tipped_team: 'away',
           predicted_margin: null
         }
@@ -344,6 +379,20 @@ describe('matches routes', () => {
           bitsScore: '0.2000',
           marginMAE: '8.00',
           marginPredictionCount: 1
+        }
+      ],
+      cumulativePredictorStats: [
+        {
+          id: 1,
+          name: 'dad',
+          display_name: 'Dad',
+          tipPoints: 2,
+          totalPredictions: 2,
+          tipAccuracy: '100.0',
+          brierScore: '0.1000',
+          bitsScore: '0.4000',
+          marginMAE: '6.50',
+          marginPredictionCount: 2
         }
       ],
       completedMatchesForRound: [{ match_id: 22, hscore: 90, ascore: 70 }],
