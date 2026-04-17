@@ -108,7 +108,15 @@ function fetchMatchesForRound(round) {
   fetchJsonNoStore(`/predictions/round/${encodeURIComponent(round)}?year=${year}`)
     .then(matches => {
       currentMatchesData = matches; // Store fetched matches
-      renderMatches(matches);
+      try {
+        renderMatches(matches);
+      } catch (error) {
+        console.error('Error rendering matches:', error);
+        if (matchesContainer) {
+          matchesContainer.innerHTML = '<div class="error">Failed to render matches</div>';
+        }
+        return;
+      }
       // Call our new function to update round button states
       updateRoundButtonStates();
     })
@@ -133,115 +141,124 @@ function renderMatches(matches) {
   let html = '';
   
   matches.forEach(match => {
-    const isLocked = match.isLocked;
-    const hasResult = match.hscore !== null && match.ascore !== null;
-    
-    let prediction = '';
-    let tippedTeam = 'home'; // Default for 50%
+    try {
+      const isLocked = match.isLocked;
+      const hasResult = match.hscore !== null && match.ascore !== null;
 
-    const storedPrediction = getStoredPrediction(match.match_id);
-    if (storedPrediction) {
-      prediction = storedPrediction.probability;
-      tippedTeam = storedPrediction.tippedTeam;
-    }
-    
-    const awayPrediction = prediction !== '' && !isNaN(parseInt(prediction)) ? (100 - parseInt(prediction)) : '';
-    const hasPrediction = prediction !== '';
-    
-    const buttonClass = hasPrediction ? 'save-prediction saved-state' : 'save-prediction';
-    const buttonText = hasPrediction ? 'Saved' : 'Save Prediction';
-    
-    // Add data-abbrev to team divs for easier access in JS if needed
-    const homeTeamName = (match.home_team === 'Greater Western Sydney' && match.home_team_abbrev) ? match.home_team_abbrev : match.home_team;
-    const awayTeamName = (match.away_team === 'Greater Western Sydney' && match.away_team_abbrev) ? match.away_team_abbrev : match.away_team;
+      let prediction = '';
+      let tippedTeam = 'home'; // Default for 50%
 
-    html += `
-      <div class="match-card ${hasResult ? 'has-result' : ''} ${isLocked ? 'locked' : ''}">
-        <div class="match-header">
-          <span class="match-date" data-original-date="${match.match_date}">${formatDateToLocalTimezone(match.match_date)}</span>
-          <span class="match-venue">${match.venue}</span>
-          ${isLocked ? '<span class="match-locked">LOCKED</span>' : ''}
-        </div>
-        
-        <div class="match-teams">
-          <div class="home-team" data-abbrev="${match.home_team_abbrev || ''}">${homeTeamName}</div>
-          <div class="vs">vs</div>
-          <div class="away-team" data-abbrev="${match.away_team_abbrev || ''}">${awayTeamName}</div>
-        </div>
-        
-        ${hasResult ? `
-          <div class="match-result">
-            <span class="score">${match.hscore} - ${match.ascore}</span>
+      const storedPrediction = getStoredPrediction(match.match_id);
+      if (storedPrediction) {
+        prediction = storedPrediction.probability;
+        tippedTeam = storedPrediction.tippedTeam;
+      }
+
+      const awayPrediction = prediction !== '' && !isNaN(parseInt(prediction)) ? (100 - parseInt(prediction)) : '';
+      const hasPrediction = prediction !== '';
+
+      const buttonClass = hasPrediction ? 'save-prediction saved-state' : 'save-prediction';
+      const buttonText = hasPrediction ? 'Saved' : 'Save Prediction';
+
+      // Add data-abbrev to team divs for easier access in JS if needed
+      const homeTeamName = (match.home_team === 'Greater Western Sydney' && match.home_team_abbrev) ? match.home_team_abbrev : match.home_team;
+      const awayTeamName = (match.away_team === 'Greater Western Sydney' && match.away_team_abbrev) ? match.away_team_abbrev : match.away_team;
+
+      html += `
+        <div class="match-card ${hasResult ? 'has-result' : ''} ${isLocked ? 'locked' : ''}">
+          <div class="match-header">
+            <span class="match-date" data-original-date="${match.match_date}">${formatDateToLocalTimezone(match.match_date)}</span>
+            <span class="match-venue">${match.venue}</span>
+            ${isLocked ? '<span class="match-locked">LOCKED</span>' : ''}
           </div>
-        ` : ''}
-        
-        ${(!isLocked || canOverridePredictionLocks()) ? `
-          <div class="prediction-controls">
-            <div class="prediction-inputs">
-              <div class="team-prediction">
-                <div class="input-with-symbol">
-                  <input type="number" 
-                         class="prediction-input home-prediction" 
-                         data-match-id="${match.match_id}" 
-                         data-original-value="${prediction}" /* Crucial for auto-save and button logic */
-                         min="0" max="100" 
-                         value="${prediction}">
-                  <span class="input-symbol">%</span>
-                </div>
-              </div>
-              
-              <div class="team-prediction">
-                <div class="input-with-symbol">
-                  <input type="number" 
-                         class="prediction-input away-prediction" 
-                         data-match-id="${match.match_id}" 
-                         min="0" max="100" 
-                         value="${awayPrediction}"
-                         readonly
-                         tabindex="-1">
-                  <span class="input-symbol">%</span>
-                </div>
-              </div>
+
+          <div class="match-teams">
+            <div class="home-team" data-abbrev="${match.home_team_abbrev || ''}">${homeTeamName}</div>
+            <div class="vs">vs</div>
+            <div class="away-team" data-abbrev="${match.away_team_abbrev || ''}">${awayTeamName}</div>
+          </div>
+
+          ${hasResult ? `
+            <div class="match-result">
+              <span class="score">${match.hscore} - ${match.ascore}</span>
             </div>
-            
-            ${parseInt(prediction) === 50 && hasPrediction ? `
-              <div id="team-selection-${match.match_id}" class="team-selection">
-                <p>Who do you think will win?</p>
-                <div class="team-buttons">
-                  <button type="button" class="team-button home-team-button ${tippedTeam === 'home' ? 'selected' : ''}" data-team="home">${homeTeamName}</button>
-                  <button type="button" class="team-button away-team-button ${tippedTeam === 'away' ? 'selected' : ''}" data-team="away">${awayTeamName}</button>
+          ` : ''}
+
+          ${(!isLocked || canOverridePredictionLocks()) ? `
+            <div class="prediction-controls">
+              <div class="prediction-inputs">
+                <div class="team-prediction">
+                  <div class="input-with-symbol">
+                    <input type="number" 
+                           class="prediction-input home-prediction" 
+                           data-match-id="${match.match_id}" 
+                           data-original-value="${prediction}" /* Crucial for auto-save and button logic */
+                           min="0" max="100" 
+                           value="${prediction}">
+                    <span class="input-symbol">%</span>
+                  </div>
+                </div>
+
+                <div class="team-prediction">
+                  <div class="input-with-symbol">
+                    <input type="number" 
+                           class="prediction-input away-prediction" 
+                           data-match-id="${match.match_id}" 
+                           min="0" max="100" 
+                           value="${awayPrediction}"
+                           readonly
+                           tabindex="-1">
+                    <span class="input-symbol">%</span>
+                  </div>
                 </div>
               </div>
-            ` : ''}
-            
-            <button class="${buttonClass}" 
-                    data-match-id="${match.match_id}"
-                    data-tipped-team="${(parseInt(prediction) === 50 && hasPrediction) ? tippedTeam : ''}">
-              ${buttonText}
-            </button>
-            ${(window.isAdmin && hasResult && hasPrediction) ? `
-              <div class="admin-metrics-display">
-                ${calculateAccuracy(match, parseInt(prediction), tippedTeam)}
-              </div>
-            ` : ''}
-          </div>
-        ` : isLocked ? `
-          <div class="prediction-locked">
-            ${hasPrediction ? `
-              <p>Your prediction: ${prediction}% for ${homeTeamName}</p>
-              ${parseInt(prediction) === 50 ? `
-                <p>Tipped: ${tippedTeam === 'home' ? homeTeamName : awayTeamName} to win</p>
+
+              ${parseInt(prediction) === 50 && hasPrediction ? `
+                <div id="team-selection-${match.match_id}" class="team-selection">
+                  <p>Who do you think will win?</p>
+                  <div class="team-buttons">
+                    <button type="button" class="team-button home-team-button ${tippedTeam === 'home' ? 'selected' : ''}" data-team="home">${homeTeamName}</button>
+                    <button type="button" class="team-button away-team-button ${tippedTeam === 'away' ? 'selected' : ''}" data-team="away">${awayTeamName}</button>
+                  </div>
+                </div>
               ` : ''}
-            ` : `
-              <p>No prediction made</p>
-            `}
-            ${!hasResult ? `<p class="locked-message">Match has started - predictions locked</p>` : ''}
-            ${hasResult && hasPrediction ? calculateAccuracy(match, parseInt(prediction), tippedTeam) : ''}
-          </div>
-        ` : ''}
-      </div>
-    `;
+
+              <button class="${buttonClass}" 
+                      data-match-id="${match.match_id}"
+                      data-tipped-team="${(parseInt(prediction) === 50 && hasPrediction) ? tippedTeam : ''}">
+                ${buttonText}
+              </button>
+              ${(window.isAdmin && hasResult && hasPrediction) ? `
+                <div class="admin-metrics-display">
+                  ${calculateAccuracy(match, parseInt(prediction), tippedTeam)}
+                </div>
+              ` : ''}
+            </div>
+          ` : isLocked ? `
+            <div class="prediction-locked">
+              ${hasPrediction ? `
+                <p>Your prediction: ${prediction}% for ${homeTeamName}</p>
+                ${parseInt(prediction) === 50 ? `
+                  <p>Tipped: ${tippedTeam === 'home' ? homeTeamName : awayTeamName} to win</p>
+                ` : ''}
+              ` : `
+                <p>No prediction made</p>
+              `}
+              ${!hasResult ? `<p class="locked-message">Match has started - predictions locked</p>` : ''}
+              ${hasResult && hasPrediction ? calculateAccuracy(match, parseInt(prediction), tippedTeam) : ''}
+            </div>
+          ` : ''}
+        </div>
+      `;
+    } catch (error) {
+      console.error('Error rendering match card:', match?.match_id, error);
+    }
   });
+
+  if (!html) {
+    matchesContainer.innerHTML = '<div class="error">No renderable matches available for this round</div>';
+    return;
+  }
   
   matchesContainer.innerHTML = html;
   
@@ -713,8 +730,10 @@ function selectUser(userId, userName) {
         window.userPredictions = data.predictions;
         // If matches are already displayed, refresh the UI
         if (document.querySelector('.match-card')) {
-          const currentRound = document.querySelector('.round-button.selected').dataset.round;
-          fetchMatchesForRound(currentRound);
+          const selectedRoundButton = document.querySelector('.round-button.selected');
+          if (selectedRoundButton) {
+            fetchMatchesForRound(selectedRoundButton.dataset.round);
+          }
         }
       })
       .catch(error => {

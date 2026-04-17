@@ -708,6 +708,47 @@ describe('public/js/main.js', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
+  test('fetchMatchesForRound skips malformed cards and shows a fallback when none are renderable', async () => {
+    global.fetch = jest.fn((url) => {
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ([
+            {
+              match_id: 22,
+              match_date: '2026-04-10T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: 90,
+              ascore: 80,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ([])
+      });
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+    window.isAdmin = true;
+    global.calculateBrierScore.mockImplementation(() => {
+      throw new Error('render blew up');
+    });
+
+    window.fetchMatchesForRound('2');
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('matches-container').textContent).toContain('No renderable matches available for this round');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error rendering match card:', 22, expect.any(Error));
+  });
+
   test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     global.fetch = jest.fn().mockResolvedValue({
@@ -857,6 +898,39 @@ describe('public/js/main.js', () => {
     expect(errorSpy).toHaveBeenCalledWith('Error fetching user predictions:', expect.any(Error));
 
     errorSpy.mockRestore();
+  });
+
+  test('selectUser skips round reload when matches are visible but no round is selected', async () => {
+    global.fetch = jest.fn((url) => {
+      if (url === '/admin/predictions/9') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            predictions: {
+              55: { probability: 72, tippedTeam: 'home' }
+            }
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    window.fetch = global.fetch;
+    window.location.pathname = '/admin';
+
+    loadBrowserScript('main.js');
+    document.getElementById('matches-container').innerHTML = '<div class="match-card"></div>';
+
+    window.selectUser('9', 'Analyst');
+    await flushPromises();
+
+    expect(document.getElementById('selected-user').textContent).toBe('Analyst');
+    expect(document.getElementById('selected-user-id').value).toBe('9');
+    expect(window.userPredictions).toEqual({
+      55: { probability: 72, tippedTeam: 'home' }
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
   });
 
   test('formatDateToLocalTimezone falls back to the original string for invalid dates', () => {
