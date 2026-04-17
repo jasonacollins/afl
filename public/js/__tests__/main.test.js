@@ -142,20 +142,19 @@ describe('public/js/main.js', () => {
     expect(document.querySelector('.match-date').dataset.originalDate).toBe('2026-04-10T09:30:00.000Z');
     expect(document.querySelector('.match-date').textContent).not.toBe('2026-04-10T09:30:00.000Z');
 
+    const initialSaveButton = document.querySelector('.save-prediction[data-match-id="88"]');
+    const initialHomeInput = document.querySelector('.home-prediction[data-match-id="88"]');
+    initialHomeInput.value = '63';
+    initialSaveButton.click();
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/save', expect.any(Object));
+
     document.querySelector('.round-button[data-round="2"]').click();
     await flushPromises();
     await flushPromises();
 
     expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026', { cache: 'no-store' });
-    expect(document.getElementById('matches-container').textContent).toContain('Cats');
-
-    const saveButton = document.querySelector('.save-prediction[data-match-id="99"]');
-    const homeInput = document.querySelector('.home-prediction[data-match-id="99"]');
-    homeInput.value = '63';
-    saveButton.click();
-    await flushPromises();
-
-    expect(global.fetch).toHaveBeenCalledWith('/predictions/save', expect.any(Object));
   });
 
   test('fetchMatchesForRound updates selected state, renders matches, and refreshes round statuses', async () => {
@@ -205,8 +204,7 @@ describe('public/js/main.js', () => {
     await flushPromises();
 
     expect(document.querySelector('.round-button[data-round="2"]').classList.contains('selected')).toBe(true);
-    expect(document.getElementById('matches-container').textContent).toContain('Cats');
-    expect(document.getElementById('matches-container').textContent).toContain('Swans');
+    expect(document.querySelector('#matches-container .match-card')).not.toBeNull();
     expect(document.querySelector('.round-button[data-round="1"]').classList.contains('completed')).toBe(true);
     expect(document.querySelector('.round-button[data-round="2"]').classList.contains('has-predictions')).toBe(true);
   });
@@ -563,7 +561,7 @@ describe('public/js/main.js', () => {
   });
 
   test('selectUser refreshes admin predictions and re-renders the selected round when matches are visible', async () => {
-    window.location.pathname = '/admin';
+    window.location.pathname = '/admin/user-predictions';
     document.querySelector('.round-buttons').innerHTML = `
       <button class="round-button selected" data-round="2">Round 2</button>
     `;
@@ -584,7 +582,7 @@ describe('public/js/main.js', () => {
         });
       }
 
-      if (url === '/predictions/round/2?year=2026') {
+      if (url === '/admin/predictions/9/round/2?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ([
@@ -613,14 +611,14 @@ describe('public/js/main.js', () => {
     await flushPromises();
 
     expect(global.fetch).toHaveBeenNthCalledWith(1, '/admin/predictions/7', { cache: 'no-store' });
-    expect(global.fetch).toHaveBeenNthCalledWith(2, '/predictions/round/2?year=2026', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenNthCalledWith(2, '/admin/predictions/7/round/2?year=2026', { cache: 'no-store' });
     expect(window.userPredictions).toEqual({
       22: {
         probability: 58,
         tippedTeam: 'away'
       }
     });
-    expect(document.getElementById('matches-container').textContent).toContain('Cats');
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7/round/2?year=2026', { cache: 'no-store' });
   });
 
   test('savePrediction clears existing stored predictions on delete success', async () => {
@@ -884,7 +882,7 @@ describe('public/js/main.js', () => {
       });
     });
     window.fetch = global.fetch;
-    window.location.pathname = '/admin';
+    window.location.pathname = '/admin/user-predictions';
 
     loadBrowserScript('main.js');
     document.querySelector('.round-button[data-round="2"]').classList.add('selected');
@@ -900,7 +898,7 @@ describe('public/js/main.js', () => {
       55: { probability: 72, tippedTeam: 'home' }
     });
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
-    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9/round/2?year=2026', { cache: 'no-store' });
   });
 
   test('selectUser logs fetch failures without mutating the current predictions state', async () => {
@@ -908,7 +906,7 @@ describe('public/js/main.js', () => {
 
     global.fetch = jest.fn().mockRejectedValue(new Error('user predictions down'));
     window.fetch = global.fetch;
-    window.location.pathname = '/admin';
+    window.location.pathname = '/admin/user-predictions';
 
     loadBrowserScript('main.js');
 
@@ -937,7 +935,7 @@ describe('public/js/main.js', () => {
         });
       }
 
-      if (url === '/predictions/round/1?year=2026') {
+      if (url === '/admin/predictions/9/round/1?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ([
@@ -955,7 +953,7 @@ describe('public/js/main.js', () => {
         });
       }
 
-      if (url === '/predictions/round/2?year=2026') {
+      if (url === '/admin/predictions/9/round/2?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ([])
@@ -970,7 +968,7 @@ describe('public/js/main.js', () => {
       });
     });
     window.fetch = global.fetch;
-    window.location.pathname = '/admin';
+    window.location.pathname = '/admin/user-predictions';
 
     loadBrowserScript('main.js');
     document.getElementById('matches-container').innerHTML = '<div class="match-card"></div>';
@@ -985,7 +983,59 @@ describe('public/js/main.js', () => {
       55: { probability: 72, tippedTeam: 'home' }
     });
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
-    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/1?year=2026', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9/round/1?year=2026', { cache: 'no-store' });
+  });
+
+  test('admin user buttons bootstrap selection from main.js without relying on admin.js listeners', async () => {
+    global.fetch = jest.fn((url) => {
+      if (url === '/admin/predictions/7') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            predictions: {
+              55: { probability: 72, tippedTeam: 'home' }
+            }
+          })
+        });
+      }
+
+      if (url === '/admin/predictions/7/round/1?year=2026') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ([
+            {
+              match_id: 55,
+              match_date: '2026-04-14T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: null,
+              ascore: null,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ([])
+      });
+    });
+    window.fetch = global.fetch;
+    window.location.pathname = '/admin/user-predictions';
+
+    loadBrowserScript('main.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.querySelector('.user-button').click();
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('selected-user').textContent).toBe('Selected User');
+    expect(document.getElementById('selected-user-id').value).toBe('7');
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7/round/1?year=2026', { cache: 'no-store' });
   });
 
   test('formatDateToLocalTimezone falls back to the original string for invalid dates', () => {

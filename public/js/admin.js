@@ -515,7 +515,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Add event listeners for user selection buttons using event delegation
   const userButtons = document.querySelector('.user-buttons');
-  if (userButtons) {
+  if (userButtons && userButtons.dataset.selectionBound !== 'true') {
+    userButtons.dataset.selectionBound = 'true';
     userButtons.addEventListener('click', function(e) {
       const button = e.target.closest('.user-button');
       if (button) {

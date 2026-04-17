@@ -2,6 +2,26 @@
 let currentMatchesData = []; // Store current matches
 
 document.addEventListener('DOMContentLoaded', function() {
+  if (isAdminUserPredictionsPage()) {
+    window.isAdmin = true;
+    window.canOverridePredictionLocks = true;
+
+    const userButtons = document.querySelector('.user-buttons');
+    if (userButtons && userButtons.dataset.selectionBound !== 'true') {
+      userButtons.dataset.selectionBound = 'true';
+      userButtons.addEventListener('click', function(event) {
+        const button = event.target.closest('.user-button');
+        if (!button) {
+          return;
+        }
+
+        const userId = button.dataset.userId;
+        const userName = button.dataset.displayName || button.textContent.trim();
+        selectUser(userId, userName);
+      });
+    }
+  }
+
   // Format all existing date elements on the page
   const dateElements = document.querySelectorAll('.match-date');
   dateElements.forEach(element => {
@@ -79,7 +99,20 @@ function fetchJsonNoStore(url) {
     });
 }
 
+function isAdminUserPredictionsPage() {
+  return typeof window !== 'undefined' && window.location.pathname.includes('/admin/user-predictions');
+}
+
 function fetchMatchesData(round, year) {
+  if (isAdminUserPredictionsPage()) {
+    const selectedUserId = document.getElementById('selected-user-id')?.value;
+    if (selectedUserId) {
+      return fetchJsonNoStore(
+        `/admin/predictions/${encodeURIComponent(selectedUserId)}/round/${encodeURIComponent(round)}?year=${year}`
+      );
+    }
+  }
+
   if (typeof window !== 'undefined' && typeof window.getMatchesForRoundData === 'function') {
     return window.getMatchesForRoundData(round, year);
   }
@@ -724,7 +757,7 @@ function selectUser(userId, userName) {
   });
   
   // If on admin page, fetch predictions for this user
-  if (window.location.pathname.includes('/admin')) {
+  if (isAdminUserPredictionsPage()) {
     fetchJsonNoStore(`/admin/predictions/${userId}`)
       .then(data => {
         window.userPredictions = data.predictions;
