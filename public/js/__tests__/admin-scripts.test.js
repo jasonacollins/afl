@@ -8,8 +8,8 @@ const {
 function buildAdminScriptsDom() {
   return `
     <meta name="csrf-token" content="scripts-csrf-token">
-    <div id="scriptsPageError" style="display:none"></div>
-    <div id="activeRunBanner" style="display:none"></div>
+    <div id="scriptsPageError" class="is-hidden"></div>
+    <div id="activeRunBanner" class="is-hidden"></div>
     <div id="logRunLabel"></div>
     <pre id="scriptLogsOutput">No logs loaded.</pre>
     <table><tbody id="scriptRunHistoryBody"></tbody></table>
@@ -719,7 +719,7 @@ describe('public/js/admin-scripts.js', () => {
     await flushPromises();
 
     expect(document.getElementById('scriptsPageError').textContent).toBe('Metadata unavailable');
-    expect(document.getElementById('scriptsPageError').style.display).toBe('block');
+    expect(document.getElementById('scriptsPageError').classList.contains('is-hidden')).toBe(false);
     expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), 2000);
   });
 
@@ -765,7 +765,7 @@ describe('public/js/admin-scripts.js', () => {
     await flushPromises();
 
     expect(document.getElementById('scriptRunHistoryBody').textContent).toContain('No runs yet.');
-    expect(document.getElementById('activeRunBanner').style.display).toBe('none');
+    expect(document.getElementById('activeRunBanner').classList.contains('is-hidden')).toBe(true);
     expect(document.querySelector('.script-run-form button[type="submit"]').disabled).toBe(false);
 
     expect(document.getElementById('optimizedWinModelPath').textContent).toContain('No options available');
@@ -779,8 +779,8 @@ describe('public/js/admin-scripts.js', () => {
     const trainModeSelect = document.getElementById('trainOptimizationTarget');
     trainModeSelect.value = 'margin';
     trainModeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
-    expect(document.getElementById('trainWinPanel').style.display).toBe('none');
-    expect(document.getElementById('trainMarginPanel').style.display).toBe('block');
+    expect(document.getElementById('trainWinPanel').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('trainMarginPanel').classList.contains('is-hidden')).toBe(false);
 
     const outputPathInput = document.getElementById('marginOptimizeOutputPath');
     const endYearInput = document.getElementById('marginOptimizeEndYear');
@@ -798,7 +798,7 @@ describe('public/js/admin-scripts.js', () => {
     const modeSelect = document.getElementById('predictionsMode');
     modeSelect.value = 'invalid-mode';
     modeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
-    expect(document.getElementById('optimizedPanel').style.display).toBe('block');
-    expect(document.getElementById('marginPanel').style.display).toBe('none');
+    expect(document.getElementById('optimizedPanel').classList.contains('is-hidden')).toBe(false);
+    expect(document.getElementById('marginPanel').classList.contains('is-hidden')).toBe(true);
   });
 });

@@ -1518,6 +1518,18 @@ textarea {
   color: var(--error-color);
 }
 
+.elo-chart-loading-message {
+  text-align: center;
+  padding: 2rem;
+}
+
+.elo-legend-color-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 .elo-chart-error h3 {
   margin-bottom: 0.5rem;
   color: var(--error-color);
@@ -1880,10 +1892,78 @@ textarea {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+.prob-matrix-cell {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 .prob-value {
   display: inline-block;
   min-width: 4ch;
 }
+
+.prob-text-dark {
+  color: #1b1b1b;
+}
+
+.prob-text-light {
+  color: #ffffff;
+}
+
+.prob-weight-medium {
+  font-weight: 500;
+}
+
+.prob-weight-semibold {
+  font-weight: 600;
+}
+
+.prob-weight-bold {
+  font-weight: 700;
+}
+
+.prob-tone-table-0 { background-color: rgb(255, 255, 255); }
+.prob-tone-table-1 { background-color: rgb(254, 254, 255); }
+.prob-tone-table-2 { background-color: rgb(252, 254, 255); }
+.prob-tone-table-3 { background-color: rgb(249, 253, 255); }
+.prob-tone-table-4 { background-color: rgb(246, 251, 255); }
+.prob-tone-table-5 { background-color: rgb(242, 250, 255); }
+.prob-tone-table-6 { background-color: rgb(238, 248, 255); }
+.prob-tone-table-7 { background-color: rgb(221, 236, 254); }
+.prob-tone-table-8 { background-color: rgb(202, 224, 253); }
+.prob-tone-table-9 { background-color: rgb(181, 210, 252); }
+.prob-tone-table-10 { background-color: rgb(157, 194, 251); }
+.prob-tone-table-11 { background-color: rgb(132, 178, 250); }
+.prob-tone-table-12 { background-color: rgb(106, 160, 248); }
+.prob-tone-table-13 { background-color: rgb(97, 153, 242); }
+.prob-tone-table-14 { background-color: rgb(88, 145, 236); }
+.prob-tone-table-15 { background-color: rgb(79, 137, 229); }
+.prob-tone-table-16 { background-color: rgb(69, 128, 223); }
+.prob-tone-table-17 { background-color: rgb(60, 121, 216); }
+.prob-tone-table-18 { background-color: rgb(50, 112, 208); }
+.prob-tone-table-19 { background-color: rgb(41, 103, 200); }
+.prob-tone-table-20 { background-color: rgb(31, 94, 191); }
+
+.prob-tone-matrix-0 { background-color: rgb(255, 255, 255); }
+.prob-tone-matrix-1 { background-color: rgb(254, 255, 255); }
+.prob-tone-matrix-2 { background-color: rgb(252, 254, 255); }
+.prob-tone-matrix-3 { background-color: rgb(250, 253, 255); }
+.prob-tone-matrix-4 { background-color: rgb(247, 252, 255); }
+.prob-tone-matrix-5 { background-color: rgb(244, 250, 255); }
+.prob-tone-matrix-6 { background-color: rgb(241, 249, 255); }
+.prob-tone-matrix-7 { background-color: rgb(226, 239, 255); }
+.prob-tone-matrix-8 { background-color: rgb(209, 228, 253); }
+.prob-tone-matrix-9 { background-color: rgb(190, 215, 253); }
+.prob-tone-matrix-10 { background-color: rgb(168, 201, 251); }
+.prob-tone-matrix-11 { background-color: rgb(145, 186, 250); }
+.prob-tone-matrix-12 { background-color: rgb(121, 169, 249); }
+.prob-tone-matrix-13 { background-color: rgb(112, 162, 243); }
+.prob-tone-matrix-14 { background-color: rgb(102, 154, 238); }
+.prob-tone-matrix-15 { background-color: rgb(92, 146, 231); }
+.prob-tone-matrix-16 { background-color: rgb(82, 137, 225); }
+.prob-tone-matrix-17 { background-color: rgb(73, 129, 218); }
+.prob-tone-matrix-18 { background-color: rgb(63, 120, 211); }
+.prob-tone-matrix-19 { background-color: rgb(53, 112, 203); }
+.prob-tone-matrix-20 { background-color: rgb(42, 102, 194); }
 
 .legend {
   display: flex;

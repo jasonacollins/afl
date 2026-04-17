@@ -31,14 +31,14 @@ describe('public/js/admin.js', () => {
       <div class="user-buttons">
         <button class="user-button" data-user-id="7" data-display-name="Selected User">Selected User</button>
       </div>
-      <div id="resetPasswordModal" style="display:none">
+      <div id="resetPasswordModal" class="is-hidden">
         <span id="resetUserName"></span>
         <form id="resetPasswordForm"></form>
         <input id="newPassword" value="existing">
       </div>
-      <div id="refreshApiModal" style="display:none"></div>
-      <div id="uploadDatabaseModal" style="display:none"></div>
-      <div id="deleteUserModal" style="display:none">
+      <div id="refreshApiModal" class="is-hidden"></div>
+      <div id="uploadDatabaseModal" class="is-hidden"></div>
+      <div id="deleteUserModal" class="is-hidden">
         <span id="deleteUserName"></span>
         <form id="deleteUserForm"></form>
       </div>
@@ -602,12 +602,12 @@ describe('public/js/admin.js', () => {
     window.showResetPasswordForm('12', 'Alice');
     expect(document.getElementById('resetUserName').textContent).toBe('Alice');
     expect(document.getElementById('resetPasswordForm').action).toContain('/admin/reset-password/12');
-    expect(document.getElementById('resetPasswordModal').style.display).toBe('block');
+    expect(document.getElementById('resetPasswordModal').classList.contains('is-hidden')).toBe(false);
 
     window.confirmDeleteUser('21', 'Bob');
     expect(document.getElementById('deleteUserName').textContent).toBe('Bob');
     expect(document.getElementById('deleteUserForm').action).toContain('/admin/delete-user/21');
-    expect(document.getElementById('deleteUserModal').style.display).toBe('block');
+    expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(false);
 
     const delegatedButton = document.createElement('button');
     delegatedButton.dataset.action = 'show-reset-password';
@@ -619,7 +619,7 @@ describe('public/js/admin.js', () => {
     expect(document.getElementById('resetUserName').textContent).toBe('Carol');
 
     window.onclick({ target: document.getElementById('deleteUserModal') });
-    expect(document.getElementById('deleteUserModal').style.display).toBe('none');
+    expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(true);
   });
 
   test('button click handlers open refresh and upload modals, and outside clicks close each modal type', () => {
@@ -631,20 +631,20 @@ describe('public/js/admin.js', () => {
     window.showResetPasswordForm('12', 'Alice');
     window.confirmDeleteUser('21', 'Bob');
 
-    expect(document.getElementById('refreshApiModal').style.display).toBe('block');
-    expect(document.getElementById('uploadDatabaseModal').style.display).toBe('block');
-    expect(document.getElementById('resetPasswordModal').style.display).toBe('block');
-    expect(document.getElementById('deleteUserModal').style.display).toBe('block');
+    expect(document.getElementById('refreshApiModal').classList.contains('is-hidden')).toBe(false);
+    expect(document.getElementById('uploadDatabaseModal').classList.contains('is-hidden')).toBe(false);
+    expect(document.getElementById('resetPasswordModal').classList.contains('is-hidden')).toBe(false);
+    expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(false);
 
     window.onclick({ target: document.getElementById('refreshApiModal') });
     window.onclick({ target: document.getElementById('uploadDatabaseModal') });
     window.onclick({ target: document.getElementById('resetPasswordModal') });
     window.onclick({ target: document.getElementById('deleteUserModal') });
 
-    expect(document.getElementById('refreshApiModal').style.display).toBe('none');
-    expect(document.getElementById('uploadDatabaseModal').style.display).toBe('none');
-    expect(document.getElementById('resetPasswordModal').style.display).toBe('none');
-    expect(document.getElementById('deleteUserModal').style.display).toBe('none');
+    expect(document.getElementById('refreshApiModal').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('uploadDatabaseModal').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('resetPasswordModal').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(true);
   });
 
   test('clear button logs an error when its matching save button is missing', () => {

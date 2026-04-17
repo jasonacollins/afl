@@ -46,6 +46,15 @@ class EloChart {
     return fallbackColors[index % fallbackColors.length];
   }
 
+  escapeHtml(input) {
+    return String(input)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   async init() {
     try {
       console.log('Initializing ELO chart...');
@@ -293,7 +302,7 @@ class EloChart {
   showLoadingState() {
     const chartContainer = document.querySelector('.elo-chart-container');
     if (chartContainer) {
-      chartContainer.innerHTML = '<div style="text-align: center; padding: 2rem;">Loading chart data...</div>';
+      chartContainer.innerHTML = '<div class="elo-chart-loading-message">Loading chart data...</div>';
     }
   }
 
@@ -646,7 +655,9 @@ class EloChart {
       return `
         <div class="legend-item ${isHighlighted ? 'highlighted' : ''} ${isHidden ? 'hidden' : ''}" 
              data-team="${team}" data-index="${index}">
-          <span class="legend-color" style="background-color: ${color}"></span>
+          <svg class="elo-legend-color-swatch" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+            <rect width="12" height="12" rx="2" ry="2" fill="${this.escapeHtml(color)}"></rect>
+          </svg>
           <span class="legend-label">${team}</span>
         </div>
       `;

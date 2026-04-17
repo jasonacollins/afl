@@ -446,7 +446,7 @@ function createApp(options = {}) {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "https://cdn.jsdelivr.net"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'", "https://api.squiggle.com.au", "https://cdn.jsdelivr.net"]
       }

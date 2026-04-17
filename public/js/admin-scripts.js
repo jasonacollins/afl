@@ -21,18 +21,26 @@
     return document.getElementById(id);
   }
 
+  function setElementHidden(element, hidden) {
+    if (!element) {
+      return;
+    }
+
+    element.classList.toggle('is-hidden', Boolean(hidden));
+  }
+
   function showPageError(message) {
     const errorDiv = getEl('scriptsPageError');
     if (!errorDiv) return;
     errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
+    setElementHidden(errorDiv, false);
   }
 
   function clearPageError() {
     const errorDiv = getEl('scriptsPageError');
     if (!errorDiv) return;
     errorDiv.textContent = '';
-    errorDiv.style.display = 'none';
+    setElementHidden(errorDiv, true);
   }
 
   function scriptLabel(scriptKey) {
@@ -461,13 +469,13 @@
     if (!banner) return;
 
     if (!activeRun) {
-      banner.style.display = 'none';
+      setElementHidden(banner, true);
       banner.textContent = '';
       setFormsDisabled(false);
       return;
     }
 
-    banner.style.display = 'block';
+    setElementHidden(banner, false);
     banner.textContent = `Run #${activeRun.run_id} (${scriptLabel(activeRun.script_key)}) is ${activeRun.status}. New runs are blocked until completion.`;
     setFormsDisabled(true);
   }
@@ -676,7 +684,7 @@
     } finally {
       if (submitButton) {
         const activeBanner = getEl('activeRunBanner');
-        const hasActiveRun = activeBanner && activeBanner.style.display !== 'none';
+        const hasActiveRun = activeBanner && !activeBanner.classList.contains('is-hidden');
         submitButton.disabled = !!hasActiveRun;
         submitButton.textContent = submitButton.dataset.defaultLabel || 'Run';
       }
@@ -752,7 +760,7 @@
         .split(',')
         .map((value) => value.trim())
         .filter(Boolean);
-      panel.style.display = panelModes.includes(normalizedMode) ? 'block' : 'none';
+      setElementHidden(panel, !panelModes.includes(normalizedMode));
     });
 
     const optimizedWinModelSelect = getEl('optimizedWinModelPath');
@@ -816,7 +824,7 @@
     const normalizedMode = mode === 'margin' ? 'margin' : 'win';
     document.querySelectorAll('[data-train-mode-panel]').forEach((panel) => {
       const panelMode = panel.getAttribute('data-train-mode-panel');
-      panel.style.display = panelMode === normalizedMode ? 'block' : 'none';
+      setElementHidden(panel, panelMode !== normalizedMode);
     });
   }
 

@@ -44,6 +44,7 @@
     const WHITE_COLOR = [255, 255, 255];
     const TABLE_COLOR_BLEND = { min: 0.15, max: 1, power: 0.65 };
     const MATRIX_COLOR_BLEND = { min: 0.12, max: 0.95, power: 0.75 };
+    const PROBABILITY_BUCKET_COUNT = 20;
 
     function setElementHidden(element, hidden) {
         if (!element) {
@@ -551,16 +552,46 @@
         };
     }
 
+    function getProbabilityBucket(probability) {
+        const clamped = Math.max(0, Math.min(probability, 1));
+        return Math.round(clamped * PROBABILITY_BUCKET_COUNT);
+    }
+
+    function getProbabilityToneClass(probability, variant) {
+        return `prob-tone-${variant}-${getProbabilityBucket(probability)}`;
+    }
+
+    function getProbabilityTextClass(probability, blendConfig) {
+        const { textColor } = buildCellStyle(probability, blendConfig);
+        return textColor === '#1b1b1b' ? 'prob-text-dark' : 'prob-text-light';
+    }
+
+    function getProbabilityWeightClass(probability) {
+        const clamped = Math.max(0, Math.min(probability, 1));
+
+        if (clamped >= 0.75) {
+            return 'prob-weight-bold';
+        }
+        if (clamped >= 0.4) {
+            return 'prob-weight-semibold';
+        }
+        return 'prob-weight-medium';
+    }
+
     /**
      * Create a probability cell with full-cell heatmap styling
      */
     function createProbabilityCell(probability) {
         const percentage = (probability * 100).toFixed(1);
         const displayValue = percentage === '0.0' ? '-' : `${percentage}%`;
-        const { background, textColor } = buildCellStyle(probability, TABLE_COLOR_BLEND);
+        const classes = [
+            'prob-cell',
+            getProbabilityToneClass(probability, 'table'),
+            getProbabilityTextClass(probability, TABLE_COLOR_BLEND)
+        ].join(' ');
 
         return `
-            <td class="prob-cell" style="background-color: ${background}; color: ${textColor};">
+            <td class="${classes}">
                 <span class="prob-value">${displayValue}</span>
             </td>
         `;
@@ -570,18 +601,12 @@
      * Style ladder matrix cells using the probability colour scale
      */
     function applyMatrixCellStyling(cell, probability) {
-        const { background, textColor, intensity } = buildCellStyle(probability, MATRIX_COLOR_BLEND);
-
-        cell.style.backgroundColor = background;
-        cell.style.color = textColor;
-
-        if (intensity >= 0.75) {
-            cell.style.fontWeight = '700';
-        } else if (intensity >= 0.4) {
-            cell.style.fontWeight = '600';
-        } else {
-            cell.style.fontWeight = '500';
-        }
+        cell.className = [
+            'prob-matrix-cell',
+            getProbabilityToneClass(probability, 'matrix'),
+            getProbabilityTextClass(probability, MATRIX_COLOR_BLEND),
+            getProbabilityWeightClass(probability)
+        ].join(' ');
     }
 
     /**

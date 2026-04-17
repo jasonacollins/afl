@@ -13,34 +13,43 @@ function getCsrfToken() {
   return metaTag ? metaTag.getAttribute('content') : '';
 }
 
+function setElementHiddenById(id, hidden) {
+  const element = document.getElementById(id);
+  if (!element) {
+    return;
+  }
+
+  element.classList.toggle('is-hidden', Boolean(hidden));
+}
+
 // Modal functions
 function showResetPasswordForm(userId, userName) {
   document.getElementById('resetUserName').textContent = userName;
   document.getElementById('resetPasswordForm').action = `/admin/reset-password/${userId}`;
   document.getElementById('newPassword').value = '';
-  document.getElementById('resetPasswordModal').style.display = 'block';
+  setElementHiddenById('resetPasswordModal', false);
 }
 
 function closeModal() {
-  document.getElementById('resetPasswordModal').style.display = 'none';
+  setElementHiddenById('resetPasswordModal', true);
 }
 
 function closeRefreshModal() {
-  document.getElementById('refreshApiModal').style.display = 'none';
+  setElementHiddenById('refreshApiModal', true);
 }
 
 function closeUploadModal() {
-  document.getElementById('uploadDatabaseModal').style.display = 'none';
+  setElementHiddenById('uploadDatabaseModal', true);
 }
 
 function confirmDeleteUser(userId, userName) {
   document.getElementById('deleteUserName').textContent = userName;
   document.getElementById('deleteUserForm').action = `/admin/delete-user/${userId}`;
-  document.getElementById('deleteUserModal').style.display = 'block';
+  setElementHiddenById('deleteUserModal', false);
 }
 
 function closeDeleteModal() {
-  document.getElementById('deleteUserModal').style.display = 'none';
+  setElementHiddenById('deleteUserModal', true);
 }
 
 // Toggle predictor active status
@@ -364,13 +373,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   if (refreshButton) {
     refreshButton.addEventListener('click', function() {
-      document.getElementById('refreshApiModal').style.display = 'block';
+      setElementHiddenById('refreshApiModal', false);
     });
   }
 
   if (uploadButton) {
     uploadButton.addEventListener('click', function() {
-      document.getElementById('uploadDatabaseModal').style.display = 'block';
+      setElementHiddenById('uploadDatabaseModal', false);
     });
   }
 
