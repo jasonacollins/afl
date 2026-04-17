@@ -234,6 +234,13 @@ describe('public/js/admin.js', () => {
     expect(global.updateStoredPrediction).toHaveBeenCalledWith('44', null, null);
   });
 
+  test('admin script initialization enables lock overrides for managed predictor edits', () => {
+    loadBrowserScript('admin.js');
+
+    expect(window.isAdmin).toBe(true);
+    expect(window.canOverridePredictionLocks).toBe(true);
+  });
+
   test('clearPredictionDirectly requires a selected user', () => {
     loadBrowserScript('admin.js');
 

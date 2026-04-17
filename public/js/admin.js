@@ -2,6 +2,7 @@
 
 // Set admin flag
 window.isAdmin = true;
+window.canOverridePredictionLocks = true;
 
 // Initialize with empty predictions
 window.userPredictions = {};

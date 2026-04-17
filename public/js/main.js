@@ -64,6 +64,10 @@ function getStoredPrediction(matchId) {
   };
 }
 
+function canOverridePredictionLocks() {
+  return window.canOverridePredictionLocks === true;
+}
+
 // Update match list for selected round via AJAX
 function fetchMatchesForRound(round) {
   // Get the current year from the URL or use the selected year
@@ -161,7 +165,7 @@ function renderMatches(matches) {
           </div>
         ` : ''}
         
-        ${(!isLocked || window.isAdmin) ? `
+        ${(!isLocked || canOverridePredictionLocks()) ? `
           <div class="prediction-controls">
             <div class="prediction-inputs">
               <div class="team-prediction">

@@ -36,6 +36,7 @@ describe('public/js/main.js', () => {
     global.alert = jest.fn();
     window.alert = global.alert;
     window.isAdmin = false;
+    window.canOverridePredictionLocks = false;
     window.userPredictions = {
       22: {
         probability: 64,
@@ -410,6 +411,64 @@ describe('public/js/main.js', () => {
 
     expect(document.querySelector('.admin-metrics-display').innerHTML).toContain('partial');
     expect(global.calculateTipPoints).toHaveBeenCalledWith(70, 80, 80, 'home');
+  });
+
+  test('renderMatches keeps started matches locked when only the predictor-page admin flag is set', () => {
+    window.isAdmin = true;
+    window.userPredictions = {
+      22: {
+        probability: 64,
+        tippedTeam: 'home'
+      }
+    };
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: true
+      }
+    ]);
+
+    expect(document.querySelector('.prediction-controls')).toBeNull();
+    expect(document.querySelector('.prediction-locked')).not.toBeNull();
+    expect(document.getElementById('matches-container').textContent).toContain('Match has started - predictions locked');
+  });
+
+  test('renderMatches allows editing locked matches when the admin override page enables it', () => {
+    window.isAdmin = true;
+    window.canOverridePredictionLocks = true;
+    window.userPredictions = {
+      22: {
+        probability: 64,
+        tippedTeam: 'home'
+      }
+    };
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: true
+      }
+    ]);
+
+    expect(document.querySelector('.prediction-controls')).not.toBeNull();
+    expect(document.querySelector('.prediction-locked')).toBeNull();
   });
 
   test('renderMatches shows locked match details, pending lock messaging, and GWS abbreviations', () => {
