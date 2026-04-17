@@ -924,7 +924,7 @@ describe('public/js/main.js', () => {
     errorSpy.mockRestore();
   });
 
-  test('selectUser skips round reload when matches are visible but no round is selected', async () => {
+  test('selectUser loads the first round on admin pages when no round is selected yet', async () => {
     global.fetch = jest.fn((url) => {
       if (url === '/admin/predictions/9') {
         return Promise.resolve({
@@ -937,7 +937,37 @@ describe('public/js/main.js', () => {
         });
       }
 
-      throw new Error(`Unexpected fetch: ${url}`);
+      if (url === '/predictions/round/1?year=2026') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ([
+            {
+              match_id: 55,
+              match_date: '2026-04-14T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: null,
+              ascore: null,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ([])
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ([
+          { match_id: 55, hscore: null, ascore: null }
+        ])
+      });
     });
     window.fetch = global.fetch;
     window.location.pathname = '/admin';
@@ -947,14 +977,15 @@ describe('public/js/main.js', () => {
 
     window.selectUser('9', 'Analyst');
     await flushPromises();
+    await flushPromises();
 
     expect(document.getElementById('selected-user').textContent).toBe('Analyst');
     expect(document.getElementById('selected-user-id').value).toBe('9');
     expect(window.userPredictions).toEqual({
       55: { probability: 72, tippedTeam: 'home' }
     });
-    expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/1?year=2026', { cache: 'no-store' });
   });
 
   test('formatDateToLocalTimezone falls back to the original string for invalid dates', () => {

@@ -27,6 +27,7 @@
         <div class="user-buttons">
           <% predictors.forEach(predictor => { %>
             <button
+              type="button"
               class="user-button"
               data-user-id="<%= predictor.predictor_id %>"
               data-display-name="<%= predictor.display_name %>"
@@ -48,6 +49,7 @@
           <div class="round-buttons">
             <% rounds.forEach(round => { %>
               <button
+                type="button"
                 data-round="<%= round.round_number %>"
                 class="round-button"
               >

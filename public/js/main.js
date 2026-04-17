@@ -728,12 +728,11 @@ function selectUser(userId, userName) {
     fetchJsonNoStore(`/admin/predictions/${userId}`)
       .then(data => {
         window.userPredictions = data.predictions;
-        // If matches are already displayed, refresh the UI
-        if (document.querySelector('.match-card')) {
-          const selectedRoundButton = document.querySelector('.round-button.selected');
-          if (selectedRoundButton) {
-            fetchMatchesForRound(selectedRoundButton.dataset.round);
-          }
+        const selectedRoundButton = document.querySelector('.round-button.selected')
+          || document.querySelector('.round-button');
+
+        if (selectedRoundButton) {
+          fetchMatchesForRound(selectedRoundButton.dataset.round);
         }
       })
       .catch(error => {
