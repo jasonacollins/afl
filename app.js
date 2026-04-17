@@ -420,6 +420,9 @@ function createApp(options = {}) {
   }
 
   const app = express();
+  const assetVersion = options.assetVersion || process.env.ASSET_VERSION || Date.now().toString();
+  app.locals.assetVersion = assetVersion;
+  app.locals.assetPath = (assetUrl) => `${assetUrl}?v=${encodeURIComponent(assetVersion)}`;
   const sessionStore = options.sessionStore || createSessionStore();
   app.locals.databaseReplacementInProgress = false;
   app.locals.enterDatabaseReplacementMode = async () => {

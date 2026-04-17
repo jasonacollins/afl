@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="<%= csrfToken %>">
   <title>AFL Predictions</title>
-  <link rel="stylesheet" href="/css/styles.css">
-  <script src="/js/scoring-service.js"></script>
+  <link rel="stylesheet" href="<%= assetPath('/css/styles.css') %>">
+  <script src="<%= assetPath('/js/scoring-service.js') %>"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="/js/elo-chart.js"></script>
+  <script src="<%= assetPath('/js/elo-chart.js') %>"></script>
 </head>
 <body>
   <header class="site-header">
