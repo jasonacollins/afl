@@ -1,6 +1,5 @@
 jest.mock('../../models/db', () => ({
   getQuery: jest.fn(),
-  getOne: jest.fn(),
   runQuery: jest.fn()
 }));
 
@@ -56,7 +55,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const request = require('supertest');
-const { getQuery, getOne, runQuery } = require('../../models/db');
+const { getQuery, runQuery } = require('../../models/db');
 const roundService = require('../../services/round-service');
 const matchService = require('../../services/match-service');
 const predictionService = require('../../services/prediction-service');
@@ -108,7 +107,7 @@ describe('matches routes', () => {
     expect(response.body).toEqual([{ round_number: '1' }]);
   });
 
-  test('GET /stats renders leaderboard data, creates missing default predictions, and filters excluded or inactive predictors', async () => {
+  test('GET /stats renders leaderboard data without mutating predictions and filters excluded or inactive predictors', async () => {
     roundService.getRoundsForYear.mockResolvedValue([
       { round_number: '1' },
       { round_number: '2' }
@@ -136,16 +135,7 @@ describe('matches routes', () => {
           home_team: 'Lions',
           away_team: 'Dockers'
         }
-      ])
-      .mockResolvedValueOnce([
-        { predictor_id: 1, year_joined: 2020 },
-        { predictor_id: 2, year_joined: 2027 }
-      ])
-      .mockResolvedValueOnce([
-        { match_id: 11, match_date: '2026-03-10T19:30:00.000Z' },
-        { match_id: 12, match_date: '2099-03-17T19:30:00.000Z' }
       ]);
-    getOne.mockResolvedValue(null);
 
     matchService.getMostRecentRoundWithResults.mockResolvedValue({ year: 2026, round: '1' });
     matchService.getCompletedMatchesForYear.mockResolvedValue([
@@ -243,10 +233,7 @@ describe('matches routes', () => {
     const response = await request(app).get('/stats?year=2026');
 
     expect(response.status).toBe(200);
-    expect(runQuery).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO predictions'),
-      [11, 1]
-    );
+    expect(runQuery).not.toHaveBeenCalled();
     expect(response.body.view).toBe('stats');
     expect(response.body.locals.selectedRound).toBe('1');
     expect(response.body.locals.currentRound).toBe('2');
@@ -408,25 +395,17 @@ describe('matches routes', () => {
     roundService.normalizeRoundForDisplay.mockReturnValue('1');
     roundService.combineRoundsForDisplay.mockImplementation((rounds) => rounds);
 
-    getQuery
-      .mockResolvedValueOnce([
-        {
-          match_id: 11,
-          round_number: '1',
-          match_date: 'invalidTdate',
-          hscore: 100,
-          ascore: 80,
-          home_team: 'Cats',
-          away_team: 'Swans'
-        }
-      ])
-      .mockResolvedValueOnce([
-        { predictor_id: 1, year_joined: 2020 }
-      ])
-      .mockResolvedValueOnce([
-        { match_id: 11, match_date: 'invalidTdate' }
-      ]);
-    getOne.mockResolvedValue(null);
+    getQuery.mockResolvedValueOnce([
+      {
+        match_id: 11,
+        round_number: '1',
+        match_date: 'invalidTdate',
+        hscore: 100,
+        ascore: 80,
+        home_team: 'Cats',
+        away_team: 'Swans'
+      }
+    ]);
 
     matchService.getMostRecentRoundWithResults.mockResolvedValue({ year: 2026, round: '1' });
     matchService.getCompletedMatchesForYear.mockResolvedValue([
@@ -464,10 +443,6 @@ describe('matches routes', () => {
     const response = await request(app).get('/stats?year=2026');
 
     expect(response.status).toBe(200);
-    expect(logger.error).toHaveBeenCalledWith('Error parsing match date', {
-      matchDate: 'invalidTdate',
-      error: 'Invalid date'
-    });
     expect(logger.error).toHaveBeenCalledWith('Error formatting date for stats', {
       matchDate: 'invalidTdate',
       error: 'Invalid date'

@@ -26,6 +26,14 @@ async function getPredictionsForUser(userId) {
   }
 }
 
+function normalizeTippedTeam(probability, tippedTeam) {
+  if (probability === 50) {
+    return tippedTeam === 'away' ? 'away' : 'home';
+  }
+
+  return probability < 50 ? 'away' : 'home';
+}
+
 // Get all predictions with match and predictor information
 async function getAllPredictionsWithDetails() {
   try {
@@ -60,7 +68,8 @@ async function getAllPredictionsWithDetails() {
 }
 
 // Save or update prediction
-async function savePrediction(matchId, predictorId, probability, options = {}) {  try {
+async function savePrediction(matchId, predictorId, probability, options = {}) {
+  try {
     // Validate inputs
     if (!matchId || !predictorId || probability === undefined) {
       throw createValidationError('Match ID, predictor ID, and probability are required');
@@ -70,6 +79,8 @@ async function savePrediction(matchId, predictorId, probability, options = {}) {
       throw createValidationError('Probability must be between 0 and 100');
     }
     
+    const normalizedTippedTeam = normalizeTippedTeam(probability, options.tippedTeam);
+
     logger.debug(`Saving prediction for match ${matchId}, predictor ${predictorId}: ${probability}%`);
     
     const existing = await getOne(
@@ -79,8 +90,8 @@ async function savePrediction(matchId, predictorId, probability, options = {}) {
     
     if (existing) {
       const result = await runQuery(
-        'UPDATE predictions SET home_win_probability = ? WHERE match_id = ? AND predictor_id = ?',
-        [probability, matchId, predictorId]
+        'UPDATE predictions SET home_win_probability = ?, tipped_team = ? WHERE match_id = ? AND predictor_id = ?',
+        [probability, normalizedTippedTeam, matchId, predictorId]
       );
       
       logger.info(`Updated prediction for match ${matchId}, predictor ${predictorId}: ${probability}%`);
@@ -88,8 +99,8 @@ async function savePrediction(matchId, predictorId, probability, options = {}) {
       return { action: 'updated', changes: result.changes };
     } else {
       const result = await runQuery(
-        'INSERT INTO predictions (match_id, predictor_id, home_win_probability) VALUES (?, ?, ?)',
-        [matchId, predictorId, probability]
+        'INSERT INTO predictions (match_id, predictor_id, home_win_probability, tipped_team) VALUES (?, ?, ?, ?)',
+        [matchId, predictorId, probability, normalizedTippedTeam]
       );
       
       logger.info(`Created new prediction for match ${matchId}, predictor ${predictorId}: ${probability}%`);

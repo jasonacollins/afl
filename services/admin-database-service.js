@@ -180,6 +180,7 @@ async function replaceDatabaseFromUpload(filePath) {
   const resolvedDbPath = dbModule.dbPath;
   const incomingFileName = `incoming_${getTimestamp()}.db`;
   const incomingPath = path.join(path.dirname(resolvedDbPath), incomingFileName);
+  let liveDatabaseClosed = false;
   try {
     await validateUploadedDatabase(filePath);
 
@@ -191,6 +192,7 @@ async function replaceDatabaseFromUpload(filePath) {
     await fs.mkdir(path.dirname(resolvedDbPath), { recursive: true });
     await fs.copyFile(filePath, incomingPath);
     await closeDatabase(dbModule.db);
+    liveDatabaseClosed = true;
     await Promise.all([
       removeFileIfExists(`${resolvedDbPath}-wal`),
       removeFileIfExists(`${resolvedDbPath}-shm`)
@@ -217,7 +219,15 @@ async function replaceDatabaseFromUpload(filePath) {
       dbPath: resolvedDbPath,
       error: error.message
     });
-    throw new AppError('Failed to replace database with uploaded file', 500, 'DATABASE_REPLACEMENT_ERROR');
+    const replacementError = new AppError(
+      'Failed to replace database with uploaded file',
+      500,
+      'DATABASE_REPLACEMENT_ERROR'
+    );
+    if (liveDatabaseClosed) {
+      replacementError.requiresProcessRestart = true;
+    }
+    throw replacementError;
   } finally {
     await Promise.all([
       removeFileIfExists(filePath),

@@ -194,6 +194,34 @@ describe('public/js/main.js', () => {
     expect(document.querySelector('.round-button[data-round="2"]').classList.contains('has-predictions')).toBe(true);
   });
 
+  test('renderMatches preserves 0 percent probabilities and snake_case tipped teams from stored predictions', () => {
+    window.userPredictions = {
+      22: {
+        probability: 0,
+        tipped_team: 'away'
+      }
+    };
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    expect(document.querySelector('.home-prediction[data-match-id="22"]').value).toBe('0');
+    expect(document.querySelector('.away-prediction[data-match-id="22"]').value).toBe('100');
+    expect(document.querySelector('.save-prediction[data-match-id="22"]').textContent.trim()).toBe('Saved');
+  });
+
   test('savePrediction posts CSRF-protected JSON and updates stored prediction state', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     document.getElementById('matches-container').innerHTML = `

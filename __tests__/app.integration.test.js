@@ -63,6 +63,12 @@ function loadRealAppModule(dbPath, mocks = {}) {
       jest.unmock('../services/event-sync-service');
     }
 
+    if (mocks.resultUpdateService) {
+      jest.doMock('../services/result-update-service', () => mocks.resultUpdateService);
+    } else {
+      jest.unmock('../services/result-update-service');
+    }
+
     if (mocks.roundService) {
       jest.doMock('../services/round-service', () => mocks.roundService);
     } else {
@@ -326,6 +332,22 @@ describe('app integration security stack', () => {
     expect(response.text).toContain('Username and password are required');
     expect(response.headers['ratelimit-policy']).toBeDefined();
     expect(response.headers['ratelimit-limit']).toBeDefined();
+  });
+
+  test('maintenance mode returns 503 for normal routes and keeps health checks available', async () => {
+    const app = loaded.appModule.createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    app.locals.databaseReplacementInProgress = true;
+
+    const loginResponse = await request(app).get('/login');
+    expect(loginResponse.status).toBe(503);
+
+    const healthResponse = await request(app).get('/healthz');
+    expect(healthResponse.status).toBe(200);
+    expect(healthResponse.body).toEqual({ ok: true });
   });
 
   test('authenticated non-admin users are blocked from admin routes after real login', async () => {
@@ -617,7 +639,11 @@ describe('app integration security stack', () => {
         })
       },
       adminScriptRunner: {
-        recoverInterruptedRuns: jest.fn()
+        recoverInterruptedRuns: jest.fn(),
+        getExistingActiveRun: jest.fn().mockResolvedValue(null)
+      },
+      resultUpdateService: {
+        getEventSyncStatus: jest.fn().mockResolvedValue({ activeJob: null })
       },
       adminDatabaseService
     });

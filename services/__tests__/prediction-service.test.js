@@ -34,8 +34,8 @@ describe('prediction-service', () => {
     const result = await predictionService.savePrediction(1, 2, 70);
 
     expect(runQuery).toHaveBeenCalledWith(
-      'UPDATE predictions SET home_win_probability = ? WHERE match_id = ? AND predictor_id = ?',
-      [70, 1, 2]
+      'UPDATE predictions SET home_win_probability = ?, tipped_team = ? WHERE match_id = ? AND predictor_id = ?',
+      [70, 'home', 1, 2]
     );
     expect(result).toEqual({ action: 'updated', changes: 1 });
   });
@@ -47,10 +47,22 @@ describe('prediction-service', () => {
     const result = await predictionService.savePrediction(1, 2, 55);
 
     expect(runQuery).toHaveBeenCalledWith(
-      'INSERT INTO predictions (match_id, predictor_id, home_win_probability) VALUES (?, ?, ?)',
-      [1, 2, 55]
+      'INSERT INTO predictions (match_id, predictor_id, home_win_probability, tipped_team) VALUES (?, ?, ?, ?)',
+      [1, 2, 55, 'home']
     );
     expect(result).toEqual({ action: 'created', changes: 1 });
+  });
+
+  test('savePrediction preserves an away tiebreaker for 50 percent predictions', async () => {
+    getOne.mockResolvedValue(null);
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    await predictionService.savePrediction(1, 2, 50, { tippedTeam: 'away' });
+
+    expect(runQuery).toHaveBeenCalledWith(
+      'INSERT INTO predictions (match_id, predictor_id, home_win_probability, tipped_team) VALUES (?, ?, ?, ?)',
+      [1, 2, 50, 'away']
+    );
   });
 
   test('savePrediction rejects invalid probability values', async () => {

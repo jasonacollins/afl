@@ -111,6 +111,7 @@ describe('admin routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     adminScriptRunner.getExistingActiveRun.mockResolvedValue(null);
+    resultUpdateService.getEventSyncStatus.mockResolvedValue({ activeJob: null });
     predictorService.getPredictorById.mockResolvedValue({ predictor_id: 5, active: 1 });
     featuredPredictionsService.getDefaultFeaturedPredictorId.mockResolvedValue(6);
     passwordService.validatePassword.mockReturnValue({
@@ -546,8 +547,14 @@ describe('admin routes', () => {
     expect(response.body).toEqual({
       success: true,
       predictions: {
-        11: 65,
-        12: 40
+        11: {
+          probability: 65,
+          tipped_team: 'home'
+        },
+        12: {
+          probability: 40,
+          tipped_team: 'away'
+        }
       }
     });
   });
@@ -605,10 +612,13 @@ describe('admin routes', () => {
     const response = await request(app)
       .post('/predictions/5/save')
       .set('Accept', 'application/json')
-      .send({ matchId: 11, probability: 150 });
+      .send({ matchId: 11, probability: 150, tippedTeam: 'away' });
 
     expect(response.status).toBe(200);
-    expect(predictionService.savePrediction).toHaveBeenCalledWith(11, '5', 100, { adminOverride: true });
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(11, '5', 100, {
+      adminOverride: true,
+      tippedTeam: 'away'
+    });
     expect(response.body).toEqual({ success: true });
   });
 
@@ -869,6 +879,8 @@ describe('admin routes', () => {
 
       expect(response.status).toBe(200);
       uploadedTempPath = adminDatabaseService.replaceDatabaseFromUpload.mock.calls[0][0];
+      expect(adminScriptRunner.getExistingActiveRun).toHaveBeenCalled();
+      expect(resultUpdateService.getEventSyncStatus).toHaveBeenCalled();
       expect(adminDatabaseService.replaceDatabaseFromUpload).toHaveBeenCalledWith(
         expect.stringContaining('/data/temp/temp_upload_')
       );
@@ -881,6 +893,44 @@ describe('admin routes', () => {
         await fs.rm(uploadedTempPath, { force: true });
       }
     }
+  });
+
+  test('POST /upload-database rejects replacement while an admin script is running', async () => {
+    adminScriptRunner.getExistingActiveRun.mockResolvedValue({ run_id: 12, status: 'running' });
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/upload-database')
+      .set('Accept', 'application/json')
+      .attach('databaseFile', Buffer.from('sqlite-test-file'), 'uploaded.db');
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toBe('Database upload is unavailable while an admin script is running');
+    expect(adminDatabaseService.replaceDatabaseFromUpload).not.toHaveBeenCalled();
+    expect(app.locals.databaseReplacementInProgress).toBe(false);
+  });
+
+  test('POST /upload-database rejects replacement while result-update work is active', async () => {
+    resultUpdateService.getEventSyncStatus.mockResolvedValue({
+      activeJob: { job_id: 91, status: 'running' }
+    });
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/upload-database')
+      .set('Accept', 'application/json')
+      .attach('databaseFile', Buffer.from('sqlite-test-file'), 'uploaded.db');
+
+    expect(response.status).toBe(409);
+    expect(response.body.message).toBe('Database upload is unavailable while result-update work is active');
+    expect(adminDatabaseService.replaceDatabaseFromUpload).not.toHaveBeenCalled();
+    expect(app.locals.databaseReplacementInProgress).toBe(false);
   });
 
   test('POST /upload-database validates that a file was provided', async () => {
@@ -938,6 +988,64 @@ describe('admin routes', () => {
         await fs.rm(uploadedTempPath, { force: true });
       }
     }
+  });
+
+  test('POST /upload-database returns a restart response for fatal replacement failures after DB close', async () => {
+    adminDatabaseService.replaceDatabaseFromUpload.mockRejectedValue(
+      Object.assign(new Error('rename failed'), {
+        requiresProcessRestart: true
+      })
+    );
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    let uploadedTempPath = null;
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    try {
+      const response = await request(app)
+        .post('/upload-database')
+        .attach('databaseFile', Buffer.from('sqlite-test-file'), 'uploaded.db');
+
+      uploadedTempPath = adminDatabaseService.replaceDatabaseFromUpload.mock.calls[0][0];
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({
+        success: false,
+        message: 'Database replacement failed and the application will restart shortly.'
+      });
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      exitSpy.mockRestore();
+      process.env.NODE_ENV = originalEnv;
+      if (uploadedTempPath) {
+        await fs.rm(uploadedTempPath, { force: true });
+      }
+    }
+  });
+
+  test('POST /upload-database clears fallback maintenance state on non-fatal replacement errors', async () => {
+    adminDatabaseService.replaceDatabaseFromUpload.mockRejectedValue(new Error('copy failed'));
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+    delete app.locals.enterDatabaseReplacementMode;
+    delete app.locals.exitDatabaseReplacementMode;
+
+    const response = await request(app)
+      .post('/upload-database')
+      .set('Accept', 'application/json')
+      .attach('databaseFile', Buffer.from('sqlite-test-file'), 'uploaded.db');
+
+    expect(response.status).toBe(500);
+    expect(response.body.message).toBe('Something went wrong');
+    expect(app.locals.databaseReplacementInProgress).toBe(false);
   });
 
   test('POST /set-featured-predictors requires an active predictor', async () => {

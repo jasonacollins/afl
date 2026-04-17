@@ -105,7 +105,7 @@ describe('predictions routes', () => {
     ]);
     matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([{ match_id: 2 }]);
     predictionService.getPredictionsForUser.mockResolvedValue([
-      { match_id: 2, home_win_probability: 64 }
+      { match_id: 2, home_win_probability: 64, tipped_team: 'home' }
     ]);
 
     const app = createRouterTestApp(predictionsRouter, {
@@ -119,7 +119,47 @@ describe('predictions routes', () => {
     expect(response.body.view).toBe('predictions');
     expect(response.body.locals.selectedRound).toBe('2');
     expect(response.body.locals.currentRound).toBe('2');
-    expect(response.body.locals.predictions).toEqual({ 2: 64 });
+    expect(response.body.locals.predictions).toEqual({
+      2: {
+        probability: 64,
+        tipped_team: 'home'
+      }
+    });
+  });
+
+  test('GET / preserves 0 percent and 50 percent away predictions in the rendered payload', async () => {
+    getQuery.mockResolvedValue([
+      {
+        match_id: 1,
+        round_number: '1',
+        match_date: '2099-03-01T12:00:00.000Z',
+        hscore: null,
+        ascore: null
+      }
+    ]);
+    matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([{ match_id: 1 }]);
+    predictionService.getPredictionsForUser.mockResolvedValue([
+      { match_id: 1, home_win_probability: 0, tipped_team: 'away' },
+      { match_id: 2, home_win_probability: 50, tipped_team: 'away' }
+    ]);
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(response.body.locals.predictions).toEqual({
+      1: {
+        probability: 0,
+        tipped_team: 'away'
+      },
+      2: {
+        probability: 50,
+        tipped_team: 'away'
+      }
+    });
   });
 
   test('GET / falls back to the most recently completed round when no future match exists', async () => {
@@ -266,7 +306,26 @@ describe('predictions routes', () => {
       .send({ matchId: 44, probability: 65 });
 
     expect(response.status).toBe(200);
-    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 65);
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 65, {
+      tippedTeam: undefined
+    });
+  });
+
+  test('POST /save forwards the selected tipped team for 50 percent predictions', async () => {
+    getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .send({ matchId: 44, probability: 50, tippedTeam: 'away' });
+
+    expect(response.status).toBe(200);
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 50, {
+      tippedTeam: 'away'
+    });
   });
 
   test('POST /save deletes predictions when probability is blank', async () => {
@@ -313,7 +372,9 @@ describe('predictions routes', () => {
       .send({ matchId: 44, probability: 'abc' });
 
     expect(response.status).toBe(200);
-    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 50);
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 50, {
+      tippedTeam: undefined
+    });
     expect(response.body).toEqual({ success: true });
   });
 
@@ -329,7 +390,9 @@ describe('predictions routes', () => {
       .send({ matchId: 44, probability: 140 });
 
     expect(response.status).toBe(200);
-    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 100);
+    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 100, {
+      tippedTeam: undefined
+    });
     expect(response.body).toEqual({ success: true });
   });
 });

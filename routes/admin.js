@@ -7,7 +7,7 @@ const roundService = require('../services/round-service');
 const predictionService = require('../services/prediction-service');
 const predictorService = require('../services/predictor-service');
 const passwordService = require('../services/password-service');
-const { catchAsync, createNotFoundError, createValidationError } = require('../utils/error-handler');
+const { AppError, catchAsync, createNotFoundError, createValidationError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const multer = require('multer');
 const fs = require('fs');
@@ -360,7 +360,13 @@ router.get('/predictions/:userId', catchAsync(async (req, res) => {
   // Convert to a map format for the frontend
   const predictionsMap = {};
   predictions.forEach(pred => {
-    predictionsMap[pred.match_id] = pred.home_win_probability;
+    const tippedTeam = pred.tipped_team
+      || (pred.home_win_probability < 50 ? 'away' : 'home');
+
+    predictionsMap[pred.match_id] = {
+      probability: pred.home_win_probability,
+      tipped_team: tippedTeam
+    };
   });
   
   res.json({
@@ -372,7 +378,7 @@ router.get('/predictions/:userId', catchAsync(async (req, res) => {
 // Make predictions on behalf of a user
 router.post('/predictions/:userId/save', catchAsync(async (req, res) => {
   const userId = req.params.userId;
-  const { matchId, probability } = req.body;
+  const { matchId, probability, tippedTeam } = req.body;
   
   // Validate input
   if (!matchId || probability === undefined) {
@@ -401,7 +407,10 @@ router.post('/predictions/:userId/save', catchAsync(async (req, res) => {
   if (prob < 0) prob = 0;
   if (prob > 100) prob = 100;
   
-await predictionService.savePrediction(matchId, userId, prob, { adminOverride: true });
+  await predictionService.savePrediction(matchId, userId, prob, {
+    adminOverride: true,
+    tippedTeam
+  });
   
   logger.info(`Prediction saved for user ${userId} on match ${matchId}: ${prob}%`);
   
@@ -789,7 +798,74 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
     throw createValidationError('No file uploaded');
   }
 
-  const replacementResult = await adminDatabaseService.replaceDatabaseFromUpload(req.file.path);
+  const enterMaintenanceMode = req.app?.locals?.enterDatabaseReplacementMode
+    || (async () => {
+      if (req.app?.locals) {
+        req.app.locals.databaseReplacementInProgress = true;
+      }
+    });
+  const exitMaintenanceMode = req.app?.locals?.exitDatabaseReplacementMode
+    || (() => {
+      if (req.app?.locals) {
+        req.app.locals.databaseReplacementInProgress = false;
+      }
+    });
+
+  await enterMaintenanceMode();
+
+  try {
+    const activeRun = await adminScriptRunner.getExistingActiveRun();
+    if (activeRun) {
+      exitMaintenanceMode();
+      throw new AppError(
+        'Database upload is unavailable while an admin script is running',
+        409,
+        'ACTIVE_RUN_EXISTS'
+      );
+    }
+
+    const eventSyncStatus = await resultUpdateService.getEventSyncStatus();
+    if (eventSyncStatus?.activeJob) {
+      exitMaintenanceMode();
+      throw new AppError(
+        'Database upload is unavailable while result-update work is active',
+        409,
+        'ACTIVE_RESULT_UPDATE_EXISTS'
+      );
+    }
+  } catch (error) {
+    exitMaintenanceMode();
+    throw error;
+  }
+
+  let replacementResult;
+  try {
+    replacementResult = await adminDatabaseService.replaceDatabaseFromUpload(req.file.path);
+  } catch (error) {
+    if (error.requiresProcessRestart) {
+      logger.error('Database replacement failed after the live database was closed', {
+        adminId: req.session.user.id,
+        error: error.message
+      });
+
+      if (process.env.NODE_ENV !== 'test') {
+        res.on('finish', () => {
+          setImmediate(() => {
+            logger.info('Exiting process after fatal database replacement failure');
+            process.exit(1);
+          });
+        });
+      }
+
+      return res.status(500).json({
+        success: false,
+        message: 'Database replacement failed and the application will restart shortly.'
+      });
+    }
+
+    exitMaintenanceMode();
+    throw error;
+  }
 
   logger.info('Database upload completed successfully', {
     adminId: req.session.user.id,

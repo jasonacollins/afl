@@ -318,6 +318,37 @@ describe('admin-database-service', () => {
     });
   });
 
+  test('replaceDatabaseFromUpload marks failures after closing the live database as requiring restart', async () => {
+    const validationDb = {
+      all: jest
+        .fn()
+        .mockImplementationOnce((_sql, _params, callback) => callback(null, [{ integrity_check: 'ok' }]))
+        .mockImplementationOnce((_sql, _params, callback) => callback(null, [
+          { name: 'teams' },
+          { name: 'matches' },
+          { name: 'predictors' },
+          { name: 'predictions' }
+        ])),
+      close: jest.fn((callback) => callback(null))
+    };
+    const sqliteFactory = createAsyncSqliteFactory(validationDb);
+    const { service } = loadService({
+      sqliteFactory,
+      fsMocks: {
+        mkdir: jest.fn().mockResolvedValue(undefined),
+        unlink: jest.fn().mockResolvedValue(undefined),
+        copyFile: jest.fn().mockResolvedValue(undefined),
+        rename: jest.fn().mockRejectedValue(new Error('rename failed'))
+      }
+    });
+
+    await expect(service.replaceDatabaseFromUpload('/tmp/upload.db')).rejects.toMatchObject({
+      errorCode: 'DATABASE_REPLACEMENT_ERROR',
+      message: 'Failed to replace database with uploaded file',
+      requiresProcessRestart: true
+    });
+  });
+
   test('removeFileIfExists ignores missing files but rethrows other filesystem errors', async () => {
     const { service } = loadService({
       fsMocks: {

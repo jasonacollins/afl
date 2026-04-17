@@ -156,7 +156,7 @@ The project uses Jest for JavaScript coverage and pytest for Python model and au
 
 ## Security And Operations
 
-- The app uses strict CSP, CSRF protection, session-based auth, login rate limiting, and password hashing.
+- The app uses CSP, CSRF protection, session-based auth, login rate limiting, and password hashing.
 - Request logging redacts secrets such as passwords, CSRF tokens, cookies, and auth headers.
 - Database export/upload flows are handled through a dedicated service layer rather than ad hoc file copying.
 

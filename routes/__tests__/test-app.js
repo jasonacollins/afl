@@ -30,6 +30,13 @@ function createSession(sessionData) {
 function createRouterTestApp(router, options = {}) {
   const app = express();
   const sessionData = options.sessionData || {};
+  app.locals.databaseReplacementInProgress = false;
+  app.locals.enterDatabaseReplacementMode = async () => {
+    app.locals.databaseReplacementInProgress = true;
+  };
+  app.locals.exitDatabaseReplacementMode = () => {
+    app.locals.databaseReplacementInProgress = false;
+  };
 
   app.use(express.urlencoded({ extended: false }));
   app.use(express.json());

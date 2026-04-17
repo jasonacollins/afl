@@ -7,7 +7,7 @@ const helmet = require('helmet');
 require('dotenv').config({ quiet: process.env.NODE_ENV === 'test' });
 
 // Import utilities
-const { errorMiddleware, catchAsync } = require('./utils/error-handler');
+const { AppError, errorMiddleware, catchAsync } = require('./utils/error-handler');
 const { logger, requestLogger } = require('./utils/logger');
 const { getQuery, initializeDatabase } = require('./models/db');
 const csrfProtection = require('./middleware/csrf');
@@ -39,6 +39,10 @@ function getSessionSecret(explicitSecret) {
 }
 
 function registerAppRoutes(app) {
+  app.get('/healthz', (req, res) => {
+    res.json({ ok: true });
+  });
+
   // Serve the scoring service as a client-side script
   app.get('/js/scoring-service.js', (req, res) => {
     res.sendFile(path.join(__dirname, 'services', 'scoring-service.js'));
@@ -417,6 +421,24 @@ function createApp(options = {}) {
 
   const app = express();
   const sessionStore = options.sessionStore || createSessionStore();
+  app.locals.databaseReplacementInProgress = false;
+  app.locals.enterDatabaseReplacementMode = async () => {
+    if (app.locals.databaseReplacementInProgress) {
+      return;
+    }
+
+    app.locals.databaseReplacementInProgress = true;
+    logger.warn('Entering maintenance mode for database replacement');
+    eventSyncService.stop();
+  };
+  app.locals.exitDatabaseReplacementMode = () => {
+    if (!app.locals.databaseReplacementInProgress) {
+      return;
+    }
+
+    app.locals.databaseReplacementInProgress = false;
+    logger.info('Exited maintenance mode for database replacement');
+  };
 
   // Security middleware
   app.use(helmet({
@@ -441,6 +463,24 @@ function createApp(options = {}) {
   app.use(express.urlencoded({ extended: true }));
   app.use(express.json());
   app.use(methodOverride('_method'));
+
+  app.use((req, res, next) => {
+    if (!app.locals.databaseReplacementInProgress) {
+      next();
+      return;
+    }
+
+    if (req.path === '/healthz' || req.path === '/admin/upload-database') {
+      next();
+      return;
+    }
+
+    next(new AppError(
+      'Database replacement in progress. Please retry shortly.',
+      503,
+      'SERVICE_UNAVAILABLE'
+    ));
+  });
 
   // Trust proxy for secure cookies behind reverse proxy
   app.set('trust proxy', 1);

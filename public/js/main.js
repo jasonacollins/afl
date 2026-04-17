@@ -38,6 +38,32 @@ function getCsrfToken() {
   return meta ? meta.getAttribute('content') : '';
 }
 
+function getStoredPrediction(matchId) {
+  if (!window.userPredictions || !(matchId in window.userPredictions)) {
+    return null;
+  }
+
+  const storedPrediction = window.userPredictions[matchId];
+
+  if (storedPrediction === null || storedPrediction === undefined) {
+    return null;
+  }
+
+  if (typeof storedPrediction === 'object') {
+    return {
+      probability: storedPrediction.probability !== null && storedPrediction.probability !== undefined
+        ? String(storedPrediction.probability)
+        : '',
+      tippedTeam: storedPrediction.tippedTeam || storedPrediction.tipped_team || 'home'
+    };
+  }
+
+  return {
+    probability: String(storedPrediction),
+    tippedTeam: 'home'
+  };
+}
+
 // Update match list for selected round via AJAX
 function fetchMatchesForRound(round) {
   // Get the current year from the URL or use the selected year
@@ -98,15 +124,11 @@ function renderMatches(matches) {
     
     let prediction = '';
     let tippedTeam = 'home'; // Default for 50%
-    
-    if (window.userPredictions && window.userPredictions[match.match_id]) {
-      if (typeof window.userPredictions[match.match_id] === 'object') {
-        prediction = window.userPredictions[match.match_id].probability !== null ? String(window.userPredictions[match.match_id].probability) : '';
-        tippedTeam = window.userPredictions[match.match_id].tippedTeam || 'home';
-      } else {
-        // Fallback for older prediction format if necessary, though current standard is object
-        prediction = String(window.userPredictions[match.match_id]) || '';
-      }
+
+    const storedPrediction = getStoredPrediction(match.match_id);
+    if (storedPrediction) {
+      prediction = storedPrediction.probability;
+      tippedTeam = storedPrediction.tippedTeam;
     }
     
     const awayPrediction = prediction !== '' && !isNaN(parseInt(prediction)) ? (100 - parseInt(prediction)) : '';
@@ -400,7 +422,7 @@ function updateRoundButtonStates() {
       
       // 2. Check if the round has any predictions
       const hasPredictions = matches.some(match => 
-        window.userPredictions && window.userPredictions[match.match_id]
+        getStoredPrediction(match.match_id) !== null
       );
       
       // 3. Set the appropriate class

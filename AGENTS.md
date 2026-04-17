@@ -26,8 +26,9 @@ This file is the agent-only supplement to `README.md`.
 
 ### Frontend Security
 
-- The app enforces strict CSP. Keep all JavaScript in external files under `public/js/`.
+- The app enforces CSP. Keep all JavaScript in external files under `public/js/`.
 - Do not add inline scripts or inline event handlers.
+- Do not introduce new inline styles; use classes or other CSP-compatible patterns instead.
 - Client-side POST, PUT, and DELETE requests must use the shared CSRF token from the `<meta name="csrf-token">` tag or a hidden `_csrf` field.
 - Put page-specific browser code in the established entrypoints:
   - `public/js/admin.js`

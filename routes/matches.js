@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getQuery, getOne, runQuery } = require('../models/db');
+const { getQuery } = require('../models/db');
 const { isAuthenticated } = require('./auth');
 const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');
@@ -12,78 +12,6 @@ const { logger } = require('../utils/logger');
 
 // Require authentication for all matches routes
 router.use(isAuthenticated);
-
-// This function ensures all predictors have predictions for all completed matches
-const ensureDefaultPredictions = catchAsync(async (selectedYear) => {
-  logger.info(`Starting default predictions check for year ${selectedYear}`);
-  
-  // Get all predictors with their year_joined
-  const predictors = await getQuery('SELECT predictor_id, year_joined FROM predictors');
-  
-  // Get all completed matches for the selected year with match dates
-  const completedMatches = await getQuery(`
-    SELECT match_id, match_date 
-    FROM matches 
-    WHERE hscore IS NOT NULL 
-    AND ascore IS NOT NULL
-    AND year = ?
-  `, [selectedYear]);
-  
-  // Current date for comparison
-  const currentDate = new Date();
-  let defaultPredictionsCreated = 0;
-  
-  // For each predictor, check if they have predictions for all completed matches
-  for (const predictor of predictors) {
-    // Skip if predictor joined after the selected year
-    if (predictor.year_joined && predictor.year_joined > selectedYear) {
-      logger.debug(`Skipping predictor ${predictor.predictor_id}: joined in ${predictor.year_joined}, selected year is ${selectedYear}`);
-      continue;
-    }
-    
-    for (const match of completedMatches) {
-      // Only create default predictions for matches that have already occurred
-      let matchInPast = true;
-      
-      if (match.match_date) {
-        const matchDate = new Date(match.match_date);
-        if (Number.isNaN(matchDate.getTime())) {
-          logger.error('Error parsing match date', { 
-            matchDate: match.match_date,
-            error: 'Invalid date'
-          });
-        } else if (matchDate > currentDate) {
-          matchInPast = false;
-        }
-      }
-      
-      // Skip if the match is in the future
-      if (!matchInPast) {
-        continue;
-      }
-      
-      // Check if the predictor has a prediction for this match
-      const existingPrediction = await getOne(`
-        SELECT * FROM predictions 
-        WHERE predictor_id = ? AND match_id = ?
-      `, [predictor.predictor_id, match.match_id]);
-      
-      // If no prediction exists, create a default one (50% with home team tip)
-      if (!existingPrediction) {
-        await runQuery(`
-          INSERT INTO predictions 
-          (match_id, predictor_id, home_win_probability, tipped_team) 
-          VALUES (?, ?, 50, 'home')
-        `, [match.match_id, predictor.predictor_id]);
-        
-        defaultPredictionsCreated++;
-        logger.debug(`Created default prediction for predictor ${predictor.predictor_id}, match ${match.match_id}`);
-      }
-    }
-  }
-  
-  logger.info(`Default predictions check completed - created ${defaultPredictionsCreated} predictions`);
-});
 
 function calculatePredictorStats(predictor, predictionResults) {
   let tipPoints = 0;
@@ -291,10 +219,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   const defaultRound = mostRecentRound && mostRecentRound.year === selectedYear
     ? roundService.normalizeRoundForDisplay(mostRecentRound.round, selectedYear)
     : null;
-  
-  // Ensure all predictors have predictions for completed matches
-  await ensureDefaultPredictions(selectedYear);
-  
+
   // Get all predictors, but include admin status and filter out excluded ones
   const allPredictors = await predictorService.getPredictorsWithAdminStatus();
   const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);

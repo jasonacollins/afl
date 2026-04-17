@@ -55,8 +55,11 @@
           // Check if prediction exists and determine its format
           if (predictions[match.match_id] !== undefined) {
             if (typeof predictions[match.match_id] === 'object') {
-              prediction = predictions[match.match_id].probability || null;
-              tippedTeam = predictions[match.match_id].tipped_team || 'home';
+              const storedPrediction = predictions[match.match_id];
+              prediction = storedPrediction.probability !== null && storedPrediction.probability !== undefined
+                ? storedPrediction.probability
+                : null;
+              tippedTeam = storedPrediction.tipped_team || storedPrediction.tippedTeam || 'home';
             } else {
               prediction = predictions[match.match_id];
             }

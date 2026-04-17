@@ -50,7 +50,8 @@ function loadAppModule(options = {}) {
       recoverInterruptedRuns: jest.fn()
     },
     eventSyncService: {
-      start: jest.fn()
+      start: jest.fn(),
+      stop: jest.fn()
     },
     featuredPredictions: {
       getDefaultFeaturedPredictor: jest.fn(),
@@ -499,6 +500,23 @@ describe('app', () => {
     expect(mocks.adminScriptRunner.recoverInterruptedRuns).toHaveBeenCalled();
     expect(mocks.eventSyncService.start).toHaveBeenCalled();
     expect(listenSpy).toHaveBeenCalledWith(3001, '0.0.0.0', expect.any(Function));
+  });
+
+  test('createApp exposes maintenance helpers that stop event sync and toggle the maintenance flag', async () => {
+    const { createApp, mocks } = loadAppModule();
+    const app = createApp({
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    expect(app.locals.databaseReplacementInProgress).toBe(false);
+
+    await app.locals.enterDatabaseReplacementMode();
+    expect(app.locals.databaseReplacementInProgress).toBe(true);
+    expect(mocks.eventSyncService.stop).toHaveBeenCalledTimes(1);
+
+    app.locals.exitDatabaseReplacementMode();
+    expect(app.locals.databaseReplacementInProgress).toBe(false);
   });
 
   test('startServer exits the process when initialization fails', async () => {

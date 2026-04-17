@@ -13,6 +13,16 @@ const { logger } = require('../utils/logger');
 // Require authentication for all prediction routes
 router.use(isAuthenticated);
 
+function buildPredictionViewModel(prediction) {
+  const tippedTeam = prediction.tipped_team
+    || (prediction.home_win_probability < 50 ? 'away' : 'home');
+
+  return {
+    probability: prediction.home_win_probability,
+    tipped_team: tippedTeam
+  };
+}
+
 // Get predictions page
 router.get('/', catchAsync(async (req, res) => {
   // Get the user's year_joined to scope available years
@@ -148,7 +158,7 @@ router.get('/', catchAsync(async (req, res) => {
   // Create predictions map
   const predictionsMap = {};
   userPredictions.forEach(pred => {
-    predictionsMap[pred.match_id] = pred.home_win_probability;
+    predictionsMap[pred.match_id] = buildPredictionViewModel(pred);
   });
   
   logger.info(`User ${req.session.user.id} viewing predictions for year ${selectedYear}, round ${selectedRound}`);
@@ -182,7 +192,7 @@ router.get('/round/:round', catchAsync(async (req, res) => {
 
 // Save prediction
 router.post('/save', catchAsync(async (req, res) => {
-  const { matchId, probability } = req.body;
+  const { matchId, probability, tippedTeam } = req.body;
   const predictorId = req.session.user.id;
   
   if (!matchId || probability === undefined) {
@@ -229,7 +239,7 @@ router.post('/save', catchAsync(async (req, res) => {
   if (prob < 0) prob = 0;
   if (prob > 100) prob = 100;
   
-  await predictionService.savePrediction(matchId, predictorId, prob);
+  await predictionService.savePrediction(matchId, predictorId, prob, { tippedTeam });
   
   logger.info(`Prediction saved`, { 
     userId: predictorId, 
