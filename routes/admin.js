@@ -369,6 +369,7 @@ router.get('/predictions/:userId', catchAsync(async (req, res) => {
     };
   });
   
+  res.set('Cache-Control', 'no-store');
   res.json({
     success: true,
     predictions: predictionsMap

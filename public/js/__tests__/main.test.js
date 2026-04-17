@@ -47,6 +47,7 @@ describe('public/js/main.js', () => {
     global.calculateBitsScore = jest.fn(() => 0.4);
     global.calculateTipPoints = jest.fn(() => 1);
     global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
       json: async () => ([])
     });
     window.fetch = global.fetch;
@@ -90,6 +91,7 @@ describe('public/js/main.js', () => {
     global.fetch = jest.fn((url) => {
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([
             {
               match_id: 99,
@@ -107,17 +109,20 @@ describe('public/js/main.js', () => {
 
       if (url === '/predictions/round/1?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([])
         });
       }
 
       if (url === '/predictions/save') {
         return Promise.resolve({
+          ok: true,
           json: async () => ({ success: true })
         });
       }
 
       return Promise.resolve({
+        ok: true,
         json: async () => ([])
       });
     });
@@ -133,7 +138,7 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026');
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026', { cache: 'no-store' });
     expect(document.getElementById('matches-container').textContent).toContain('Cats');
 
     const saveButton = document.querySelector('.save-prediction[data-match-id="99"]');
@@ -149,6 +154,7 @@ describe('public/js/main.js', () => {
     global.fetch = jest.fn((url) => {
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([
             {
               match_id: 22,
@@ -168,6 +174,7 @@ describe('public/js/main.js', () => {
 
       if (url === '/predictions/round/1?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([
             { match_id: 11, hscore: 90, ascore: 80 }
           ])
@@ -175,6 +182,7 @@ describe('public/js/main.js', () => {
       }
 
       return Promise.resolve({
+        ok: true,
         json: async () => ([
           { match_id: 22, hscore: null, ascore: null }
         ])
@@ -233,6 +241,7 @@ describe('public/js/main.js', () => {
     `;
 
     global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: true })
     });
     window.fetch = global.fetch;
@@ -367,6 +376,7 @@ describe('public/js/main.js', () => {
     `;
 
     global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: true })
     });
     window.fetch = global.fetch;
@@ -516,6 +526,7 @@ describe('public/js/main.js', () => {
     global.fetch = jest.fn((url) => {
       if (url === '/predictions/round/1?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([
             { match_id: 11, hscore: null, ascore: null }
           ])
@@ -552,6 +563,7 @@ describe('public/js/main.js', () => {
     global.fetch = jest.fn((url) => {
       if (url === '/admin/predictions/7') {
         return Promise.resolve({
+          ok: true,
           json: async () => ({
             predictions: {
               22: {
@@ -565,6 +577,7 @@ describe('public/js/main.js', () => {
 
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([
             {
               match_id: 22,
@@ -590,8 +603,8 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenNthCalledWith(1, '/admin/predictions/7');
-    expect(global.fetch).toHaveBeenNthCalledWith(2, '/predictions/round/2?year=2026');
+    expect(global.fetch).toHaveBeenNthCalledWith(1, '/admin/predictions/7', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenNthCalledWith(2, '/predictions/round/2?year=2026', { cache: 'no-store' });
     expect(window.userPredictions).toEqual({
       22: {
         probability: 58,
@@ -611,6 +624,7 @@ describe('public/js/main.js', () => {
     `;
 
     global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: true })
     });
     window.fetch = global.fetch;
@@ -637,6 +651,7 @@ describe('public/js/main.js', () => {
     `;
 
     global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: false, error: 'Save rejected' })
     });
     window.fetch = global.fetch;
@@ -696,6 +711,7 @@ describe('public/js/main.js', () => {
   test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
       json: async () => ({ success: true })
     });
     window.fetch = global.fetch;
@@ -761,6 +777,7 @@ describe('public/js/main.js', () => {
     global.fetch = jest.fn((url) => {
       if (url === '/admin/predictions/9') {
         return Promise.resolve({
+          ok: true,
           json: async () => ({
             predictions: {
               55: { probability: 72, tippedTeam: 'home' }
@@ -771,6 +788,7 @@ describe('public/js/main.js', () => {
 
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([
             {
               match_id: 55,
@@ -788,11 +806,13 @@ describe('public/js/main.js', () => {
 
       if (url === '/predictions/round/1?year=2026') {
         return Promise.resolve({
+          ok: true,
           json: async () => ([])
         });
       }
 
       return Promise.resolve({
+        ok: true,
         json: async () => ([
           { match_id: 55, hscore: null, ascore: null }
         ])
@@ -814,8 +834,8 @@ describe('public/js/main.js', () => {
     expect(window.userPredictions).toEqual({
       55: { probability: 72, tippedTeam: 'home' }
     });
-    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9');
-    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026');
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/predictions/round/2?year=2026', { cache: 'no-store' });
   });
 
   test('selectUser logs fetch failures without mutating the current predictions state', async () => {

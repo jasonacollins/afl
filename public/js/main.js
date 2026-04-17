@@ -68,6 +68,17 @@ function canOverridePredictionLocks() {
   return window.canOverridePredictionLocks === true;
 }
 
+function fetchJsonNoStore(url) {
+  return fetch(url, { cache: 'no-store' })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return response.json();
+    });
+}
+
 // Update match list for selected round via AJAX
 function fetchMatchesForRound(round) {
   // Get the current year from the URL or use the selected year
@@ -94,8 +105,7 @@ function fetchMatchesForRound(round) {
   });
   
   // Fetch matches from server with year parameter
-  fetch(`/predictions/round/${encodeURIComponent(round)}?year=${year}`)
-    .then(response => response.json())
+  fetchJsonNoStore(`/predictions/round/${encodeURIComponent(round)}?year=${year}`)
     .then(matches => {
       currentMatchesData = matches; // Store fetched matches
       renderMatches(matches);
@@ -416,8 +426,7 @@ function updateRoundButtonStates() {
     try {
       // 1. Check if the round is completed
       // Fetch matches for this round to check if they're completed
-      const response = await fetch(`/predictions/round/${round}?year=${year}`);
-      const matches = await response.json();
+      const matches = await fetchJsonNoStore(`/predictions/round/${round}?year=${year}`);
       
       // Round is completed if all matches have scores
       const isCompleted = matches.length > 0 && matches.every(match => 
@@ -699,8 +708,7 @@ function selectUser(userId, userName) {
   
   // If on admin page, fetch predictions for this user
   if (window.location.pathname.includes('/admin')) {
-    fetch(`/admin/predictions/${userId}`)
-      .then(response => response.json())
+    fetchJsonNoStore(`/admin/predictions/${userId}`)
       .then(data => {
         window.userPredictions = data.predictions;
         // If matches are already displayed, refresh the UI

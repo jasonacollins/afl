@@ -186,7 +186,8 @@ router.get('/round/:round', catchAsync(async (req, res) => {
   const processedMatches = matchService.processMatchLockStatus(matches);
   
   logger.debug(`Fetched ${matches.length} matches for round ${round}, year ${year}`);
-  
+
+  res.set('Cache-Control', 'no-store');
   res.json(processedMatches);
 }));
 
