@@ -139,6 +139,7 @@ function renderMatches(matches) {
   }
   
   let html = '';
+  const failedMatchIds = [];
   
   matches.forEach(match => {
     try {
@@ -251,16 +252,21 @@ function renderMatches(matches) {
         </div>
       `;
     } catch (error) {
+      failedMatchIds.push(match?.match_id);
       console.error('Error rendering match card:', match?.match_id, error);
     }
   });
 
+  const adminRenderWarning = window.isAdmin && failedMatchIds.length > 0
+    ? `<div class="alert error">Some matches could not be rendered (${failedMatchIds.length}): ${failedMatchIds.join(', ')}</div>`
+    : '';
+
   if (!html) {
-    matchesContainer.innerHTML = '<div class="error">No renderable matches available for this round</div>';
+    matchesContainer.innerHTML = `${adminRenderWarning}<div class="error">No renderable matches available for this round</div>`;
     return;
   }
   
-  matchesContainer.innerHTML = html;
+  matchesContainer.innerHTML = `${adminRenderWarning}${html}`;
   
   initPredictionInputs();
   initSavePredictionButtons();

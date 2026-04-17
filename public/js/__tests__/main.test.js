@@ -708,7 +708,7 @@ describe('public/js/main.js', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
-  test('fetchMatchesForRound skips malformed cards and shows a fallback when none are renderable', async () => {
+  test('fetchMatchesForRound shows an admin warning when a bad card leaves nothing renderable', async () => {
     global.fetch = jest.fn((url) => {
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
@@ -745,7 +745,76 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
+    expect(document.getElementById('matches-container').textContent).toContain('Some matches could not be rendered (1): 22');
     expect(document.getElementById('matches-container').textContent).toContain('No renderable matches available for this round');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error rendering match card:', 22, expect.any(Error));
+  });
+
+  test('fetchMatchesForRound keeps valid cards and shows an admin warning for skipped ones', async () => {
+    global.fetch = jest.fn((url) => {
+      if (url === '/predictions/round/2?year=2026') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ([
+            {
+              match_id: 22,
+              match_date: '2026-04-10T09:30:00.000Z',
+              venue: 'MCG',
+              home_team: 'Cats',
+              away_team: 'Swans',
+              hscore: 90,
+              ascore: 80,
+              isLocked: false
+            },
+            {
+              match_id: 23,
+              match_date: '2026-04-11T09:30:00.000Z',
+              venue: 'SCG',
+              home_team: 'Giants',
+              away_team: 'Lions',
+              hscore: null,
+              ascore: null,
+              isLocked: false
+            }
+          ])
+        });
+      }
+
+      if (url === '/predictions/round/1?year=2026') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ([])
+        });
+      }
+
+      return Promise.resolve({
+        ok: true,
+        json: async () => ([
+          { match_id: 23, hscore: null, ascore: null }
+        ])
+      });
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+    window.isAdmin = true;
+    global.calculateBrierScore.mockImplementation((prediction) => {
+      if (prediction === 64) {
+        throw new Error('render blew up');
+      }
+      return 0.2;
+    });
+    window.userPredictions = {
+      22: { probability: 64, tippedTeam: 'home' }
+    };
+
+    window.fetchMatchesForRound('2');
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('matches-container').textContent).toContain('Some matches could not be rendered (1): 22');
+    expect(document.getElementById('matches-container').textContent).toContain('Giants');
+    expect(document.getElementById('matches-container').textContent).not.toContain('No renderable matches available for this round');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error rendering match card:', 22, expect.any(Error));
   });
 
