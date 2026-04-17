@@ -22,6 +22,17 @@ function setElementHiddenById(id, hidden) {
   element.classList.toggle('is-hidden', Boolean(hidden));
 }
 
+function fetchJsonNoStore(url) {
+  return fetch(url, { cache: 'no-store' })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return response.json();
+    });
+}
+
 // Modal functions
 function showResetPasswordForm(userId, userName) {
   document.getElementById('resetUserName').textContent = userName;
@@ -220,19 +231,19 @@ function addClearButtons() {
   });
 }
 
-// Extend the fetchMatchesForRound function to add clear buttons after rendering
-const originalFetchMatchesForRound = window.fetchMatchesForRound;
-window.fetchMatchesForRound = function(round) {
-  if (originalFetchMatchesForRound) {
-    originalFetchMatchesForRound.call(this, round);
-
-    // Add a slight delay to ensure DOM is updated
-    setTimeout(addClearButtons, 500);
+function getAdminMatchesForRoundData(round, year) {
+  const userId = document.getElementById('selected-user-id')?.value;
+  if (userId) {
+    return fetchJsonNoStore(`/admin/predictions/${encodeURIComponent(userId)}/round/${encodeURIComponent(round)}?year=${year}`);
   }
-};
+
+  return fetchJsonNoStore(`/predictions/round/${encodeURIComponent(round)}?year=${year}`);
+}
 
 if (typeof window !== 'undefined') {
   window.getCsrfToken = getCsrfToken;
+  window.getMatchesForRoundData = getAdminMatchesForRoundData;
+  window.onMatchesRendered = addClearButtons;
   window.showResetPasswordForm = showResetPasswordForm;
   window.closeModal = closeModal;
   window.closeRefreshModal = closeRefreshModal;
@@ -243,6 +254,7 @@ if (typeof window !== 'undefined') {
   window.selectUserByData = selectUserByData;
   window.clearPredictionDirectly = clearPredictionDirectly;
   window.addClearButtons = addClearButtons;
+  window.getAdminMatchesForRoundData = getAdminMatchesForRoundData;
 }
 
 // DOM Content Loaded event handler

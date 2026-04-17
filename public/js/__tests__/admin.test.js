@@ -384,16 +384,22 @@ describe('public/js/admin.js', () => {
     expect(window.savePrediction).toHaveBeenCalledWith('44', '', saveButton);
   });
 
-  test('admin fetchMatchesForRound wrapper preserves the original loader and re-applies clear buttons', () => {
-    const originalFetchMatchesForRound = window.fetchMatchesForRound;
-
+  test('admin registers hooks for round data loading and post-render clear buttons', async () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
 
     document.querySelector('.clear-prediction').remove();
-    window.fetchMatchesForRound('2');
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ([])
+    });
 
-    expect(originalFetchMatchesForRound).toHaveBeenCalledWith('2');
+    document.getElementById('selected-user-id').value = '7';
+    const matches = await window.getMatchesForRoundData('2', '2026');
+    window.onMatchesRendered();
+
+    expect(matches).toEqual([]);
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7/round/2?year=2026', { cache: 'no-store' });
     expect(document.querySelector('.clear-prediction')).not.toBeNull();
   });
 

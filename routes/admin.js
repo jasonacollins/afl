@@ -4,6 +4,7 @@ const { getQuery, getOne, runQuery } = require('../models/db');
 const { isAuthenticated, isAdmin } = require('./auth');
 const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');
+const matchService = require('../services/match-service');
 const predictionService = require('../services/prediction-service');
 const predictorService = require('../services/predictor-service');
 const passwordService = require('../services/password-service');
@@ -52,6 +53,33 @@ async function getOperationsViewModel(yearQuery) {
   return {
     years,
     selectedYear
+  };
+}
+
+function buildAdminMetrics(prediction, match) {
+  if (!prediction || match.hscore === null || match.ascore === null) {
+    return null;
+  }
+
+  const probability = prediction.home_win_probability;
+  const tippedTeam = prediction.tipped_team || (probability < 50 ? 'away' : 'home');
+  const homeWon = match.hscore > match.ascore;
+  const tie = match.hscore === match.ascore;
+  const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
+  const tipPoints = scoringService.calculateTipPoints(probability, match.hscore, match.ascore, tippedTeam);
+
+  let tipClass = 'incorrect';
+  if (tipPoints === 1) {
+    tipClass = 'correct';
+  } else if (tie && probability !== 50) {
+    tipClass = 'partial';
+  }
+
+  return {
+    tipPoints,
+    tipClass,
+    brierScore: scoringService.calculateBrierScore(probability, actualOutcome).toFixed(4),
+    bitsScore: scoringService.calculateBitsScore(probability, actualOutcome).toFixed(4)
   };
 }
 
@@ -374,6 +402,38 @@ router.get('/predictions/:userId', catchAsync(async (req, res) => {
     success: true,
     predictions: predictionsMap
   });
+}));
+
+router.get('/predictions/:userId/round/:round', catchAsync(async (req, res) => {
+  const userId = req.params.userId;
+
+  const user = await predictorService.getPredictorById(userId);
+  if (!user) {
+    return res.redirect('/admin?error=' + encodeURIComponent('User not found'));
+  }
+
+  const { selectedYear: year } = await roundService.resolveYear(req.query.year);
+  const matches = await matchService.getMatchesByRoundSelectionAndYear(req.params.round, year);
+  const processedMatches = matchService.processMatchLockStatus(matches);
+  const predictions = await predictionService.getPredictionsForUser(userId);
+  const predictionsByMatchId = new Map(predictions.map((prediction) => [String(prediction.match_id), prediction]));
+
+  const decoratedMatches = processedMatches.map((match) => {
+    const prediction = predictionsByMatchId.get(String(match.match_id));
+    const adminMetrics = buildAdminMetrics(prediction, match);
+
+    if (!adminMetrics) {
+      return match;
+    }
+
+    return {
+      ...match,
+      adminMetrics
+    };
+  });
+
+  res.set('Cache-Control', 'no-store');
+  res.json(decoratedMatches);
 }));
 
 // Make predictions on behalf of a user

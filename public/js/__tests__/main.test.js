@@ -78,6 +78,8 @@ describe('public/js/main.js', () => {
     delete window.calculateBrierScore;
     delete window.calculateBitsScore;
     delete window.calculateTipPoints;
+    delete window.getMatchesForRoundData;
+    delete window.onMatchesRendered;
     consoleErrorSpy.mockRestore();
 
     restoreDomGlobals();
@@ -715,120 +717,31 @@ describe('public/js/main.js', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
-  test('fetchMatchesForRound keeps completed cards renderable when metrics calculation fails', async () => {
-    global.fetch = jest.fn((url) => {
-      if (url === '/predictions/round/2?year=2026') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ([
-            {
-              match_id: 22,
-              match_date: '2026-04-10T09:30:00.000Z',
-              venue: 'MCG',
-              home_team: 'Cats',
-              away_team: 'Swans',
-              hscore: 90,
-              ascore: 80,
-              isLocked: false
-            }
-          ])
-        });
+  test('fetchMatchesForRound uses the injected round-data loader when provided', async () => {
+    window.getMatchesForRoundData = jest.fn().mockResolvedValue([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
       }
-
-      return Promise.resolve({
-        ok: true,
-        json: async () => ([])
-      });
-    });
-    window.fetch = global.fetch;
+    ]);
 
     loadBrowserScript('main.js');
-    window.isAdmin = true;
-    global.calculateBrierScore.mockImplementation(() => {
-      throw new Error('render blew up');
-    });
-    window.calculateBrierScore = global.calculateBrierScore;
 
     window.fetchMatchesForRound('2');
     await flushPromises();
     await flushPromises();
 
+    expect(window.getMatchesForRoundData).toHaveBeenCalledWith('2', '2026');
     expect(document.getElementById('matches-container').textContent).toContain('Cats');
-    expect(document.getElementById('matches-container').textContent).toContain('Metrics unavailable');
-    expect(document.getElementById('matches-container').textContent).not.toContain('Some matches could not be rendered');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error calculating match accuracy:', 22, expect.any(Error));
   });
 
-  test('fetchMatchesForRound still shows the rest of the round when one completed match has metrics issues', async () => {
-    global.fetch = jest.fn((url) => {
-      if (url === '/predictions/round/2?year=2026') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ([
-            {
-              match_id: 22,
-              match_date: '2026-04-10T09:30:00.000Z',
-              venue: 'MCG',
-              home_team: 'Cats',
-              away_team: 'Swans',
-              hscore: 90,
-              ascore: 80,
-              isLocked: false
-            },
-            {
-              match_id: 23,
-              match_date: '2026-04-11T09:30:00.000Z',
-              venue: 'SCG',
-              home_team: 'Giants',
-              away_team: 'Lions',
-              hscore: null,
-              ascore: null,
-              isLocked: false
-            }
-          ])
-        });
-      }
-
-      if (url === '/predictions/round/1?year=2026') {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ([])
-        });
-      }
-
-      return Promise.resolve({
-        ok: true,
-        json: async () => ([
-          { match_id: 23, hscore: null, ascore: null }
-        ])
-      });
-    });
-    window.fetch = global.fetch;
-
-    loadBrowserScript('main.js');
-    window.isAdmin = true;
-    global.calculateBrierScore.mockImplementation((prediction) => {
-      if (prediction === 64) {
-        throw new Error('render blew up');
-      }
-      return 0.2;
-    });
-    window.calculateBrierScore = global.calculateBrierScore;
-    window.userPredictions = {
-      22: { probability: 64, tippedTeam: 'home' }
-    };
-
-    window.fetchMatchesForRound('2');
-    await flushPromises();
-    await flushPromises();
-
-    expect(document.getElementById('matches-container').textContent).toContain('Giants');
-    expect(document.getElementById('matches-container').textContent).toContain('Metrics unavailable');
-    expect(document.getElementById('matches-container').textContent).not.toContain('Some matches could not be rendered');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error calculating match accuracy:', 22, expect.any(Error));
-  });
-
-  test('renderMatches shows metrics unavailable when scoring helpers are missing', () => {
+  test('renderMatches prefers server-provided admin metrics for completed matches', () => {
     window.isAdmin = true;
     window.userPredictions = {
       22: {
@@ -836,13 +749,6 @@ describe('public/js/main.js', () => {
         tippedTeam: 'home'
       }
     };
-    delete global.calculateBrierScore;
-    delete global.calculateBitsScore;
-    delete global.calculateTipPoints;
-    delete window.calculateBrierScore;
-    delete window.calculateBitsScore;
-    delete window.calculateTipPoints;
-
     loadBrowserScript('main.js');
 
     window.renderMatches([
@@ -854,12 +760,17 @@ describe('public/js/main.js', () => {
         away_team: 'Swans',
         hscore: 80,
         ascore: 70,
-        isLocked: false
+        isLocked: false,
+        adminMetrics: {
+          tipPoints: 1,
+          tipClass: 'correct',
+          brierScore: '0.1234',
+          bitsScore: '0.5678'
+        }
       }
     ]);
 
-    expect(document.getElementById('matches-container').textContent).toContain('Metrics unavailable');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Scoring helpers unavailable for metrics rendering');
+    expect(document.querySelector('.admin-metrics-display').textContent).toContain('Tip: 1 | Brier: 0.1234 | Bits: 0.5678');
   });
 
   test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {

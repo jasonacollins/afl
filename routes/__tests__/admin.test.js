@@ -36,6 +36,11 @@ jest.mock('../../services/round-service', () => ({
   combineRoundsForDisplay: jest.fn((rounds) => rounds)
 }));
 
+jest.mock('../../services/match-service', () => ({
+  getMatchesByRoundSelectionAndYear: jest.fn(),
+  processMatchLockStatus: jest.fn((matches) => matches)
+}));
+
 jest.mock('../../services/prediction-service', () => ({
   getPredictionsForUser: jest.fn(),
   savePrediction: jest.fn(),
@@ -96,8 +101,10 @@ const request = require('supertest');
 const fs = require('fs').promises;
 const dbModule = require('../../models/db');
 const { getQuery, getOne, runQuery } = dbModule;
+const roundService = require('../../services/round-service');
 const predictorService = require('../../services/predictor-service');
 const predictionService = require('../../services/prediction-service');
+const matchService = require('../../services/match-service');
 const passwordService = require('../../services/password-service');
 const adminScriptRunner = require('../../services/admin-script-runner');
 const resultUpdateService = require('../../services/result-update-service');
@@ -557,6 +564,56 @@ describe('admin routes', () => {
         }
       }
     });
+  });
+
+  test('GET /predictions/:userId/round/:round returns round matches with admin metrics', async () => {
+    roundService.resolveYear.mockResolvedValue({ selectedYear: 2026 });
+    matchService.getMatchesByRoundSelectionAndYear.mockResolvedValue([
+      {
+        match_id: 16886,
+        hscore: 83,
+        ascore: 88
+      },
+      {
+        match_id: 16887,
+        hscore: null,
+        ascore: null
+      }
+    ]);
+    predictionService.getPredictionsForUser.mockResolvedValue([
+      {
+        match_id: 16886,
+        home_win_probability: 23,
+        tipped_team: 'away'
+      }
+    ]);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app).get('/predictions/5/round/6?year=2026');
+
+    expect(response.status).toBe(200);
+    expect(matchService.getMatchesByRoundSelectionAndYear).toHaveBeenCalledWith('6', 2026);
+    expect(response.body).toEqual([
+      {
+        match_id: 16886,
+        hscore: 83,
+        ascore: 88,
+        adminMetrics: {
+          tipPoints: 1,
+          tipClass: 'correct',
+          brierScore: '0.2000',
+          bitsScore: '0.4000'
+        }
+      },
+      {
+        match_id: 16887,
+        hscore: null,
+        ascore: null
+      }
+    ]);
   });
 
   test('POST /predictions/:userId/save validates missing required fields', async () => {
