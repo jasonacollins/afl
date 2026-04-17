@@ -46,17 +46,14 @@ const ensureDefaultPredictions = catchAsync(async (selectedYear) => {
       let matchInPast = true;
       
       if (match.match_date) {
-        try {
-          const matchDate = new Date(match.match_date);
-          // Check if matchDate is valid and in the past
-          if (!isNaN(matchDate.getTime()) && matchDate > currentDate) {
-            matchInPast = false;
-          }
-        } catch (err) {
+        const matchDate = new Date(match.match_date);
+        if (Number.isNaN(matchDate.getTime())) {
           logger.error('Error parsing match date', { 
             matchDate: match.match_date,
-            error: err.message 
+            error: 'Invalid date'
           });
+        } else if (matchDate > currentDate) {
+          matchInPast = false;
         }
       }
       
@@ -322,17 +319,17 @@ router.get('/stats', catchAsync(async (req, res) => {
   // Format dates for completed matches
   completedMatches.forEach(match => {
     if (match.match_date && match.match_date.includes('T')) {
-      try {
-        const date = new Date(match.match_date);
+      const date = new Date(match.match_date);
+      if (Number.isNaN(date.getTime())) {
+        logger.error('Error formatting date for stats', {
+          matchDate: match.match_date,
+          error: 'Invalid date'
+        });
+      } else {
         match.match_date = date.toLocaleDateString('en-AU', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric'
-        });
-      } catch (error) {
-        logger.error('Error formatting date for stats', { 
-          matchDate: match.match_date, 
-          error: error.message 
         });
       }
     }

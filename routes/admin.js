@@ -7,13 +7,14 @@ const roundService = require('../services/round-service');
 const predictionService = require('../services/prediction-service');
 const predictorService = require('../services/predictor-service');
 const passwordService = require('../services/password-service');
-const { catchAsync, createValidationError, createNotFoundError } = require('../utils/error-handler');
+const { catchAsync, createNotFoundError, createValidationError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const adminScriptRunner = require('../services/admin-script-runner');
 const resultUpdateService = require('../services/result-update-service');
+const adminDatabaseService = require('../services/admin-database-service');
 
 // Require authentication and admin for all admin routes
 router.use(isAuthenticated);
@@ -709,49 +710,39 @@ router.post('/delete-user/:userId', async (req, res, next) => {
 
 // Database export route
 router.get('/export/database', catchAsync(async (req, res) => {
-  const path = require('path');
-  const fs = require('fs');
-  
   logger.info(`Database export initiated by admin ${req.session.user.id}`);
-  
-  // Get database path from models/db.js
-  const dbPath = require('../models/db').dbPath || path.join(__dirname, '../data/database/afl_predictions.db');
-  
-  // Get current timestamp for filename
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `afl_predictions_${timestamp}.db`;
-  const backupPath = path.join(__dirname, '..', 'data', filename);
-  
-  // Copy the database file (this is safer than running the backup API)
-  fs.copyFile(dbPath, backupPath, (err) => {
-    if (err) {
-      logger.error('Error creating database copy', { 
-        error: err,
-        adminId: req.session.user.id 
-      });
-      throw new Error('Failed to create database backup');
-    }
-    
-    // Send the file for download
-    res.download(backupPath, filename, (downloadErr) => {
-      if (downloadErr) {
-        logger.error('Error sending database file', { 
-          error: downloadErr,
-          adminId: req.session.user.id 
+
+  const snapshot = await adminDatabaseService.createDatabaseSnapshot({
+    prefix: 'afl_predictions'
+  });
+
+  await new Promise((resolve, reject) => {
+    res.download(snapshot.path, snapshot.filename, async (downloadErr) => {
+      try {
+        await adminDatabaseService.removeFileIfExists(snapshot.path);
+      } catch (cleanupError) {
+        logger.error('Error deleting temporary database export', {
+          error: cleanupError.message,
+          path: snapshot.path
         });
-      } else {
-        logger.info(`Database export successful for admin ${req.session.user.id}`);
       }
-      
-      // Clean up - delete the temporary file after download
-      fs.unlink(backupPath, (unlinkErr) => {
-        if (unlinkErr) {
-          logger.error('Error deleting temp database file', { 
-            error: unlinkErr,
-            path: backupPath 
-          });
+
+      if (downloadErr) {
+        logger.error('Error sending database file', {
+          error: downloadErr.message,
+          adminId: req.session.user.id
+        });
+        if (!res.headersSent) {
+          reject(downloadErr);
+          return;
         }
-      });
+
+        resolve();
+        return;
+      }
+
+      logger.info(`Database export successful for admin ${req.session.user.id}`);
+      resolve();
     });
   });
 }));
@@ -797,67 +788,27 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
   if (!req.file) {
     throw createValidationError('No file uploaded');
   }
-  
-  // Get path to uploaded temp file and database
-  const uploadedFilePath = req.file.path;
-  const dbModule = require('../models/db');
-  const dbPath = dbModule.dbPath;
-  
-  try {
-    // Create backup of current database first
-    const backupDir = path.join(__dirname, '..', 'data', 'database', 'backups');
-    if (!fs.existsSync(backupDir)) {
-      fs.mkdirSync(backupDir, { recursive: true });
-    }
-    
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupPath = path.join(backupDir, `backup_${timestamp}.db`);
-    
-    // Copy current database to backup location
-    fs.copyFileSync(dbPath, backupPath);
-    logger.info(`Database backed up to ${backupPath}`);
-    
-    // Send successful response before performing database replacement
-    // This prevents client-side errors when the server restarts
-    res.json({ 
-      success: true, 
-      message: 'Database uploaded successfully. The application will restart shortly.' 
-    });
-    
-    // Allow time for the response to be sent
-    setTimeout(() => {
-      logger.info('Performing database replacement and server restart');
-      
-      try {
-        // Replace database file
-        fs.copyFileSync(uploadedFilePath, dbPath);
-        logger.info(`Database replaced with uploaded file`);
-        
-        // Clean up temp file
-        fs.unlinkSync(uploadedFilePath);
-        
-        // Exit the process - Docker/PM2 will restart the application
+
+  const replacementResult = await adminDatabaseService.replaceDatabaseFromUpload(req.file.path);
+
+  logger.info('Database upload completed successfully', {
+    adminId: req.session.user.id,
+    backupPath: replacementResult.backupPath
+  });
+
+  if (process.env.NODE_ENV !== 'test') {
+    res.on('finish', () => {
+      setImmediate(() => {
         logger.info('Exiting process for restart after database replacement');
         process.exit(0);
-      } catch (error) {
-        logger.error('Error during database replacement', { error: error.message });
-        // We can't send an error response here since we've already sent a success response
-      }
-    }, 1000); // Wait 1 second before replacing the database
-    
-  } catch (error) {
-    logger.error('Error handling database upload', { error: error.message });
-    
-    // Clean up temp file if it exists
-    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    
-    res.status(500).json({ 
-      success: false, 
-      message: `Error handling upload: ${error.message}` 
+      });
     });
   }
+
+  return res.json({
+    success: true,
+    message: 'Database uploaded successfully. The application will restart shortly.'
+  });
 }));
 
 // Set featured predictors for homepage

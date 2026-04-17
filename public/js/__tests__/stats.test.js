@@ -293,4 +293,45 @@ describe('public/js/stats.js', () => {
       expect.any(Error)
     );
   });
+
+  test('renders server-declared round-stat errors and tolerates missing cumulative containers', async () => {
+    restoreDomGlobals();
+    dom.window.close();
+
+    dom = createDom(`
+      <button class="round-button" data-round="2">Round 2</button>
+      <div id="round-stats-container" class="is-hidden"></div>
+      <div id="round-display"></div>
+      <div id="round-stats-content"></div>
+    `, { url: 'https://example.test/matches/stats?year=2026' });
+    restoreDomGlobals = installDomGlobals(dom);
+
+    global.fetch.mockImplementation((url) => {
+      if (url === '/api/excluded-predictors') {
+        return Promise.resolve({
+          json: async () => ({ excludedPredictors: [] })
+        });
+      }
+
+      if (url === '/matches/stats/round/2?year=undefined') {
+        return Promise.resolve({
+          json: async () => ({ success: false })
+        });
+      }
+
+      throw new Error(`Unexpected fetch URL: ${url}`);
+    });
+
+    loadBrowserScript('stats.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+
+    document.querySelector('.round-button[data-round="2"]').click();
+    await flushPromises();
+
+    expect(document.getElementById('round-display').textContent).toBe('Round 2');
+    expect(document.getElementById('round-stats-content').textContent).toContain(
+      'Error loading round statistics.'
+    );
+  });
 });

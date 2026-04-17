@@ -81,6 +81,12 @@ function loadRealAppModule(dbPath, mocks = {}) {
       jest.unmock('../services/prediction-service');
     }
 
+    if (mocks.adminDatabaseService) {
+      jest.doMock('../services/admin-database-service', () => mocks.adminDatabaseService);
+    } else {
+      jest.unmock('../services/admin-database-service');
+    }
+
     if (mocks.apiRefreshModule) {
       jest.doMock('../scripts/automation/api-refresh', () => mocks.apiRefreshModule);
     } else {
@@ -593,12 +599,11 @@ describe('app integration security stack', () => {
 
   test('admin database upload uses the real CSRF-protected app stack before replacement and restart', async () => {
     const passwordHash = bcrypt.hashSync('admin-secret', 4);
-    const scheduledCallbacks = [];
-    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
-    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((callback) => {
-      scheduledCallbacks.push(callback);
-      return 1;
-    });
+    const adminDatabaseService = {
+      replaceDatabaseFromUpload: jest.fn().mockResolvedValue({
+        backupPath: path.join(tempDir, 'backup.db')
+      })
+    };
 
     await unloadDbModule(loaded && loaded.dbModule);
     loaded = loadRealAppModule(path.join(tempDir, 'app.db'), {
@@ -613,13 +618,13 @@ describe('app integration security stack', () => {
       },
       adminScriptRunner: {
         recoverInterruptedRuns: jest.fn()
-      }
+      },
+      adminDatabaseService
     });
 
     await loaded.dbModule.initializeDatabase();
-    const originalDbContents = await fs.readFile(path.join(tempDir, 'app.db'));
     const uploadedDbPath = path.join(tempDir, 'uploaded.db');
-    await fs.writeFile(uploadedDbPath, 'replacement-database', 'utf8');
+    await fs.copyFile(path.join(tempDir, 'app.db'), uploadedDbPath);
 
     const app = loaded.appModule.createApp({
       sessionSecret: 'test-secret',
@@ -627,46 +632,37 @@ describe('app integration security stack', () => {
     });
     const agent = request.agent(app);
 
-    try {
-      await loginAsUser(agent, {
-        username: 'admin',
-        password: 'admin-secret',
-        expectedLocation: '/admin'
-      });
+    await loginAsUser(agent, {
+      username: 'admin',
+      password: 'admin-secret',
+      expectedLocation: '/admin'
+    });
 
-      const csrfFailure = await agent
-        .post('/admin/upload-database')
-        .attach('databaseFile', uploadedDbPath);
+    const csrfFailure = await agent
+      .post('/admin/upload-database')
+      .type('form')
+      .send({});
 
-      expect(csrfFailure.status).toBe(403);
-      expect(csrfFailure.text).toContain('CSRF token validation failed');
+    expect(csrfFailure.status).toBe(403);
+    expect(csrfFailure.text).toContain('CSRF token validation failed');
 
-      const scriptsPage = await agent.get('/admin/scripts').expect(200);
-      const csrfToken = extractCsrfToken(scriptsPage.text);
+    const scriptsPage = await agent.get('/admin/scripts').expect(200);
+    const csrfToken = extractCsrfToken(scriptsPage.text);
 
-      const success = await agent
-        .post('/admin/upload-database')
-        .set('X-CSRF-Token', csrfToken)
-        .attach('databaseFile', uploadedDbPath);
+    const success = await agent
+      .post('/admin/upload-database')
+      .set('X-CSRF-Token', csrfToken)
+      .attach('databaseFile', uploadedDbPath);
 
-      expect(success.status).toBe(200);
-      expect(success.body).toEqual({
-        success: true,
-        message: 'Database uploaded successfully. The application will restart shortly.'
-      });
-      expect(scheduledCallbacks).toHaveLength(1);
-
-      scheduledCallbacks[0]();
-
-      expect(await fs.readFile(path.join(tempDir, 'app.db'), 'utf8')).toBe('replacement-database');
-      expect(exitSpy).toHaveBeenCalledWith(0);
-
-      const replacedContents = await fs.readFile(path.join(tempDir, 'app.db'));
-      expect(replacedContents.equals(originalDbContents)).toBe(false);
-    } finally {
-      exitSpy.mockRestore();
-      setTimeoutSpy.mockRestore();
-    }
+    expect(success.status).toBe(200);
+    expect(success.body).toEqual({
+      success: true,
+      message: 'Database uploaded successfully. The application will restart shortly.'
+    });
+    expect(adminDatabaseService.replaceDatabaseFromUpload).toHaveBeenCalledWith(
+      expect.stringContaining('/data/temp/temp_upload_')
+    );
+    await fs.rm(adminDatabaseService.replaceDatabaseFromUpload.mock.calls[0][0], { force: true });
   });
 
   test('admin pages render CSP-safe HTML with page-specific assets after real admin login', async () => {

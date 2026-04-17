@@ -5,6 +5,7 @@
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
+const { sanitizeRequestMetadata } = require('./request-log-sanitizer');
 
 // Create logs directory if it doesn't exist
 const logDir = path.join(__dirname, '../logs');
@@ -71,13 +72,7 @@ const requestLogger = (req, res, next) => {
     const message = `${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`;
     
     if (res.statusCode >= 400) {
-      logger.warn(message, {
-        body: req.body,
-        params: req.params,
-        query: req.query,
-        ip: req.ip,
-        user: req.user ? req.user.id : 'anonymous'
-      });
+      logger.warn(message, sanitizeRequestMetadata(req));
     } else {
       logger.info(message);
     }

@@ -61,6 +61,7 @@ const roundService = require('../../services/round-service');
 const matchService = require('../../services/match-service');
 const predictionService = require('../../services/prediction-service');
 const predictorService = require('../../services/predictor-service');
+const { logger } = require('../../utils/logger');
 const matchesRouter = require('../matches');
 const { createRouterTestApp } = require('./test-app');
 
@@ -400,5 +401,121 @@ describe('matches routes', () => {
       selectedYear: 2026,
       currentUser: { id: 5 }
     });
+  });
+
+  test('GET /stats logs invalid match dates while preserving stats rendering', async () => {
+    roundService.getRoundsForYear.mockResolvedValue([{ round_number: '1' }]);
+    roundService.normalizeRoundForDisplay.mockReturnValue('1');
+    roundService.combineRoundsForDisplay.mockImplementation((rounds) => rounds);
+
+    getQuery
+      .mockResolvedValueOnce([
+        {
+          match_id: 11,
+          round_number: '1',
+          match_date: 'invalidTdate',
+          hscore: 100,
+          ascore: 80,
+          home_team: 'Cats',
+          away_team: 'Swans'
+        }
+      ])
+      .mockResolvedValueOnce([
+        { predictor_id: 1, year_joined: 2020 }
+      ])
+      .mockResolvedValueOnce([
+        { match_id: 11, match_date: 'invalidTdate' }
+      ]);
+    getOne.mockResolvedValue(null);
+
+    matchService.getMostRecentRoundWithResults.mockResolvedValue({ year: 2026, round: '1' });
+    matchService.getCompletedMatchesForYear.mockResolvedValue([
+      { match_id: 11, match_date: 'invalidTdate', hscore: 100, ascore: 80 }
+    ]);
+    matchService.getCompletedMatchesForRoundSelection.mockResolvedValue([
+      { match_id: 11, hscore: 100, ascore: 80 }
+    ]);
+    predictorService.getPredictorsWithAdminStatus.mockResolvedValue([
+      {
+        predictor_id: 1,
+        name: 'dad',
+        display_name: 'Dad',
+        stats_excluded: 0,
+        active: 1,
+        is_admin: 0
+      }
+    ]);
+    predictionService.getPredictionsForUser.mockResolvedValue([]);
+    predictionService.getPredictionsWithResultsForYear.mockResolvedValue([
+      {
+        home_win_probability: 65,
+        hscore: 100,
+        ascore: 80,
+        round_number: '1',
+        tipped_team: 'home',
+        predicted_margin: null
+      }
+    ]);
+
+    const app = createRouterTestApp(matchesRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app).get('/stats?year=2026');
+
+    expect(response.status).toBe(200);
+    expect(logger.error).toHaveBeenCalledWith('Error parsing match date', {
+      matchDate: 'invalidTdate',
+      error: 'Invalid date'
+    });
+    expect(logger.error).toHaveBeenCalledWith('Error formatting date for stats', {
+      matchDate: 'invalidTdate',
+      error: 'Invalid date'
+    });
+  });
+
+  test('GET /stats/round/:round falls back to expanded round selection when the grouped round is unknown', async () => {
+    roundService.normalizeRoundForDisplay.mockReturnValue('Wildcard Finals');
+    roundService.expandRoundSelection.mockReturnValue(['Wildcard Finals']);
+    roundService.getRoundsForYear.mockResolvedValue([{ round_number: '1' }]);
+    roundService.combineRoundsForDisplay.mockImplementation((rounds) => rounds);
+    predictorService.getPredictorsWithAdminStatus.mockResolvedValue([
+      {
+        predictor_id: 1,
+        name: 'dad',
+        display_name: 'Dad',
+        stats_excluded: 0,
+        active: 1,
+        is_admin: 0
+      }
+    ]);
+    matchService.getCompletedMatchesForRoundSelection.mockResolvedValue([
+      { match_id: 22, hscore: 90, ascore: 70 }
+    ]);
+    predictionService.getPredictionsWithResultsForYear.mockResolvedValue([
+      {
+        home_win_probability: 60,
+        hscore: 90,
+        ascore: 70,
+        round_number: 'Wildcard Finals',
+        tipped_team: 'home',
+        predicted_margin: 12
+      }
+    ]);
+
+    const app = createRouterTestApp(matchesRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app).get('/stats/round/Wildcard%20Finals?year=2026');
+
+    expect(response.status).toBe(200);
+    expect(roundService.expandRoundSelection).toHaveBeenCalledWith('Wildcard Finals');
+    expect(response.body.roundPredictorStats).toEqual([
+      expect.objectContaining({
+        id: 1,
+        totalPredictions: 1
+      })
+    ]);
   });
 });

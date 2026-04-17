@@ -17,6 +17,37 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+function regenerateSession(req) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function saveSession(req) {
+  return new Promise((resolve, reject) => {
+    if (typeof req.session.save !== 'function') {
+      resolve();
+      return;
+    }
+
+    req.session.save((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
 // Login page (GET)
 router.get('/login', (req, res) => {
   if (req.session.user) {
@@ -52,13 +83,14 @@ router.post('/login', loginLimiter, catchAsync(async (req, res) => {
     return res.render('index', { error: 'Invalid username or password' });
   }
 
-  // Set session data
+  await regenerateSession(req);
   req.session.user = {
     id: user.predictor_id,
     name: user.name,
     display_name: user.display_name
   };
   req.session.isAdmin = user.is_admin === 1;
+  await saveSession(req);
 
   logger.info(`User ${user.predictor_id} (${user.name}) logged in successfully`);
 
@@ -71,15 +103,17 @@ router.post('/login', loginLimiter, catchAsync(async (req, res) => {
 }));
 
 // Logout
-router.get('/logout', (req, res) => {
+router.post('/logout', (req, res) => {
   const userId = req.session.user ? req.session.user.id : 'unknown';
   
   req.session.destroy(err => {
     if (err) {
       logger.error('Error destroying session during logout', { userId, error: err });
-    } else {
-      logger.info(`User ${userId} logged out successfully`);
+      return res.redirect('/');
     }
+
+    res.clearCookie('connect.sid');
+    logger.info(`User ${userId} logged out successfully`);
     res.redirect('/');
   });
 });

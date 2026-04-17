@@ -69,6 +69,12 @@ jest.mock('../../services/result-update-service', () => ({
   getEventSyncStatus: jest.fn()
 }));
 
+jest.mock('../../services/admin-database-service', () => ({
+  createDatabaseSnapshot: jest.fn(),
+  removeFileIfExists: jest.fn(),
+  replaceDatabaseFromUpload: jest.fn()
+}));
+
 jest.mock('../../services/featured-predictions', () => ({
   getDefaultFeaturedPredictorId: jest.fn()
 }));
@@ -87,10 +93,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const request = require('supertest');
-const fs = require('fs');
-const fsp = fs.promises;
-const os = require('os');
-const path = require('path');
+const fs = require('fs').promises;
 const dbModule = require('../../models/db');
 const { getQuery, getOne, runQuery } = dbModule;
 const predictorService = require('../../services/predictor-service');
@@ -98,22 +101,11 @@ const predictionService = require('../../services/prediction-service');
 const passwordService = require('../../services/password-service');
 const adminScriptRunner = require('../../services/admin-script-runner');
 const resultUpdateService = require('../../services/result-update-service');
+const adminDatabaseService = require('../../services/admin-database-service');
 const featuredPredictionsService = require('../../services/featured-predictions');
 const { refreshAPIData } = require('../../scripts/automation/api-refresh');
 const adminRouter = require('../admin');
 const { createRouterTestApp } = require('./test-app');
-
-async function listDirSafe(directoryPath) {
-  try {
-    return await fsp.readdir(directoryPath);
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-
-    throw error;
-  }
-}
 
 describe('admin routes', () => {
   beforeEach(() => {
@@ -124,6 +116,13 @@ describe('admin routes', () => {
     passwordService.validatePassword.mockReturnValue({
       isValid: true,
       errors: []
+    });
+    adminDatabaseService.createDatabaseSnapshot.mockResolvedValue({
+      path: '/tmp/afl_predictions_2026.db',
+      filename: 'afl_predictions_2026.db'
+    });
+    adminDatabaseService.replaceDatabaseFromUpload.mockResolvedValue({
+      backupPath: '/tmp/backup_2026.db'
     });
   });
 
@@ -813,13 +812,7 @@ describe('admin routes', () => {
     expect(response.text).toContain('"Swans",80,85,"Yes",1.0,0.2000,0.4000');
   });
 
-  test('GET /export/database copies the database, downloads it, and removes the temporary copy', async () => {
-    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'afl-admin-export-'));
-    const currentDbPath = path.join(tempDir, 'current.db');
-    await fsp.writeFile(currentDbPath, 'current-db-content', 'utf8');
-    dbModule.dbPath = currentDbPath;
-    const unlinkSpy = jest.spyOn(fs, 'unlink');
-
+  test('GET /export/database downloads a service-created snapshot and removes it afterward', async () => {
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 1 }, isAdmin: true }
     });
@@ -830,37 +823,40 @@ describe('admin routes', () => {
       }
     };
 
-    try {
-      const response = await request(app).get('/export/database');
+    const response = await request(app).get('/export/database');
 
-      expect(response.status).toBe(200);
-      expect(response.body.filename).toMatch(/^afl_predictions_.*\.db$/);
-      expect(response.body.downloadedPath).toContain('/data/afl_predictions_');
-      expect(unlinkSpy).toHaveBeenCalledWith(response.body.downloadedPath, expect.any(Function));
-    } finally {
-      unlinkSpy.mockRestore();
-      await fsp.rm(tempDir, { recursive: true, force: true });
-    }
+    expect(response.status).toBe(200);
+    expect(adminDatabaseService.createDatabaseSnapshot).toHaveBeenCalledWith({
+      prefix: 'afl_predictions'
+    });
+    expect(response.body).toEqual({
+      downloadedPath: '/tmp/afl_predictions_2026.db',
+      filename: 'afl_predictions_2026.db'
+    });
+    expect(adminDatabaseService.removeFileIfExists).toHaveBeenCalledWith('/tmp/afl_predictions_2026.db');
   });
 
-  test('POST /upload-database backs up the current database, replaces it, and exits for restart', async () => {
-    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'afl-admin-upload-'));
-    const currentDbPath = path.join(tempDir, 'current.db');
-    const uploadDbPath = path.join(tempDir, 'uploaded.db');
-    const backupsDir = path.join(process.cwd(), 'data', 'database', 'backups');
-    const backupFilesBefore = await listDirSafe(backupsDir);
-    const tempUploadsDir = path.join(process.cwd(), 'data', 'temp');
-    const tempUploadsBefore = await listDirSafe(tempUploadsDir);
-    const scheduledCallbacks = [];
-    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
-    const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((callback) => {
-      scheduledCallbacks.push(callback);
-      return 1;
+  test('GET /export/database returns an error when download fails before headers are sent', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
     });
+    app.response.download = function download(_filePath, _filename, callback) {
+      if (typeof callback === 'function') {
+        callback(new Error('send failed'));
+      }
+    };
 
-    await fsp.writeFile(currentDbPath, 'old database contents', 'utf8');
-    await fsp.writeFile(uploadDbPath, 'new database contents', 'utf8');
-    dbModule.dbPath = currentDbPath;
+    const response = await request(app)
+      .get('/export/database')
+      .set('Accept', 'application/json');
+
+    expect(response.status).toBe(500);
+    expect(response.body.message).toBe('Something went wrong');
+    expect(adminDatabaseService.removeFileIfExists).toHaveBeenCalledWith('/tmp/afl_predictions_2026.db');
+  });
+
+  test('POST /upload-database delegates replacement to the service and returns a restart response', async () => {
+    let uploadedTempPath = null;
 
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 1 }, isAdmin: true }
@@ -869,38 +865,78 @@ describe('admin routes', () => {
     try {
       const response = await request(app)
         .post('/upload-database')
-        .attach('databaseFile', uploadDbPath);
+        .attach('databaseFile', Buffer.from('sqlite-test-file'), 'uploaded.db');
 
       expect(response.status).toBe(200);
+      uploadedTempPath = adminDatabaseService.replaceDatabaseFromUpload.mock.calls[0][0];
+      expect(adminDatabaseService.replaceDatabaseFromUpload).toHaveBeenCalledWith(
+        expect.stringContaining('/data/temp/temp_upload_')
+      );
       expect(response.body).toEqual({
         success: true,
         message: 'Database uploaded successfully. The application will restart shortly.'
       });
-      expect(scheduledCallbacks).toHaveLength(1);
+    } finally {
+      if (uploadedTempPath) {
+        await fs.rm(uploadedTempPath, { force: true });
+      }
+    }
+  });
 
-      scheduledCallbacks[0]();
+  test('POST /upload-database validates that a file was provided', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
 
-      expect(await fsp.readFile(currentDbPath, 'utf8')).toBe('new database contents');
+    const response = await request(app)
+      .post('/upload-database')
+      .set('Accept', 'application/json');
+
+    expect(response.status).toBe(400);
+    expect(response.body.message).toBe('No file uploaded');
+  });
+
+  test('POST /upload-database rejects non-database file extensions', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/upload-database')
+      .set('Accept', 'application/json')
+      .attach('databaseFile', Buffer.from('not-a-db'), 'uploaded.txt');
+
+    expect(response.status).toBe(500);
+    expect(response.body.message).toBe('Something went wrong');
+  });
+
+  test('POST /upload-database schedules a restart outside the test environment', async () => {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    const exitSpy = jest.spyOn(process, 'exit').mockImplementation(() => {});
+    let uploadedTempPath = null;
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    try {
+      const response = await request(app)
+        .post('/upload-database')
+        .attach('databaseFile', Buffer.from('sqlite-test-file'), 'uploaded.db');
+
+      uploadedTempPath = adminDatabaseService.replaceDatabaseFromUpload.mock.calls[0][0];
+      expect(response.status).toBe(200);
+
+      await new Promise((resolve) => setImmediate(resolve));
+
       expect(exitSpy).toHaveBeenCalledWith(0);
-
-      const backupFilesAfter = await listDirSafe(backupsDir);
-      const newBackupFiles = backupFilesAfter.filter((fileName) => !backupFilesBefore.includes(fileName));
-      expect(newBackupFiles.length).toBeGreaterThan(0);
-
-      const backupContents = await fsp.readFile(path.join(backupsDir, newBackupFiles[0]), 'utf8');
-      expect(backupContents).toBe('old database contents');
-
-      const tempUploadsAfter = await listDirSafe(tempUploadsDir);
-      const newTempUploads = tempUploadsAfter.filter((fileName) => !tempUploadsBefore.includes(fileName));
-      expect(newTempUploads).toEqual([]);
-
-      await Promise.all(newBackupFiles.map((fileName) =>
-        fsp.rm(path.join(backupsDir, fileName), { force: true })
-      ));
     } finally {
       exitSpy.mockRestore();
-      setTimeoutSpy.mockRestore();
-      await fsp.rm(tempDir, { recursive: true, force: true });
+      process.env.NODE_ENV = originalEnv;
+      if (uploadedTempPath) {
+        await fs.rm(uploadedTempPath, { force: true });
+      }
     }
   });
 
@@ -957,6 +993,23 @@ describe('admin routes', () => {
       ['9']
     );
     expect(response.headers.location).toBe('/admin?success=Featured%20predictor%20updated%20successfully');
+  });
+
+  test('POST /set-featured-predictors forwards unexpected errors to the error middleware', async () => {
+    getOne.mockRejectedValue(new Error('database unavailable'));
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/set-featured-predictors')
+      .set('Accept', 'application/json')
+      .type('form')
+      .send({ predictorId: '9' });
+
+    expect(response.status).toBe(500);
+    expect(response.body.message).toBe('Something went wrong');
   });
 
   test('GET /api/predictors returns predictors with active flags', async () => {

@@ -62,7 +62,7 @@ For detailed documentation on ELO model training, optimization, and prediction w
 **Security Architecture**: The application implements strict Content Security Policy (CSP) for security:
 - All JavaScript must be in external files (`public/js/`) - no inline scripts allowed
 - Event handlers use data attributes with event delegation, not inline `onclick` handlers
-- CSRF tokens passed via `window.csrfToken` (set in header partial) for all fetch requests
+- CSRF tokens are exposed via the shared `<meta name="csrf-token">` tag in the header partial; client-side fetch code should read from that meta tag or submit the hidden `_csrf` form field
 - CSP configuration in `app.js` blocks `'unsafe-inline'` for scripts
 - Shared mobile header navigation behavior is in `public/js/mobile-nav.js` and is loaded globally from `views/partials/footer.ejs`
 - Admin management pages use `public/js/admin.js` for predictor, user-prediction, and operations interactions
@@ -183,7 +183,7 @@ Testing conventions are documented in `README.md`. Additional AI-specific expect
 ## Important Implementation Notes
 
 ### Logging
-Winston-based logging with daily rotation in `logs/` directory. All database operations are logged with query details and performance metrics.
+Winston-based logging with daily rotation in `logs/` directory. All database operations are logged with query details and performance metrics. Request logging must redact secrets such as passwords, CSRF tokens, cookies, and auth headers before they are written.
 
 ### Client-Side Code Sharing
 The scoring service is served to browsers via Express route - any changes must maintain browser compatibility and avoid server-side dependencies.
@@ -192,7 +192,7 @@ The scoring service is served to browsers via Express route - any changes must m
 All client-side JavaScript must comply with strict CSP:
 - No inline `<script>` blocks - all code must be in external files in `public/js/`
 - No inline event handlers (`onclick`, `onchange`, etc.) - use event delegation with data attributes
-- CSRF tokens for all POST/PUT/DELETE requests via `window.csrfToken`
+- CSRF tokens for all POST/PUT/DELETE requests via the shared CSRF meta tag or hidden `_csrf` form field
 - When adding new JavaScript, place in an appropriate file: `admin.js` (admin only), `home.js` (homepage), `main.js` (shared prediction pages), or `mobile-nav.js` (global header navigation behavior)
 
 ## AI/LLM Specific Instructions

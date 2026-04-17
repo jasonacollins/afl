@@ -95,6 +95,15 @@ Admins can run operational and training scripts from `/admin/scripts` without sh
 - Path parameters are restricted to approved repo subdirectories under `data/`.
 - Prediction-writing jobs require an active predictor selection from the UI.
 
+## Admin Database Operations
+
+Admin database export/upload flows are implemented through a dedicated service layer rather than direct route-local file copying.
+
+- Exports create a consistent SQLite snapshot from the live WAL database before download.
+- Uploads validate that the file is a readable SQLite database, passes `PRAGMA integrity_check`, and contains the required core tables before replacement is attempted.
+- Replacement creates a backup snapshot first, swaps the validated database into place, and then restarts the app outside the test environment.
+- Request logs must redact secrets such as passwords, CSRF tokens, cookies, and auth headers.
+
 ### Model Isolation Policy (Critical)
 - Any model, predictor, artifact, automation path, or DB rows not explicitly named in the request are protected by default and must not be changed.
 - Testing must be isolated by default: new models are new models, and existing models must not be overwritten unless explicitly requested.
@@ -194,6 +203,7 @@ The AFL Predictions application follows a layered architecture pattern built on 
 - **express-rate-limit** - Login attempt protection
 - **helmet** - Security headers including Content Security Policy (CSP)
 - **CSRF protection** - Custom middleware for token-based CSRF validation
+- **Session regeneration on login** - Authentication rotates the session ID on successful login
 - **Strict CSP** - All JavaScript in external files, no inline scripts or event handlers
 
 **External Integration:**
@@ -238,7 +248,8 @@ afl-predictions/
 - **SQLite**: Embedded database for simplicity and sufficient performance
 - **Service Layer Pattern**: Business logic separated from routes for maintainability
 - **Custom Database Layer**: Promise-based SQLite abstraction with logging
-- **Session Authentication**: Simple session management with SQLite store
+- **Session Authentication**: Session-based auth with regeneration on login and CSRF-protected logout
+- **Admin DB Service Layer**: Database export/upload/validation logic is centralized in a dedicated service so routes stay thin and WAL-safe snapshot logic is reusable
 - **Startup Schema Guard**: Server startup runs database initialization/migrations before binding the HTTP listener
 - **Strict CSP**: All client-side JavaScript in external files with no inline scripts for enhanced security
 - **Responsive UI Strategy**: Most prediction/stat tables use stacked card rows on small screens; dense simulation tables remain horizontally scrollable with a swipe hint

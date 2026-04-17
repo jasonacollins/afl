@@ -3,14 +3,28 @@ const { errorMiddleware } = require('../../utils/error-handler');
 
 function createSession(sessionData) {
   const baseSession = typeof sessionData === 'function' ? sessionData() : { ...(sessionData || {}) };
-  return {
+  const session = {
     ...baseSession,
-    destroy(callback) {
+    destroy: baseSession.destroy || function destroy(callback) {
+      if (typeof callback === 'function') {
+        callback(null);
+      }
+    },
+    regenerate: baseSession.regenerate || function regenerate(callback) {
+      delete this.user;
+      delete this.isAdmin;
+      if (typeof callback === 'function') {
+        callback(null);
+      }
+    },
+    save: baseSession.save || function save(callback) {
       if (typeof callback === 'function') {
         callback(null);
       }
     }
   };
+
+  return session;
 }
 
 function createRouterTestApp(router, options = {}) {

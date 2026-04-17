@@ -93,7 +93,8 @@ describe('logger', () => {
       params: {},
       query: {},
       ip: '127.0.0.1',
-      user: { id: 42 }
+      session: { user: { id: 42 } },
+      headers: {}
     };
     const res = {
       statusCode: 200,
@@ -122,11 +123,16 @@ describe('logger', () => {
     const req = {
       method: 'POST',
       originalUrl: '/admin/api-refresh',
-      body: { year: 2026 },
+      body: { year: 2026, password: 'secret', _csrf: 'csrf-token' },
       params: { runId: '9' },
-      query: { force: '1' },
+      query: { force: '1', token: 'raw-token' },
       ip: '192.0.2.10',
-      user: null
+      session: null,
+      headers: {
+        authorization: 'Bearer secret-token',
+        cookie: 'connect.sid=abc',
+        'x-csrf-token': 'csrf-header'
+      }
     };
     const res = {
       statusCode: 500,
@@ -143,9 +149,14 @@ describe('logger', () => {
     expect(mocks.warn).toHaveBeenCalledWith(
       expect.stringMatching(/^POST \/admin\/api-refresh 500 \d+ms$/),
       {
-        body: { year: 2026 },
+        body: { year: 2026, password: '[REDACTED]', _csrf: '[REDACTED]' },
         params: { runId: '9' },
-        query: { force: '1' },
+        query: { force: '1', token: '[REDACTED]' },
+        headers: {
+          authorization: '[REDACTED]',
+          cookie: '[REDACTED]',
+          'x-csrf-token': '[REDACTED]'
+        },
         ip: '192.0.2.10',
         user: 'anonymous'
       }
