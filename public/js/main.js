@@ -1,5 +1,6 @@
 // Modified version of public/js/main.js
 let currentMatchesData = []; // Store current matches
+let hasLoggedMissingScoringHelpers = false;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Format all existing date elements on the page
@@ -277,34 +278,52 @@ function calculateAccuracy(match, prediction, tippedTeam) {
   if (match.hscore === null || match.ascore === null || prediction === '') {
     return '';
   }
-  
-  const homeWon = match.hscore > match.ascore;
-  const awayWon = match.hscore < match.ascore;
-  const tie = match.hscore === match.ascore;
-  
-  // Determine actual outcome
-  const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
-  
-  // Calculate Brier score using the global function
-  const brierScore = calculateBrierScore(parseInt(prediction), actualOutcome).toFixed(4);
-  
-  // Calculate Bits score using the global function  
-  const bitsScore = calculateBitsScore(parseInt(prediction), actualOutcome).toFixed(4);
-  
-  // Calculate tip points using the global function
-  const tipPoints = calculateTipPoints(parseInt(prediction), match.hscore, match.ascore, tippedTeam);
-  
-  // Determine tip class
-  let tipClass = "incorrect";
-  if (tipPoints === 1) {
-    tipClass = "correct";
-  } else if (tie && parseInt(prediction) !== 50) {
-    tipClass = "partial";
+
+  try {
+    const root = typeof window !== 'undefined' ? window : globalThis;
+    const brierFn = root.calculateBrierScore;
+    const bitsFn = root.calculateBitsScore;
+    const tipFn = root.calculateTipPoints;
+
+    if (typeof brierFn !== 'function' || typeof bitsFn !== 'function' || typeof tipFn !== 'function') {
+      if (!hasLoggedMissingScoringHelpers) {
+        console.error('Scoring helpers unavailable for metrics rendering');
+        hasLoggedMissingScoringHelpers = true;
+      }
+
+      return '<div class="metrics-details"><p>Metrics unavailable</p></div>';
+    }
+
+    const homeWon = match.hscore > match.ascore;
+    const tie = match.hscore === match.ascore;
+
+    // Determine actual outcome
+    const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
+
+    // Calculate Brier score using the global function
+    const brierScore = brierFn(parseInt(prediction), actualOutcome).toFixed(4);
+
+    // Calculate Bits score using the global function
+    const bitsScore = bitsFn(parseInt(prediction), actualOutcome).toFixed(4);
+
+    // Calculate tip points using the global function
+    const tipPoints = tipFn(parseInt(prediction), match.hscore, match.ascore, tippedTeam);
+
+    // Determine tip class
+    let tipClass = 'incorrect';
+    if (tipPoints === 1) {
+      tipClass = 'correct';
+    } else if (tie && parseInt(prediction) !== 50) {
+      tipClass = 'partial';
+    }
+
+    return `<div class="metrics-details">
+      <p>Tip: <span class="${tipClass}">${tipPoints}</span> | Brier: ${brierScore} | Bits: ${bitsScore}</p>
+    </div>`;
+  } catch (error) {
+    console.error('Error calculating match accuracy:', match?.match_id, error);
+    return '<div class="metrics-details"><p>Metrics unavailable</p></div>';
   }
-  
-  return `<div class="metrics-details">
-    <p>Tip: <span class="${tipClass}">${tipPoints}</span> | Brier: ${brierScore} | Bits: ${bitsScore}</p>
-  </div>`;
 }
 
 // Handle prediction inputs

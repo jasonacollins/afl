@@ -46,6 +46,9 @@ describe('public/js/main.js', () => {
     global.calculateBrierScore = jest.fn(() => 0.2);
     global.calculateBitsScore = jest.fn(() => 0.4);
     global.calculateTipPoints = jest.fn(() => 1);
+    window.calculateBrierScore = global.calculateBrierScore;
+    window.calculateBitsScore = global.calculateBitsScore;
+    window.calculateTipPoints = global.calculateTipPoints;
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ([])
@@ -72,6 +75,9 @@ describe('public/js/main.js', () => {
     delete global.calculateBrierScore;
     delete global.calculateBitsScore;
     delete global.calculateTipPoints;
+    delete window.calculateBrierScore;
+    delete window.calculateBitsScore;
+    delete window.calculateTipPoints;
     consoleErrorSpy.mockRestore();
 
     restoreDomGlobals();
@@ -403,6 +409,7 @@ describe('public/js/main.js', () => {
       }
     };
     global.calculateTipPoints = jest.fn(() => 0.5);
+    window.calculateTipPoints = global.calculateTipPoints;
 
     loadBrowserScript('main.js');
 
@@ -708,7 +715,7 @@ describe('public/js/main.js', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
-  test('fetchMatchesForRound shows an admin warning when a bad card leaves nothing renderable', async () => {
+  test('fetchMatchesForRound keeps completed cards renderable when metrics calculation fails', async () => {
     global.fetch = jest.fn((url) => {
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
@@ -740,17 +747,19 @@ describe('public/js/main.js', () => {
     global.calculateBrierScore.mockImplementation(() => {
       throw new Error('render blew up');
     });
+    window.calculateBrierScore = global.calculateBrierScore;
 
     window.fetchMatchesForRound('2');
     await flushPromises();
     await flushPromises();
 
-    expect(document.getElementById('matches-container').textContent).toContain('Some matches could not be rendered (1): 22');
-    expect(document.getElementById('matches-container').textContent).toContain('No renderable matches available for this round');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error rendering match card:', 22, expect.any(Error));
+    expect(document.getElementById('matches-container').textContent).toContain('Cats');
+    expect(document.getElementById('matches-container').textContent).toContain('Metrics unavailable');
+    expect(document.getElementById('matches-container').textContent).not.toContain('Some matches could not be rendered');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error calculating match accuracy:', 22, expect.any(Error));
   });
 
-  test('fetchMatchesForRound keeps valid cards and shows an admin warning for skipped ones', async () => {
+  test('fetchMatchesForRound still shows the rest of the round when one completed match has metrics issues', async () => {
     global.fetch = jest.fn((url) => {
       if (url === '/predictions/round/2?year=2026') {
         return Promise.resolve({
@@ -804,6 +813,7 @@ describe('public/js/main.js', () => {
       }
       return 0.2;
     });
+    window.calculateBrierScore = global.calculateBrierScore;
     window.userPredictions = {
       22: { probability: 64, tippedTeam: 'home' }
     };
@@ -812,10 +822,44 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(document.getElementById('matches-container').textContent).toContain('Some matches could not be rendered (1): 22');
     expect(document.getElementById('matches-container').textContent).toContain('Giants');
-    expect(document.getElementById('matches-container').textContent).not.toContain('No renderable matches available for this round');
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Error rendering match card:', 22, expect.any(Error));
+    expect(document.getElementById('matches-container').textContent).toContain('Metrics unavailable');
+    expect(document.getElementById('matches-container').textContent).not.toContain('Some matches could not be rendered');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error calculating match accuracy:', 22, expect.any(Error));
+  });
+
+  test('renderMatches shows metrics unavailable when scoring helpers are missing', () => {
+    window.isAdmin = true;
+    window.userPredictions = {
+      22: {
+        probability: 64,
+        tippedTeam: 'home'
+      }
+    };
+    delete global.calculateBrierScore;
+    delete global.calculateBitsScore;
+    delete global.calculateTipPoints;
+    delete window.calculateBrierScore;
+    delete window.calculateBitsScore;
+    delete window.calculateTipPoints;
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: 80,
+        ascore: 70,
+        isLocked: false
+      }
+    ]);
+
+    expect(document.getElementById('matches-container').textContent).toContain('Metrics unavailable');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Scoring helpers unavailable for metrics rendering');
   });
 
   test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {
