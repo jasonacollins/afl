@@ -6,20 +6,19 @@ document.addEventListener('DOMContentLoaded', function() {
     window.isAdmin = true;
     window.canOverridePredictionLocks = true;
 
-    const userButtons = document.querySelector('.user-buttons');
-    if (userButtons && userButtons.dataset.selectionBound !== 'true') {
-      userButtons.dataset.selectionBound = 'true';
-      userButtons.addEventListener('click', function(event) {
-        const button = event.target.closest('.user-button');
-        if (!button) {
-          return;
-        }
+    const userButtons = document.querySelectorAll('.user-button');
+    userButtons.forEach((button) => {
+      if (button.dataset.selectionBound === 'true') {
+        return;
+      }
 
+      button.dataset.selectionBound = 'true';
+      button.addEventListener('click', function() {
         const userId = button.dataset.userId;
         const userName = button.dataset.displayName || button.textContent.trim();
         selectUser(userId, userName);
       });
-    }
+    });
   }
 
   // Format all existing date elements on the page

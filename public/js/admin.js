@@ -33,6 +33,18 @@ function fetchJsonNoStore(url) {
     });
 }
 
+function getEventTargetElement(event) {
+  if (!event || !event.target) {
+    return null;
+  }
+
+  if (event.target.nodeType === Node.TEXT_NODE) {
+    return event.target.parentElement;
+  }
+
+  return event.target.nodeType === Node.ELEMENT_NODE ? event.target : null;
+}
+
 // Modal functions
 function showResetPasswordForm(userId, userName) {
   document.getElementById('resetUserName').textContent = userName;
@@ -514,54 +526,65 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Add event listeners for user selection buttons using event delegation
-  const userButtons = document.querySelector('.user-buttons');
-  if (userButtons && userButtons.dataset.selectionBound !== 'true') {
-    userButtons.dataset.selectionBound = 'true';
-    userButtons.addEventListener('click', function(e) {
-      const button = e.target.closest('.user-button');
-      if (button) {
-        selectUserByData(button);
-      }
+  const userButtons = document.querySelectorAll('.user-button');
+  userButtons.forEach((button) => {
+    if (button.dataset.selectionBound === 'true') {
+      return;
+    }
+
+    button.dataset.selectionBound = 'true';
+    button.addEventListener('click', function() {
+      selectUserByData(button);
     });
-  }
+  });
 
   // Add event listeners for modal close buttons using event delegation
   document.addEventListener('click', function(e) {
+    const target = getEventTargetElement(e);
+    if (!target) {
+      return;
+    }
+
     // Handle reset password modal actions
-    if (e.target.closest('[data-action="show-reset-password"]')) {
-      const button = e.target.closest('[data-action="show-reset-password"]');
-      const userId = button.dataset.userId;
-      const userName = button.dataset.userName;
+    const resetPasswordButton = target.closest('[data-action="show-reset-password"]');
+    if (resetPasswordButton) {
+      const userId = resetPasswordButton.dataset.userId;
+      const userName = resetPasswordButton.dataset.userName;
       showResetPasswordForm(userId, userName);
+      return;
     }
 
     // Handle delete user modal actions
-    if (e.target.closest('[data-action="confirm-delete-user"]')) {
-      const button = e.target.closest('[data-action="confirm-delete-user"]');
-      const userId = button.dataset.userId;
-      const userName = button.dataset.userName;
+    const deleteUserButton = target.closest('[data-action="confirm-delete-user"]');
+    if (deleteUserButton) {
+      const userId = deleteUserButton.dataset.userId;
+      const userName = deleteUserButton.dataset.userName;
       confirmDeleteUser(userId, userName);
+      return;
     }
 
     // Handle toggle active status
-    if (e.target.closest('[data-action="toggle-active-status"]')) {
-      const button = e.target.closest('[data-action="toggle-active-status"]');
-      const predictorId = button.dataset.predictorId;
-      const isActive = button.dataset.active === 'true';
-      toggleActiveStatus(predictorId, !isActive, button);
+    const toggleActiveButton = target.closest('[data-action="toggle-active-status"]');
+    if (toggleActiveButton) {
+      const predictorId = toggleActiveButton.dataset.predictorId;
+      const isActive = toggleActiveButton.dataset.active === 'true';
+      toggleActiveStatus(predictorId, !isActive, toggleActiveButton);
+      return;
     }
 
-    // Handle close buttons
-    if (e.target.closest('[data-action="close-modal"]')) {
+    if (target.closest('[data-action="close-modal"]')) {
       closeModal();
+      return;
     }
-    if (e.target.closest('[data-action="close-refresh-modal"]')) {
+    if (target.closest('[data-action="close-refresh-modal"]')) {
       closeRefreshModal();
+      return;
     }
-    if (e.target.closest('[data-action="close-upload-modal"]')) {
+    if (target.closest('[data-action="close-upload-modal"]')) {
       closeUploadModal();
+      return;
     }
-    if (e.target.closest('[data-action="close-delete-modal"]')) {
+    if (target.closest('[data-action="close-delete-modal"]')) {
       closeDeleteModal();
     }
   });
