@@ -1,4 +1,4 @@
-// Modified version of public/js/main.js
+// Main predictions page behavior shared with admin prediction management.
 let currentMatchesData = []; // Store current matches
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -120,7 +120,6 @@ function fetchMatchesData(round, year) {
 }
 
 function showMatchesLoadError(matchesContainer, error) {
-  const errorMessage = error && error.message ? error.message : 'Unknown error';
   console.error('Error fetching matches:', error);
 
   if (!matchesContainer) {
@@ -131,7 +130,7 @@ function showMatchesLoadError(matchesContainer, error) {
 
   const errorElement = document.createElement('div');
   errorElement.className = 'error';
-  errorElement.textContent = `Failed to load matches: ${errorMessage}`;
+  errorElement.textContent = 'Failed to load matches';
   matchesContainer.appendChild(errorElement);
 }
 
@@ -147,7 +146,7 @@ function fetchMatchesForRound(round) {
     matchesContainer.innerHTML = '<div class="loading">Loading matches...</div>';
   }
   
-  // Update UI to show selected round - MODIFIED PART
+  // Update UI to show selected round
   const roundButtons = document.querySelectorAll('.round-button');
   roundButtons.forEach(btn => {
     // Keep any existing state classes (completed, has-predictions, needs-predictions)

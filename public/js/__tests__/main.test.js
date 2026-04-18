@@ -711,7 +711,7 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches: network down');
+    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
@@ -738,7 +738,7 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches: render hook failed');
+    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 
