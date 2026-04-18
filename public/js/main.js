@@ -83,7 +83,7 @@ function getStoredPrediction(matchId) {
   };
 }
 
-function canOverridePredictionLocks() {
+function canBypassPredictionLocks() {
   return window.canOverridePredictionLocks === true;
 }
 
@@ -232,7 +232,7 @@ function renderMatches(matches) {
           </div>
         ` : ''}
 
-        ${(!isLocked || canOverridePredictionLocks()) ? `
+        ${(!isLocked || canBypassPredictionLocks()) ? `
           <div class="prediction-controls">
             <div class="prediction-inputs">
               <div class="team-prediction">
