@@ -354,8 +354,23 @@ function initPredictionInputs() {
   const homeInputs = document.querySelectorAll('.home-prediction');
   
   homeInputs.forEach(input => {
+    if (input.dataset.predictionInputBound === 'true') {
+      return;
+    }
+
+    input.dataset.predictionInputBound = 'true';
+
     // data-original-value is set by renderMatches or by savePrediction.
     // Do not set input.dataset.originalValue = input.value here.
+
+    input.addEventListener('wheel', function(event) {
+      // Prevent the browser from incrementing/decrementing focused number inputs
+      // while the user scrolls through the prediction list.
+      if (document.activeElement === this && typeof this.blur === 'function') {
+        event.preventDefault();
+        this.blur();
+      }
+    }, { passive: false });
     
     input.addEventListener('input', function() {
       const matchId = this.dataset.matchId;

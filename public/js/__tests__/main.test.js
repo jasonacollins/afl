@@ -344,6 +344,34 @@ describe('public/js/main.js', () => {
     expect(document.getElementById('team-selection-22')).toBeNull();
   });
 
+  test('prediction inputs blur on wheel to avoid accidental number changes while scrolling', () => {
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const homeInput = document.querySelector('.home-prediction[data-match-id="22"]');
+    const blurSpy = jest.fn();
+    homeInput.blur = blurSpy;
+    homeInput.focus();
+
+    const wheelEvent = new window.Event('wheel', { bubbles: true, cancelable: true });
+    homeInput.dispatchEvent(wheelEvent);
+
+    expect(blurSpy).toHaveBeenCalledTimes(1);
+    expect(wheelEvent.defaultPrevented).toBe(true);
+  });
+
   test('save button blocks 50 percent submissions until a team selection is present', () => {
     loadBrowserScript('main.js');
 
