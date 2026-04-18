@@ -711,7 +711,34 @@ describe('public/js/main.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
+    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches: network down');
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
+  });
+
+  test('fetchMatchesForRound shows render-time errors from post-fetch processing', async () => {
+    window.getMatchesForRoundData = jest.fn().mockResolvedValue([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+    window.onMatchesRendered = jest.fn(() => {
+      throw new Error('render hook failed');
+    });
+
+    loadBrowserScript('main.js');
+
+    window.fetchMatchesForRound('2');
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches: render hook failed');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
   });
 

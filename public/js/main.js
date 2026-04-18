@@ -119,6 +119,22 @@ function fetchMatchesData(round, year) {
   return fetchJsonNoStore(`/predictions/round/${encodeURIComponent(round)}?year=${year}`);
 }
 
+function showMatchesLoadError(matchesContainer, error) {
+  const errorMessage = error && error.message ? error.message : 'Unknown error';
+  console.error('Error fetching matches:', error);
+
+  if (!matchesContainer) {
+    return;
+  }
+
+  matchesContainer.replaceChildren();
+
+  const errorElement = document.createElement('div');
+  errorElement.className = 'error';
+  errorElement.textContent = `Failed to load matches: ${errorMessage}`;
+  matchesContainer.appendChild(errorElement);
+}
+
 // Update match list for selected round via AJAX
 function fetchMatchesForRound(round) {
   // Get the current year from the URL or use the selected year
@@ -147,16 +163,17 @@ function fetchMatchesForRound(round) {
   // Fetch matches from server with year parameter
   fetchMatchesData(round, year)
     .then(matches => {
-      currentMatchesData = matches; // Store fetched matches
-      renderMatches(matches);
-      // Call our new function to update round button states
-      updateRoundButtonStates();
+      try {
+        currentMatchesData = matches; // Store fetched matches
+        renderMatches(matches);
+        // Call our new function to update round button states
+        updateRoundButtonStates();
+      } catch (error) {
+        showMatchesLoadError(matchesContainer, error);
+      }
     })
     .catch(error => {
-      console.error('Error fetching matches:', error);
-      if (matchesContainer) {
-        matchesContainer.innerHTML = '<div class="error">Failed to load matches</div>';
-      }
+      showMatchesLoadError(matchesContainer, error);
     });
 }
 
