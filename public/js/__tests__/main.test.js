@@ -458,6 +458,32 @@ describe('public/js/main.js', () => {
     expect(global.calculateTipPoints).toHaveBeenCalledWith(70, 80, 80, 'home');
   });
 
+  test('renderMatches keeps every admin match card intact when rendering a larger mobile-sized round', () => {
+    window.isAdmin = true;
+    window.canOverridePredictionLocks = true;
+
+    loadBrowserScript('main.js');
+
+    const matches = Array.from({ length: 9 }, (_, index) => ({
+      match_id: index + 1,
+      match_date: `2026-04-${String(index + 10).padStart(2, '0')}T09:30:00.000Z`,
+      venue: `Venue ${index + 1}`,
+      home_team: `Home ${index + 1}`,
+      away_team: `Away ${index + 1}`,
+      hscore: null,
+      ascore: null,
+      isLocked: false
+    }));
+
+    window.renderMatches(matches);
+
+    expect(document.querySelectorAll('#matches-container .match-card')).toHaveLength(9);
+    expect(document.querySelectorAll('#matches-container .home-prediction')).toHaveLength(9);
+    expect(document.querySelectorAll('#matches-container .save-prediction')).toHaveLength(9);
+    expect(document.querySelector('.home-prediction[data-match-id="9"]').getAttribute('min')).toBe('0');
+    expect(document.querySelector('.home-prediction[data-match-id="9"]').getAttribute('max')).toBe('100');
+  });
+
   test('renderMatches keeps started matches locked when only the predictor-page admin flag is set', () => {
     window.isAdmin = true;
     window.userPredictions = {

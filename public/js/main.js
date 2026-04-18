@@ -239,7 +239,7 @@ function renderMatches(matches) {
                   <input type="number" 
                          class="prediction-input home-prediction" 
                          data-match-id="${match.match_id}" 
-                         data-original-value="${prediction}" /* Crucial for auto-save and button logic */
+                         data-original-value="${prediction}"
                          min="0" max="100" 
                          value="${prediction}">
                   <span class="input-symbol">%</span>
