@@ -219,6 +219,7 @@ describe('public/js/simulation.js', () => {
     expect(document.getElementById('top8-header').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('finals-week-header').textContent).toBe('Finals Week 2');
     expect(document.querySelectorAll('#round-tabs .simulation-round-button')).toHaveLength(2);
+    expect(document.querySelector('#simulation-table th.sortable[data-sort="projected-wins"]').classList.contains('sorted-desc')).toBe(true);
     expect(document.getElementById('simulation-tbody').textContent).toContain('Cats');
     expect(document.getElementById('matrix-tbody').textContent).toContain('Swans');
 
@@ -257,6 +258,8 @@ describe('public/js/simulation.js', () => {
     }
     await flushPromises();
     await flushPromises();
+
+    document.querySelector('#simulation-table th.sortable[data-sort="top10"]').click();
 
     const yearSelect = document.getElementById('year-select');
     yearSelect.value = '2025';
@@ -473,6 +476,7 @@ describe('public/js/simulation.js', () => {
     await flushPromises();
     await flushPromises();
 
+    expect(document.querySelector('#simulation-table th.sortable[data-sort="team"]').classList.contains('sorted-asc')).toBe(true);
     expect(document.getElementById('ladder-position-card').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('round-snapshot-nav').classList.contains('is-hidden')).toBe(true);
   });

@@ -10,7 +10,8 @@
     let simulationData = null;
     let roundSnapshots = [];
     let activeSnapshot = null;
-    let currentSort = { column: 'premiership', direction: 'desc' };
+    const DEFAULT_SORT = { column: 'projected-wins', direction: 'desc' };
+    let currentSort = { ...DEFAULT_SORT };
 
     // DOM elements
     const loadingIndicator = document.getElementById('loading-indicator');
@@ -244,12 +245,12 @@
                 currentSort.column === 'finals-week-2'
             )
         ) {
-            currentSort = { column: 'premiership', direction: 'desc' };
+            currentSort = { ...DEFAULT_SORT };
             updateSortIndicators();
         }
 
         if (showExpandedFinalsColumns && currentSort.column === 'top8') {
-            currentSort = { column: 'premiership', direction: 'desc' };
+            currentSort = { ...DEFAULT_SORT };
             updateSortIndicators();
         }
     }
