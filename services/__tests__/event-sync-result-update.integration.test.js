@@ -178,6 +178,71 @@ describe('event sync and result update integration', () => {
     });
   });
 
+  test('recoverInterruptedJobs requeues stale active work in the real SQLite queue', async () => {
+    await loaded.dbModule.runQuery(
+      `INSERT INTO result_update_jobs (
+        job_id, year, match_number, status, trigger_source, trigger_reason,
+        attempt_count, created_at, started_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        1, 2026, 38510, 'running', 'event-sync', 'completed_game_event',
+        2, '2026-04-18T00:00:00.000Z', '2026-04-18T00:01:00.000Z', '2026-04-18T00:01:00.000Z'
+      ]
+    );
+    await loaded.dbModule.runQuery(
+      `INSERT INTO result_update_jobs (
+        job_id, year, match_number, status, trigger_source, trigger_reason,
+        attempt_count, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        2, 2026, 38511, 'queued', 'event-sync', 'completed_game_event',
+        0, '2026-04-18T00:02:00.000Z', '2026-04-18T00:02:00.000Z'
+      ]
+    );
+    await loaded.dbModule.runQuery(
+      `INSERT INTO result_update_jobs (
+        job_id, year, match_number, status, trigger_source, trigger_reason,
+        attempt_count, created_at, finished_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        3, 2026, 38512, 'succeeded', 'event-sync', 'completed_game_event',
+        1, '2026-04-18T00:03:00.000Z', '2026-04-18T00:04:00.000Z', '2026-04-18T00:04:00.000Z'
+      ]
+    );
+
+    const recoveredCount = await loaded.resultUpdateService.recoverInterruptedJobs();
+    const rows = await loaded.dbModule.getQuery(
+      `SELECT job_id, status, started_at, finished_at, error_message
+       FROM result_update_jobs
+       ORDER BY job_id ASC`
+    );
+
+    expect(recoveredCount).toBe(2);
+    expect(rows).toEqual([
+      {
+        job_id: 1,
+        status: 'queued',
+        started_at: null,
+        finished_at: null,
+        error_message: 'Recovered after process restart'
+      },
+      {
+        job_id: 2,
+        status: 'queued',
+        started_at: null,
+        finished_at: null,
+        error_message: 'Recovered after process restart'
+      },
+      {
+        job_id: 3,
+        status: 'succeeded',
+        started_at: null,
+        finished_at: '2026-04-18T00:04:00.000Z',
+        error_message: null
+      }
+    ]);
+  });
+
   test('queues completed-game recompute work once and suppresses duplicate fingerprints', async () => {
     await loaded.eventSyncService.handleRawEvent(
       `event: updateGame\ndata: ${JSON.stringify({

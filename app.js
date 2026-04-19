@@ -16,6 +16,7 @@ const csrfProtection = require('./middleware/csrf');
 const roundService = require('./services/round-service');
 const adminScriptRunner = require('./services/admin-script-runner');
 const eventSyncService = require('./services/event-sync-service');
+const resultUpdateService = require('./services/result-update-service');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -526,6 +527,8 @@ async function startServer(options = {}) {
     const app = createApp(options);
     await initializeDatabase();
     await adminScriptRunner.recoverInterruptedRuns();
+    await resultUpdateService.recoverInterruptedJobs();
+    resultUpdateService.scheduleWorker();
     await eventSyncService.start();
 
     app.listen(port, '0.0.0.0', () => {

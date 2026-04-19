@@ -11,6 +11,7 @@ import sqlite3
 import json
 import os
 import tempfile
+from collections import OrderedDict
 from typing import Dict, List, Optional, Union
 from datetime import datetime, timezone
 
@@ -354,7 +355,24 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
             else:
                 print("No future match predictions to save (all games completed or started)")
             return
-        
+
+        deduped_predictions_map = OrderedDict()
+        duplicate_match_ids = []
+        for prediction in future_predictions:
+            match_id = prediction.get('match_id')
+            if match_id in deduped_predictions_map:
+                duplicate_match_ids.append(match_id)
+                deduped_predictions_map.pop(match_id)
+            deduped_predictions_map[match_id] = prediction
+
+        future_predictions = list(deduped_predictions_map.values())
+        if duplicate_match_ids:
+            unique_duplicate_count = len(set(duplicate_match_ids))
+            print(
+                f"Collapsed {unique_duplicate_count} duplicate future prediction "
+                f"{'match' if unique_duplicate_count == 1 else 'matches'} before saving"
+            )
+
         # Show summary of skipped matches if not verbose
         skipped_count = len(predictions) - len(future_predictions)
         if not verbose and skipped_count > 0 and not override_completed:
@@ -365,21 +383,12 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
         else:
             print(f"Saving {len(future_predictions)} predictions to database for predictor {predictor_id}")
         
-        # Begin transaction
-        cursor.execute("BEGIN TRANSACTION")
+        # Acquire the write lock up front so overlapping refreshes serialize cleanly.
+        cursor.execute("BEGIN IMMEDIATE TRANSACTION")
         
-        # Delete existing ELO predictions for these matches
-        match_ids = [p['match_id'] for p in future_predictions]
-        placeholders = ','.join(['?' for _ in match_ids])
-        cursor.execute(
-            f"DELETE FROM predictions WHERE predictor_id = ? AND match_id IN ({placeholders})",
-            [predictor_id] + match_ids
-        )
-        deleted_count = cursor.rowcount
-        print(f"Deleted {deleted_count} existing ELO predictions")
-        
-        # Insert new predictions
-        insert_count = 0
+        # Update first, then insert when missing. Combined with BEGIN IMMEDIATE,
+        # overlapping refreshes serialize cleanly even on older SQLite schemas.
+        saved_count = 0
         for pred in future_predictions:
             # Convert probability to percentage (0-100)
             home_prob_pct = int(round(pred['home_win_probability'] * 100))
@@ -397,20 +406,37 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
             margin_value = round(pred.get('predicted_margin', 0), 1)
             
             cursor.execute(
-                """INSERT INTO predictions 
-                   (match_id, predictor_id, home_win_probability, predicted_margin, tipped_team) 
-                   VALUES (?, ?, ?, ?, ?)""",
-                (pred['match_id'], 
-                 predictor_id, 
-                 home_prob_pct,
-                 margin_value,
-                 tipped_team)
+                """UPDATE predictions
+                   SET home_win_probability = ?,
+                       predicted_margin = ?,
+                       tipped_team = ?
+                   WHERE match_id = ? AND predictor_id = ?""",
+                (
+                    home_prob_pct,
+                    margin_value,
+                    tipped_team,
+                    pred['match_id'],
+                    predictor_id
+                )
             )
-            insert_count += 1
+            if cursor.rowcount == 0:
+                cursor.execute(
+                    """INSERT INTO predictions
+                       (match_id, predictor_id, home_win_probability, predicted_margin, tipped_team)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (
+                        pred['match_id'],
+                        predictor_id,
+                        home_prob_pct,
+                        margin_value,
+                        tipped_team
+                    )
+                )
+            saved_count += 1
         
         # Commit transaction
         cursor.execute("COMMIT")
-        print(f"Successfully saved {insert_count} predictions to database")
+        print(f"Successfully saved {saved_count} predictions to database")
         
     except Exception as e:
         cursor.execute("ROLLBACK")

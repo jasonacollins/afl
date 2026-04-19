@@ -223,6 +223,38 @@ describe('result-update-service state and queue behavior', () => {
     });
   });
 
+  test('recoverInterruptedJobs requeues stale queued and running rows', async () => {
+    runQuery.mockResolvedValue({ changes: 2 });
+
+    await expect(resultUpdateService.recoverInterruptedJobs()).resolves.toBe(2);
+
+    expect(runQuery).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE result_update_jobs'),
+      [
+        'queued',
+        expect.any(String),
+        'Recovered after process restart',
+        'queued',
+        'running'
+      ]
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Recovered interrupted result update jobs',
+      { recoveredCount: 2 }
+    );
+  });
+
+  test('recoverInterruptedJobs stays quiet when nothing needs recovery', async () => {
+    runQuery.mockResolvedValue({ changes: 0 });
+
+    await expect(resultUpdateService.recoverInterruptedJobs()).resolves.toBe(0);
+
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      'Recovered interrupted result update jobs',
+      expect.anything()
+    );
+  });
+
   test('enqueuePostResultRecompute runs the queued worker and marks the job succeeded', async () => {
     getOne
       .mockResolvedValueOnce(null)

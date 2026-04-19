@@ -49,6 +49,10 @@ function loadAppModule(options = {}) {
     adminScriptRunner: {
       recoverInterruptedRuns: jest.fn()
     },
+    resultUpdateService: {
+      recoverInterruptedJobs: jest.fn(),
+      scheduleWorker: jest.fn()
+    },
     eventSyncService: {
       start: jest.fn(),
       stop: jest.fn()
@@ -85,6 +89,7 @@ function loadAppModule(options = {}) {
     jest.doMock('../utils/logger', () => mocks.logger);
     jest.doMock('../services/round-service', () => mocks.roundService);
     jest.doMock('../services/admin-script-runner', () => mocks.adminScriptRunner);
+    jest.doMock('../services/result-update-service', () => mocks.resultUpdateService);
     jest.doMock('../services/event-sync-service', () => mocks.eventSyncService);
     jest.doMock('../services/featured-predictions', () => mocks.featuredPredictions);
     jest.doMock('../services/prediction-service', () => mocks.predictionService);
@@ -489,6 +494,7 @@ describe('app', () => {
 
     mocks.db.initializeDatabase.mockResolvedValue();
     mocks.adminScriptRunner.recoverInterruptedRuns.mockResolvedValue();
+    mocks.resultUpdateService.recoverInterruptedJobs.mockResolvedValue(0);
     mocks.eventSyncService.start.mockResolvedValue();
 
     await startServer({
@@ -498,6 +504,8 @@ describe('app', () => {
 
     expect(mocks.db.initializeDatabase).toHaveBeenCalled();
     expect(mocks.adminScriptRunner.recoverInterruptedRuns).toHaveBeenCalled();
+    expect(mocks.resultUpdateService.recoverInterruptedJobs).toHaveBeenCalled();
+    expect(mocks.resultUpdateService.scheduleWorker).toHaveBeenCalled();
     expect(mocks.eventSyncService.start).toHaveBeenCalled();
     expect(listenSpy).toHaveBeenCalledWith(3001, '0.0.0.0', expect.any(Function));
   });

@@ -811,7 +811,18 @@ describe('app integration startup path', () => {
         ['predictors']
       );
       expect(predictorsTable).toEqual({ name: 'predictors' });
-      lifecycle.push('recover');
+      lifecycle.push('admin-recover');
+    });
+    const recoverInterruptedJobs = jest.fn(async () => {
+      const jobsTable = await loaded.dbModule.getOne(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        ['result_update_jobs']
+      );
+      expect(jobsTable).toEqual({ name: 'result_update_jobs' });
+      lifecycle.push('result-update-recover');
+    });
+    const scheduleWorker = jest.fn(() => {
+      lifecycle.push('schedule-worker');
     });
     const eventSyncStart = jest.fn(async () => {
       lifecycle.push('event-sync');
@@ -821,6 +832,10 @@ describe('app integration startup path', () => {
       expressMock: buildExpressMock(listenSpy),
       adminScriptRunner: {
         recoverInterruptedRuns
+      },
+      resultUpdateService: {
+        recoverInterruptedJobs,
+        scheduleWorker
       },
       eventSyncService: {
         start: eventSyncStart,
@@ -834,10 +849,14 @@ describe('app integration startup path', () => {
     });
 
     expect(recoverInterruptedRuns).toHaveBeenCalledTimes(1);
+    expect(recoverInterruptedJobs).toHaveBeenCalledTimes(1);
+    expect(scheduleWorker).toHaveBeenCalledTimes(1);
     expect(eventSyncStart).toHaveBeenCalledTimes(1);
     expect(listenSpy).toHaveBeenCalledWith(3001, '0.0.0.0', expect.any(Function));
     expect(lifecycle).toEqual([
-      'recover',
+      'admin-recover',
+      'result-update-recover',
+      'schedule-worker',
       'event-sync',
       'listen:3001:0.0.0.0'
     ]);

@@ -315,6 +315,31 @@ def test_save_predictions_helpers_write_files_and_filter_database_writes(afl_tes
     assert 'Successfully saved 1 predictions to database' in output
 
 
+def test_prediction_test_fixture_enforces_unique_match_predictor_pairs(afl_test_db_path):
+    conn = sqlite3.connect(afl_test_db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO predictions (
+                match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (16, 77, 55, 4.0, 'home'),
+        )
+
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                """
+                INSERT INTO predictions (
+                    match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (16, 77, 62, 11.4, 'home'),
+            )
+    finally:
+        conn.close()
+
+
 def test_save_predictions_to_database_override_mode_keeps_started_and_completed_matches(afl_test_db_path):
     predictions = [
         {
@@ -407,27 +432,10 @@ def test_save_predictions_to_database_verbose_mode_warns_for_unparseable_and_mis
     assert 'Warning: No match date for match 17' in output
 
 
-def test_save_predictions_to_database_rolls_back_when_insert_fails(afl_test_db_path, capsys):
-    conn = sqlite3.connect(afl_test_db_path)
-    try:
-        conn.execute(
-            """
-            CREATE UNIQUE INDEX idx_predictions_match_predictor
-            ON predictions (match_id, predictor_id)
-            """
-        )
-        conn.execute(
-            """
-            INSERT INTO predictions (
-                match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
-            ) VALUES (?, ?, ?, ?, ?)
-            """,
-            (16, 80, 55, 4.0, 'home'),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
+def test_save_predictions_to_database_collapses_duplicate_matches_in_same_batch(
+    afl_test_db_path,
+    capsys,
+):
     duplicate_predictions = [
         {
             'match_id': 16,
@@ -443,12 +451,11 @@ def test_save_predictions_to_database_rolls_back_when_insert_fails(afl_test_db_p
         }
     ]
 
-    with pytest.raises(sqlite3.IntegrityError):
-        data_io.save_predictions_to_database(
-            duplicate_predictions,
-            str(afl_test_db_path),
-            predictor_id=80,
-        )
+    data_io.save_predictions_to_database(
+        duplicate_predictions,
+        str(afl_test_db_path),
+        predictor_id=80,
+    )
 
     conn = sqlite3.connect(afl_test_db_path)
     try:
@@ -463,8 +470,55 @@ def test_save_predictions_to_database_rolls_back_when_insert_fails(afl_test_db_p
     finally:
         conn.close()
 
-    assert rows == [(16, 80, 55, 4.0, 'home')]
-    assert 'Error saving predictions to database:' in capsys.readouterr().out
+    assert rows == [(16, 80, 58, 7.5, 'home')]
+    output = capsys.readouterr().out
+    assert 'Collapsed 1 duplicate future prediction match before saving' in output
+    assert 'Successfully saved 1 predictions to database' in output
+
+
+def test_save_predictions_to_database_updates_existing_prediction_rows(afl_test_db_path):
+    initial_predictions = [
+        {
+            'match_id': 16,
+            'match_date': '2099-08-01T19:20:00+00:00',
+            'home_win_probability': 0.62,
+            'predicted_margin': 11.4
+        }
+    ]
+    updated_predictions = [
+        {
+            'match_id': 16,
+            'match_date': '2099-08-01T19:20:00+00:00',
+            'home_win_probability': 0.54,
+            'predicted_margin': 3.5
+        }
+    ]
+
+    data_io.save_predictions_to_database(
+        initial_predictions,
+        str(afl_test_db_path),
+        predictor_id=81,
+    )
+    data_io.save_predictions_to_database(
+        updated_predictions,
+        str(afl_test_db_path),
+        predictor_id=81,
+    )
+
+    conn = sqlite3.connect(afl_test_db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+            FROM predictions
+            WHERE predictor_id = ?
+            """,
+            (81,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert rows == [(16, 81, 54, 3.5, 'home')]
 
 
 def test_scoring_helpers_support_percentages_draws_and_per_game_results():

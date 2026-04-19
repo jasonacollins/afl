@@ -91,7 +91,9 @@ def create_test_database(db_path):
             predictor_id INTEGER NOT NULL,
             home_win_probability INTEGER NOT NULL,
             predicted_margin REAL,
-            tipped_team TEXT NOT NULL
+            prediction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tipped_team TEXT NOT NULL,
+            UNIQUE(match_id, predictor_id)
         );
         """
     )

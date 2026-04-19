@@ -310,6 +310,35 @@ async function requeueJob(jobId, errorMessage = null) {
   );
 }
 
+async function recoverInterruptedJobs() {
+  const updatedAt = nowIso();
+  const recoveryMessage = 'Recovered after process restart';
+  const result = await runQuery(
+    `UPDATE result_update_jobs
+     SET status = ?,
+         started_at = NULL,
+         finished_at = NULL,
+         updated_at = ?,
+         error_message = ?
+     WHERE status IN (?, ?)`,
+    [
+      JOB_STATUS.QUEUED,
+      updatedAt,
+      recoveryMessage,
+      JOB_STATUS.QUEUED,
+      JOB_STATUS.RUNNING
+    ]
+  );
+
+  if (result.changes > 0) {
+    logger.warn('Recovered interrupted result update jobs', {
+      recoveredCount: result.changes
+    });
+  }
+
+  return result.changes;
+}
+
 async function claimNextJob() {
   const nextJob = await getOne(
     `SELECT *
@@ -592,6 +621,7 @@ module.exports = {
   getTrackedActiveGames,
   ingestCompletedGameResult,
   enqueuePostResultRecompute,
+  recoverInterruptedJobs,
   recordConnectionState,
   recordHeartbeat,
   recordLastError,

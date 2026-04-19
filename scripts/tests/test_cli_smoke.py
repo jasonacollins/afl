@@ -211,6 +211,41 @@ def test_win_predict_cli_saves_future_predictions_to_database(afl_cli_workspace,
     assert (workspace / 'data' / 'predictions' / 'win' / 'win_elo_predictions_2026_2026.csv').exists()
 
 
+def test_win_predict_cli_rerun_updates_existing_predictions_without_duplication(
+    afl_cli_workspace,
+    monkeypatch,
+):
+    workspace = afl_cli_workspace['workspace']
+    predictor_id = 62
+
+    first_exit_code = run_script_cli(
+        'scripts/elo_win_predict.py',
+        [
+            '--start-year', '2026',
+            '--model-path', afl_cli_workspace['win_model_path'],
+            '--db-path', afl_cli_workspace['db_path'],
+            '--predictor-id', str(predictor_id),
+        ],
+        monkeypatch,
+        workspace,
+    )
+    second_exit_code = run_script_cli(
+        'scripts/elo_win_predict.py',
+        [
+            '--start-year', '2026',
+            '--model-path', afl_cli_workspace['win_model_path'],
+            '--db-path', afl_cli_workspace['db_path'],
+            '--predictor-id', str(predictor_id),
+        ],
+        monkeypatch,
+        workspace,
+    )
+
+    assert first_exit_code == 0
+    assert second_exit_code == 0
+    assert fetch_prediction_count(afl_cli_workspace['db_path'], predictor_id) == 5
+
+
 def test_margin_predict_cli_saves_predictions_and_rating_history(afl_cli_workspace, monkeypatch):
     workspace = afl_cli_workspace['workspace']
     output_dir = workspace / 'artifacts' / 'margin-predict'
@@ -233,6 +268,44 @@ def test_margin_predict_cli_saves_predictions_and_rating_history(afl_cli_workspa
     assert fetch_prediction_count(afl_cli_workspace['db_path'], predictor_id) == 5
     assert (workspace / 'data' / 'predictions' / 'margin' / 'margin_elo_predictions_2026_2026.csv').exists()
     assert (output_dir / 'margin_elo_rating_history_from_2026.csv').exists()
+
+
+def test_margin_predict_cli_rerun_updates_existing_predictions_without_duplication(
+    afl_cli_workspace,
+    monkeypatch,
+):
+    workspace = afl_cli_workspace['workspace']
+    output_dir = workspace / 'artifacts' / 'margin-predict-rerun'
+    predictor_id = 72
+
+    first_exit_code = run_script_cli(
+        'scripts/elo_margin_predict.py',
+        [
+            '--start-year', '2026',
+            '--model-path', afl_cli_workspace['margin_model_path'],
+            '--db-path', afl_cli_workspace['db_path'],
+            '--output-dir', output_dir,
+            '--predictor-id', str(predictor_id),
+        ],
+        monkeypatch,
+        workspace,
+    )
+    second_exit_code = run_script_cli(
+        'scripts/elo_margin_predict.py',
+        [
+            '--start-year', '2026',
+            '--model-path', afl_cli_workspace['margin_model_path'],
+            '--db-path', afl_cli_workspace['db_path'],
+            '--output-dir', output_dir,
+            '--predictor-id', str(predictor_id),
+        ],
+        monkeypatch,
+        workspace,
+    )
+
+    assert first_exit_code == 0
+    assert second_exit_code == 0
+    assert fetch_prediction_count(afl_cli_workspace['db_path'], predictor_id) == 5
 
 
 def test_history_generator_cli_writes_csv_output(afl_cli_workspace, monkeypatch):
