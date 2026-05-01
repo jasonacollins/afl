@@ -65,6 +65,18 @@ describe('prediction-service', () => {
     );
   });
 
+  test('savePrediction infers the away team for sub-50 percent predictions', async () => {
+    getOne.mockResolvedValue(null);
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    await predictionService.savePrediction(1, 2, 45);
+
+    expect(runQuery).toHaveBeenCalledWith(
+      'INSERT INTO predictions (match_id, predictor_id, home_win_probability, tipped_team) VALUES (?, ?, ?, ?)',
+      [1, 2, 45, 'away']
+    );
+  });
+
   test('savePrediction rejects invalid probability values', async () => {
     await expect(predictionService.savePrediction(1, 2, 101)).rejects.toMatchObject({
       message: 'Probability must be between 0 and 100',
@@ -141,12 +153,28 @@ describe('prediction-service', () => {
     expect(getQuery).toHaveBeenCalledWith(expect.stringContaining('AND m.year = ?'), [2, 2026]);
   });
 
+  test('getPredictionsWithResultsForYear wraps query failures', async () => {
+    getQuery.mockRejectedValue(new Error('db down'));
+
+    await expect(predictionService.getPredictionsWithResultsForYear(2, 2026)).rejects.toEqual(
+      expect.objectContaining(new AppError('Failed to fetch predictions', 500, 'DATABASE_ERROR'))
+    );
+  });
+
   test('getPredictionsWithResultsForRound returns round-filtered predictions', async () => {
     const rows = [{ match_id: 1, round_number: '1' }];
     getQuery.mockResolvedValue(rows);
 
     await expect(predictionService.getPredictionsWithResultsForRound(2, 2026, '1')).resolves.toBe(rows);
     expect(getQuery).toHaveBeenCalledWith(expect.stringContaining('AND m.year = ? AND m.round_number = ?'), [2, 2026, '1']);
+  });
+
+  test('getPredictionsWithResultsForRound wraps query failures', async () => {
+    getQuery.mockRejectedValue(new Error('db down'));
+
+    await expect(predictionService.getPredictionsWithResultsForRound(2, 2026, '1')).rejects.toEqual(
+      expect.objectContaining(new AppError('Failed to fetch predictions', 500, 'DATABASE_ERROR'))
+    );
   });
 
   test('getPredictionsWithResultsForRoundSelection queries all resolved source rounds', async () => {
