@@ -238,7 +238,8 @@ describe('models/db initializeDatabase', () => {
           'home_win_probability',
           'predicted_margin',
           'prediction_time',
-          'tipped_team'
+          'tipped_team',
+          'is_missed'
         ]
       };
 
@@ -284,6 +285,7 @@ describe('models/db initializeDatabase', () => {
            p.predictor_id,
            p.home_win_probability,
            p.predicted_margin,
+           p.is_missed,
            p.tipped_team,
            m.complete,
            t1.state AS home_state,
@@ -303,6 +305,7 @@ describe('models/db initializeDatabase', () => {
         predictor_id: 7,
         home_win_probability: 62,
         predicted_margin: 12.5,
+        is_missed: 0,
         tipped_team: 'home',
         complete: 0,
         home_state: 'VIC',
@@ -310,11 +313,26 @@ describe('models/db initializeDatabase', () => {
         venue_state: 'VIC'
       });
 
+      const missedCutoffConfig = await dbModule.getOne(
+        'SELECT value FROM app_config WHERE key = ?',
+        ['missed_prediction_defaults_enabled_at']
+      );
+      expect(typeof missedCutoffConfig.value).toBe('string');
+      expect(missedCutoffConfig.value.length).toBeGreaterThan(0);
+
       const autoVacuumRow = await dbModule.getOne('PRAGMA auto_vacuum');
       expect(Object.values(autoVacuumRow)[0]).toBe(2);
 
       const journalModeRow = await dbModule.getOne('PRAGMA journal_mode');
       expect(String(Object.values(journalModeRow)[0]).toLowerCase()).toBe('wal');
+
+      const firstCutoffValue = missedCutoffConfig.value;
+      await dbModule.initializeDatabase();
+      const secondCutoffConfig = await dbModule.getOne(
+        'SELECT value FROM app_config WHERE key = ?',
+        ['missed_prediction_defaults_enabled_at']
+      );
+      expect(secondCutoffConfig.value).toBe(firstCutoffValue);
     } finally {
       await unloadDbModule(dbModule);
       await fs.rm(tempDir, { recursive: true, force: true });

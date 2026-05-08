@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const { logger } = require('../utils/logger');
 
 const SQLITE_BUSY_TIMEOUT_MS = Number.parseInt(process.env.SQLITE_BUSY_TIMEOUT_MS || '10000', 10);
+const MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY = 'missed_prediction_defaults_enabled_at';
 
 // Database path
 const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database/afl_predictions.db');
@@ -116,6 +117,14 @@ async function initializeDatabase() {
         logger.info(`Adding ${columnName} column to ${tableName} table`);
         await runQuery(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
       }
+    };
+
+    const ensureAppConfigDefault = async (key, value) => {
+      await runQuery(
+        `INSERT OR IGNORE INTO app_config (key, value)
+         VALUES (?, ?)`,
+        [key, value]
+      );
     };
 
     const getPragmaNumber = async (pragmaName) => {
@@ -502,6 +511,7 @@ async function initializeDatabase() {
     await addColumnIfMissing('predictions', 'predicted_margin', 'NUMERIC');
     await addColumnIfMissing('predictions', 'prediction_time', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
     await addColumnIfMissing('predictions', 'tipped_team', "TEXT DEFAULT 'home'");
+    await addColumnIfMissing('predictions', 'is_missed', 'INTEGER DEFAULT 0');
 
     // Normalize null values in newly-added flag columns.
     if (await tableExists('predictors')) {
@@ -514,6 +524,17 @@ async function initializeDatabase() {
     if (await tableExists('matches')) {
       await runQuery('UPDATE matches SET complete = 0 WHERE complete IS NULL');
       await backfillMatchVenueIds();
+    }
+
+    if (await tableExists('predictions')) {
+      await runQuery('UPDATE predictions SET is_missed = 0 WHERE is_missed IS NULL');
+    }
+
+    if (await tableExists('app_config')) {
+      await ensureAppConfigDefault(
+        MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY,
+        new Date().toISOString()
+      );
     }
 
     await ensureIncrementalAutoVacuum();

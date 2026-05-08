@@ -51,6 +51,7 @@
           const hasResult = match.hscore !== null && match.ascore !== null;
           let prediction = null;
           let tippedTeam = 'home';
+          let isMissed = false;
           
           // Check if prediction exists and determine its format
           if (predictions[match.match_id] !== undefined) {
@@ -60,6 +61,11 @@
                 ? storedPrediction.probability
                 : null;
               tippedTeam = storedPrediction.tipped_team || storedPrediction.tippedTeam || 'home';
+              isMissed = Boolean(
+                storedPrediction.is_missed !== undefined
+                  ? storedPrediction.is_missed
+                  : storedPrediction.isMissed
+              );
             } else {
               prediction = predictions[match.match_id];
             }
@@ -71,14 +77,19 @@
           // Determine button class and text based on whether prediction exists
           const buttonClass = hasPrediction ? 'save-prediction saved-state' : 'save-prediction';
           const buttonText = hasPrediction ? 'Saved' : 'Save Prediction';
+
+          let cornerStatusMarkup = '';
+          if (isMissed) {
+            cornerStatusMarkup = '<span class="match-locked missed">MISSED</span>';
+          } else if (isLocked) {
+            cornerStatusMarkup = '<span class="match-locked locked">LOCKED</span>';
+          }
         %>
-        <div class="match-card <%= hasResult ? 'has-result' : '' %> <%= isLocked ? 'locked' : '' %>">
+        <div class="match-card <%= hasResult ? 'has-result' : '' %> <%= isLocked ? 'locked' : '' %> <%= isMissed ? 'missed' : '' %>">
           <div class="match-header">
             <span class="match-date"><%= match.match_date %></span>
             <span class="match-venue"><%= match.venue %></span>
-            <% if (isLocked) { %>
-              <span class="match-locked">LOCKED</span>
-            <% } %>
+            <%- cornerStatusMarkup %>
           </div>
           
           <div class="match-teams">

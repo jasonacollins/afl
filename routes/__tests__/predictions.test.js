@@ -34,6 +34,7 @@ jest.mock('../../services/match-service', () => ({
 
 jest.mock('../../services/prediction-service', () => ({
   getPredictionsForUser: jest.fn(),
+  ensureMissedPredictionsForUserAndYear: jest.fn(),
   savePrediction: jest.fn(),
   deletePrediction: jest.fn()
 }));
@@ -122,9 +123,11 @@ describe('predictions routes', () => {
     expect(response.body.locals.predictions).toEqual({
       2: {
         probability: 64,
-        tipped_team: 'home'
+        tipped_team: 'home',
+        is_missed: false
       }
     });
+    expect(predictionService.ensureMissedPredictionsForUserAndYear).toHaveBeenCalledWith(5, 2026);
   });
 
   test('GET / preserves 0 percent and 50 percent away predictions in the rendered payload', async () => {
@@ -153,11 +156,13 @@ describe('predictions routes', () => {
     expect(response.body.locals.predictions).toEqual({
       1: {
         probability: 0,
-        tipped_team: 'away'
+        tipped_team: 'away',
+        is_missed: false
       },
       2: {
         probability: 50,
-        tipped_team: 'away'
+        tipped_team: 'away',
+        is_missed: false
       }
     });
   });

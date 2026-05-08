@@ -241,6 +241,112 @@ describe('public/js/admin.js', () => {
     expect(window.canOverridePredictionLocks).toBe(true);
   });
 
+  test('toggleMissedPredictionDirectly posts the dedicated admin endpoint and updates the card state', async () => {
+    window.userPredictions = {
+      44: {
+        probability: 61,
+        tippedTeam: 'home',
+        isMissed: false
+      }
+    };
+    document.querySelector('.match-card').insertAdjacentHTML(
+      'beforeend',
+      '<button type="button" class="toggle-missed-button" data-match-id="44" data-is-missed="false" aria-pressed="false">Missed: Off</button>'
+    );
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, isMissed: true, probability: 61, tippedTeam: 'home', created: false })
+    });
+
+    loadBrowserScript('admin.js');
+
+    const button = document.querySelector('.toggle-missed-button');
+    window.toggleMissedPredictionDirectly('44', '7', button);
+    await flushPromises();
+
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7/missed', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-Token': 'admin-csrf-token'
+      })
+    }));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      matchId: '44',
+      isMissed: true
+    });
+    expect(global.updateStoredPrediction).toHaveBeenCalledWith('44', '61', 'home', { isMissed: true });
+    expect(button.textContent).toContain('Missed: On');
+    expect(button.dataset.isMissed).toBe('true');
+    expect(window.fetchMatchesForRound).not.toHaveBeenCalled();
+  });
+
+  test('toggleMissedPredictionDirectly restores the corner label to LOCKED when missed is turned off', async () => {
+    document.querySelector('.match-card').classList.add('locked', 'missed');
+    document.querySelector('.match-card').insertAdjacentHTML(
+      'afterbegin',
+      '<div class="match-header"><span class="match-date">Thu 07/05/2026, 8:10pm</span><span class="match-venue">Perth Stadium</span><span class="match-locked missed">MISSED</span></div>'
+    );
+    document.querySelector('.match-card').insertAdjacentHTML(
+      'beforeend',
+      '<button type="button" class="toggle-missed-button" data-match-id="44" data-is-missed="true" aria-pressed="true">Missed: On</button>'
+    );
+    window.userPredictions = {
+      44: {
+        probability: 61,
+        tippedTeam: 'home',
+        isMissed: true
+      }
+    };
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, isMissed: false, probability: 61, tippedTeam: 'home', created: false })
+    });
+
+    loadBrowserScript('admin.js');
+
+    const button = document.querySelector('.toggle-missed-button');
+    window.toggleMissedPredictionDirectly('44', '7', button);
+    await flushPromises();
+
+    const cornerLabel = document.querySelector('.match-header .match-locked');
+    expect(cornerLabel).not.toBeNull();
+    expect(cornerLabel.textContent).toBe('LOCKED');
+    expect(cornerLabel.classList.contains('locked')).toBe(true);
+    expect(cornerLabel.classList.contains('missed')).toBe(false);
+  });
+
+  test('toggleMissedPredictionDirectly can create a missed default from a blank card', async () => {
+    window.userPredictions = {};
+    delete window.getStoredPrediction;
+    document.querySelector('.home-prediction').value = '';
+    document.querySelector('.home-prediction').dataset.originalValue = '';
+    document.querySelector('.away-prediction').value = '';
+    document.querySelector('.match-card').insertAdjacentHTML(
+      'beforeend',
+      '<button type="button" class="toggle-missed-button" data-match-id="44" data-is-missed="false" aria-pressed="false">Missed: Off</button>'
+    );
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, isMissed: true, probability: 50, tippedTeam: 'home', created: true })
+    });
+
+    loadBrowserScript('admin.js');
+
+    const button = document.querySelector('.toggle-missed-button');
+    window.toggleMissedPredictionDirectly('44', '7', button);
+    await flushPromises();
+
+    expect(global.updateStoredPrediction).toHaveBeenCalledWith('44', 50, 'home', { isMissed: true });
+    expect(button.textContent).toContain('Missed: On');
+    expect(document.querySelector('.home-prediction').value).toBe('50');
+    expect(document.querySelector('.home-prediction').dataset.originalValue).toBe('50');
+    expect(document.querySelector('.away-prediction').value).toBe('50');
+    expect(document.querySelector('.save-prediction').textContent).toBe('Saved');
+    expect(window.fetchMatchesForRound).not.toHaveBeenCalled();
+  });
+
   test('clearPredictionDirectly requires a selected user', () => {
     loadBrowserScript('admin.js');
 

@@ -1,7 +1,7 @@
 // Main predictions page behavior shared with admin prediction management.
 let currentMatchesData = []; // Store current matches
 
-document.addEventListener('DOMContentLoaded', function() {
+function bootstrapPredictionsPage() {
   if (isAdminUserPredictionsPage()) {
     window.isAdmin = true;
     window.canOverridePredictionLocks = true;
@@ -49,7 +49,15 @@ document.addEventListener('DOMContentLoaded', function() {
   initSavePredictionButtons();
   
   // Update round button states
-  updateRoundButtonStates();
+  return updateRoundButtonStates();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const bootstrapPromise = Promise.resolve(bootstrapPredictionsPage());
+
+  if (typeof window !== 'undefined') {
+    window.__predictionsBootstrapPromise = bootstrapPromise;
+  }
 });
 
 function getCsrfToken() {
@@ -73,13 +81,19 @@ function getStoredPrediction(matchId) {
       probability: storedPrediction.probability !== null && storedPrediction.probability !== undefined
         ? String(storedPrediction.probability)
         : '',
-      tippedTeam: storedPrediction.tippedTeam || storedPrediction.tipped_team || 'home'
+      tippedTeam: storedPrediction.tippedTeam || storedPrediction.tipped_team || 'home',
+      isMissed: Boolean(
+        storedPrediction.isMissed !== undefined
+          ? storedPrediction.isMissed
+          : storedPrediction.is_missed
+      )
     };
   }
 
   return {
     probability: String(storedPrediction),
-    tippedTeam: 'home'
+    tippedTeam: 'home',
+    isMissed: false
   };
 }
 
@@ -100,6 +114,30 @@ function fetchJsonNoStore(url) {
 
 function isAdminUserPredictionsPage() {
   return typeof window !== 'undefined' && window.location.pathname.includes('/admin/user-predictions');
+}
+
+function getCornerStatusMarkup(matchId, isLocked, isMissed) {
+  if (isMissed) {
+    return '<span class="match-locked missed">MISSED</span>';
+  }
+
+  if (isLocked) {
+    return '<span class="match-locked locked">LOCKED</span>';
+  }
+
+  return '';
+}
+
+function getAdminMissedToggleMarkup(matchId, isMissed) {
+  if (!(window.isAdmin === true && isAdminUserPredictionsPage())) {
+    return '';
+  }
+
+  return `<button type="button"
+            class="toggle-missed-button"
+            data-match-id="${matchId}"
+            data-is-missed="${isMissed ? 'true' : 'false'}"
+            aria-pressed="${isMissed ? 'true' : 'false'}">Missed: ${isMissed ? 'On' : 'Off'}</button>`;
 }
 
 function fetchMatchesData(round, year) {
@@ -160,19 +198,21 @@ function fetchMatchesForRound(round) {
   });
   
   // Fetch matches from server with year parameter
-  fetchMatchesData(round, year)
+  return fetchMatchesData(round, year)
     .then(matches => {
       try {
         currentMatchesData = matches; // Store fetched matches
         renderMatches(matches);
         // Call our new function to update round button states
-        updateRoundButtonStates();
+        return updateRoundButtonStates();
       } catch (error) {
         showMatchesLoadError(matchesContainer, error);
+        return undefined;
       }
     })
     .catch(error => {
       showMatchesLoadError(matchesContainer, error);
+      return undefined;
     });
 }
 
@@ -194,15 +234,19 @@ function renderMatches(matches) {
 
     let prediction = '';
     let tippedTeam = 'home'; // Default for 50%
+    let isMissed = false;
 
     const storedPrediction = getStoredPrediction(match.match_id);
     if (storedPrediction) {
       prediction = storedPrediction.probability;
       tippedTeam = storedPrediction.tippedTeam;
+      isMissed = storedPrediction.isMissed;
     }
 
     const awayPrediction = prediction !== '' && !isNaN(parseInt(prediction)) ? (100 - parseInt(prediction)) : '';
     const hasPrediction = prediction !== '';
+    const cornerStatusMarkup = getCornerStatusMarkup(match.match_id, isLocked, isMissed);
+    const adminMissedToggleMarkup = getAdminMissedToggleMarkup(match.match_id, isMissed);
 
     const buttonClass = hasPrediction ? 'save-prediction saved-state' : 'save-prediction';
     const buttonText = hasPrediction ? 'Saved' : 'Save Prediction';
@@ -212,11 +256,11 @@ function renderMatches(matches) {
     const awayTeamName = (match.away_team === 'Greater Western Sydney' && match.away_team_abbrev) ? match.away_team_abbrev : match.away_team;
 
     html += `
-      <div class="match-card ${hasResult ? 'has-result' : ''} ${isLocked ? 'locked' : ''}">
+      <div class="match-card ${hasResult ? 'has-result' : ''} ${isLocked ? 'locked' : ''} ${isMissed ? 'missed' : ''}">
         <div class="match-header">
           <span class="match-date" data-original-date="${match.match_date}">${formatDateToLocalTimezone(match.match_date)}</span>
           <span class="match-venue">${match.venue}</span>
-          ${isLocked ? '<span class="match-locked">LOCKED</span>' : ''}
+          ${cornerStatusMarkup}
         </div>
 
         <div class="match-teams">
@@ -275,6 +319,7 @@ function renderMatches(matches) {
                     data-tipped-team="${(parseInt(prediction) === 50 && hasPrediction) ? tippedTeam : ''}">
               ${buttonText}
             </button>
+            ${adminMissedToggleMarkup}
             ${(window.isAdmin && hasResult && hasPrediction) ? `
               <div class="admin-metrics-display">
                 ${calculateAccuracy(match, parseInt(prediction), tippedTeam)}
@@ -496,7 +541,7 @@ function updateRoundButtonStates() {
   const roundButtons = document.querySelectorAll('.round-button');
   
   // For each round button, check its state
-  roundButtons.forEach(async (button) => {
+  return Promise.all(Array.from(roundButtons).map(async (button) => {
     const round = button.dataset.round;
     
     // Get the current year from the URL or use the selected year
@@ -531,7 +576,7 @@ function updateRoundButtonStates() {
     } catch (error) {
       console.error('Error checking round state:', error);
     }
-  });
+  }));
 }
 
 // Helper function to add team selection UI
@@ -746,12 +791,16 @@ function savePrediction(matchId, probability, button) {
 }
 
 // Update stored prediction
-function updateStoredPrediction(matchId, value, tippedTeam) {
+function updateStoredPrediction(matchId, value, tippedTeam, options = {}) {
   if (!window.userPredictions) {
     window.userPredictions = {};
   }
   // Ensure value is an integer for probability, or null if clearing
   const probabilityValue = (value === "" || value === null || value === undefined || isNaN(parseInt(value))) ? null : parseInt(value);
+  const existingPrediction = getStoredPrediction(matchId);
+  const nextIsMissed = Object.prototype.hasOwnProperty.call(options, 'isMissed')
+    ? Boolean(options.isMissed)
+    : Boolean(existingPrediction && existingPrediction.isMissed);
 
   if (probabilityValue === null) {
       // If clearing prediction, remove the entry
@@ -761,7 +810,8 @@ function updateStoredPrediction(matchId, value, tippedTeam) {
   } else {
       window.userPredictions[matchId] = {
         probability: probabilityValue,
-        tippedTeam: tippedTeam
+        tippedTeam: tippedTeam || (probabilityValue < 50 ? 'away' : 'home'),
+        isMissed: nextIsMissed
       };
   }
 }
@@ -788,20 +838,27 @@ function selectUser(userId, userName) {
   
   // If on admin page, fetch predictions for this user
   if (isAdminUserPredictionsPage()) {
-    fetchJsonNoStore(`/admin/predictions/${userId}`)
+    const year = new URLSearchParams(window.location.search).get('year') || new Date().getFullYear();
+
+    return fetchJsonNoStore(`/admin/predictions/${userId}?year=${encodeURIComponent(year)}`)
       .then(data => {
         window.userPredictions = data.predictions;
         const selectedRoundButton = document.querySelector('.round-button.selected')
           || document.querySelector('.round-button');
 
         if (selectedRoundButton) {
-          fetchMatchesForRound(selectedRoundButton.dataset.round);
+          return fetchMatchesForRound(selectedRoundButton.dataset.round);
         }
+
+        return undefined;
       })
       .catch(error => {
         console.error('Error fetching user predictions:', error);
+        return undefined;
       });
   }
+
+  return Promise.resolve();
 }
 
 function formatDateToLocalTimezone(isoDateString) {
@@ -825,7 +882,10 @@ function formatDateToLocalTimezone(isoDateString) {
       hour12: true
     };
     
-    return date.toLocaleString('en-AU', options);
+    return date
+      .toLocaleString('en-AU', options)
+      .replace(/^([A-Za-z]{3}),\s/, '$1 ')
+      .replace(/\s([ap]m)$/i, '$1');
   } catch (error) {
     console.error('Error formatting date:', error);
     return isoDateString;
@@ -834,11 +894,13 @@ function formatDateToLocalTimezone(isoDateString) {
 
 if (typeof window !== 'undefined') {
   window.getCsrfToken = getCsrfToken;
+  window.bootstrapPredictionsPage = bootstrapPredictionsPage;
   window.fetchMatchesForRound = fetchMatchesForRound;
   window.renderMatches = renderMatches;
   window.updateRoundButtonStates = updateRoundButtonStates;
   window.addTeamSelection = addTeamSelection;
   window.removeTeamSelection = removeTeamSelection;
+  window.getStoredPrediction = getStoredPrediction;
   window.savePrediction = savePrediction;
   window.updateStoredPrediction = updateStoredPrediction;
   window.getMatchDataById = getMatchDataById;

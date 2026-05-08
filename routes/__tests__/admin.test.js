@@ -43,8 +43,10 @@ jest.mock('../../services/match-service', () => ({
 
 jest.mock('../../services/prediction-service', () => ({
   getPredictionsForUser: jest.fn(),
+  ensureMissedPredictionsForUserAndYear: jest.fn(),
   savePrediction: jest.fn(),
   deletePrediction: jest.fn(),
+  updatePredictionMissedFlag: jest.fn(),
   getAllPredictionsWithDetails: jest.fn()
 }));
 
@@ -117,6 +119,7 @@ const { createRouterTestApp } = require('./test-app');
 describe('admin routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    roundService.resolveYear.mockResolvedValue({ selectedYear: 2026, years: [2026, 2025] });
     adminScriptRunner.getExistingActiveRun.mockResolvedValue(null);
     resultUpdateService.getEventSyncStatus.mockResolvedValue({ activeJob: null });
     predictorService.getPredictorById.mockResolvedValue({ predictor_id: 5, active: 1 });
@@ -539,28 +542,32 @@ describe('admin routes', () => {
   });
 
   test('GET /predictions/:userId returns predictions as a match map', async () => {
+    roundService.resolveYear.mockResolvedValue({ selectedYear: 2026 });
     predictionService.getPredictionsForUser.mockResolvedValue([
-      { match_id: 11, home_win_probability: 65 },
-      { match_id: 12, home_win_probability: 40 }
+      { match_id: 11, home_win_probability: 65, is_missed: 1 },
+      { match_id: 12, home_win_probability: 40, tipped_team: 'away', is_missed: 0 }
     ]);
 
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 1 }, isAdmin: true }
     });
 
-    const response = await request(app).get('/predictions/5');
+    const response = await request(app).get('/predictions/5?year=2026');
 
     expect(response.status).toBe(200);
+    expect(predictionService.ensureMissedPredictionsForUserAndYear).toHaveBeenCalledWith('5', 2026);
     expect(response.body).toEqual({
       success: true,
       predictions: {
         11: {
           probability: 65,
-          tipped_team: 'home'
+          tipped_team: 'home',
+          is_missed: true
         },
         12: {
           probability: 40,
-          tipped_team: 'away'
+          tipped_team: 'away',
+          is_missed: false
         }
       }
     });
@@ -595,6 +602,7 @@ describe('admin routes', () => {
     const response = await request(app).get('/predictions/5/round/6?year=2026');
 
     expect(response.status).toBe(200);
+    expect(predictionService.ensureMissedPredictionsForUserAndYear).toHaveBeenCalledWith('5', 2026);
     expect(matchService.getMatchesByRoundSelectionAndYear).toHaveBeenCalledWith('6', 2026);
     expect(response.body).toEqual([
       {
@@ -677,6 +685,35 @@ describe('admin routes', () => {
       tippedTeam: 'away'
     });
     expect(response.body).toEqual({ success: true });
+  });
+
+  test('POST /predictions/:userId/missed updates only the missed flag', async () => {
+    predictionService.updatePredictionMissedFlag.mockResolvedValue({
+      changes: 1,
+      isMissed: true,
+      probability: 50,
+      tippedTeam: 'home',
+      created: true
+    });
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictions/5/missed')
+      .set('Accept', 'application/json')
+      .send({ matchId: 11, isMissed: true });
+
+    expect(response.status).toBe(200);
+    expect(predictionService.updatePredictionMissedFlag).toHaveBeenCalledWith(11, '5', true);
+    expect(response.body).toEqual({
+      success: true,
+      isMissed: true,
+      probability: 50,
+      tippedTeam: 'home',
+      created: true
+    });
   });
 
   test('GET /stats renders predictor accuracy stats', async () => {

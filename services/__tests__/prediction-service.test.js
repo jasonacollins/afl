@@ -129,6 +129,96 @@ describe('prediction-service', () => {
     );
   });
 
+  test('ensureMissedPredictionsForUserAndYear inserts default home tips for started missing matches after the cutoff', async () => {
+    getOne
+      .mockResolvedValueOnce({ year_joined: 2022 })
+      .mockResolvedValueOnce({ value: '2000-01-01T00:00:00.000Z' });
+    getQuery.mockResolvedValue([
+      { match_id: 1, match_date: '2000-01-02T19:20:00.000Z' },
+      { match_id: 2, match_date: '2099-05-09T19:20:00.000Z' }
+    ]);
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    const result = await predictionService.ensureMissedPredictionsForUserAndYear(2, 2026);
+
+    expect(result).toEqual({ created: 1 });
+    expect(runQuery).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT OR IGNORE INTO predictions'),
+      [1, 2]
+    );
+  });
+
+  test('ensureMissedPredictionsForUserAndYear skips matches before the rollout cutoff', async () => {
+    getOne
+      .mockResolvedValueOnce({ year_joined: 2022 })
+      .mockResolvedValueOnce({ value: '2000-01-02T00:00:00.000Z' });
+    getQuery.mockResolvedValue([
+      { match_id: 1, match_date: '2000-01-01T19:20:00.000Z' }
+    ]);
+
+    const result = await predictionService.ensureMissedPredictionsForUserAndYear(2, 2026);
+
+    expect(result).toEqual({ created: 0 });
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('ensureMissedPredictionsForUserAndYear skips when there are no missing rows to materialize', async () => {
+    getOne
+      .mockResolvedValueOnce({ year_joined: 2022 })
+      .mockResolvedValueOnce({ value: '2000-01-01T00:00:00.000Z' });
+    getQuery.mockResolvedValue([]);
+
+    const result = await predictionService.ensureMissedPredictionsForUserAndYear(2, 2026);
+
+    expect(result).toEqual({ created: 0 });
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('updatePredictionMissedFlag updates only the missed flag', async () => {
+    getOne.mockResolvedValue({ home_win_probability: 61, tipped_team: 'home' });
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    const result = await predictionService.updatePredictionMissedFlag(1, 2, true);
+
+    expect(runQuery).toHaveBeenCalledWith(
+      'UPDATE predictions SET is_missed = ? WHERE match_id = ? AND predictor_id = ?',
+      [1, 1, 2]
+    );
+    expect(result).toEqual({
+      changes: 1,
+      isMissed: true,
+      created: false,
+      probability: 61,
+      tippedTeam: 'home'
+    });
+  });
+
+  test('updatePredictionMissedFlag creates a default prediction when turning the flag on for a blank card', async () => {
+    getOne.mockResolvedValue(null);
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    const result = await predictionService.updatePredictionMissedFlag(1, 2, true);
+
+    expect(runQuery).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO predictions'),
+      [1, 2]
+    );
+    expect(result).toEqual({
+      changes: 1,
+      isMissed: true,
+      created: true,
+      probability: 50,
+      tippedTeam: 'home'
+    });
+  });
+
+  test('updatePredictionMissedFlag rejects invalid flag values', async () => {
+    await expect(predictionService.updatePredictionMissedFlag(1, 2, 'maybe')).rejects.toMatchObject({
+      message: 'Missed flag must be true or false',
+      statusCode: 400
+    });
+  });
+
   test('getAllPredictionsWithDetails returns joined prediction rows', async () => {
     const rows = [{ predictor_name: 'Dad', match_number: 14 }];
     getQuery.mockResolvedValue(rows);

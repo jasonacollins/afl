@@ -4,6 +4,8 @@ const { AppError, createNotFoundError, createValidationError } = require('../uti
 const { logger } = require('../utils/logger');
 const roundService = require('./round-service');
 
+const MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY = 'missed_prediction_defaults_enabled_at';
+
 // Get predictions for a specific user
 async function getPredictionsForUser(userId) {
   try {
@@ -32,6 +34,40 @@ function normalizeTippedTeam(probability, tippedTeam) {
   }
 
   return probability < 50 ? 'away' : 'home';
+}
+
+function normalizeMissedFlag(value) {
+  if (value === true || value === 1 || value === '1' || value === 'true') {
+    return 1;
+  }
+
+  if (value === false || value === 0 || value === '0' || value === 'false') {
+    return 0;
+  }
+
+  throw createValidationError('Missed flag must be true or false');
+}
+
+async function getMissedPredictionDefaultsCutoff() {
+  const row = await getOne(
+    'SELECT value FROM app_config WHERE key = ?',
+    [MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY]
+  );
+
+  if (!row || !row.value) {
+    return null;
+  }
+
+  const cutoffDate = new Date(row.value);
+  if (Number.isNaN(cutoffDate.getTime())) {
+    logger.warn('Invalid missed prediction defaults cutoff in app_config', {
+      key: MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY,
+      value: row.value
+    });
+    return null;
+  }
+
+  return cutoffDate;
 }
 
 // Get all predictions with match and predictor information
@@ -158,6 +194,183 @@ async function deletePrediction(matchId, predictorId) {
   }
 }
 
+async function ensureMissedPredictionsForUserAndYear(predictorId, year) {
+  try {
+    if (!predictorId || !year) {
+      throw createValidationError('Predictor ID and year are required');
+    }
+
+    const predictor = await getOne(
+      'SELECT year_joined FROM predictors WHERE predictor_id = ?',
+      [predictorId]
+    );
+
+    if (!predictor) {
+      throw createNotFoundError('Predictor');
+    }
+
+    if (predictor.year_joined && Number.parseInt(predictor.year_joined, 10) > Number.parseInt(year, 10)) {
+      logger.debug('Skipping missed prediction reconciliation before predictor joined', {
+        predictorId,
+        year,
+        yearJoined: predictor.year_joined
+      });
+      return { created: 0 };
+    }
+
+    const cutoffDate = await getMissedPredictionDefaultsCutoff();
+    if (!cutoffDate) {
+      logger.warn('Skipping missed prediction reconciliation because cutoff is unavailable', {
+        predictorId,
+        year
+      });
+      return { created: 0 };
+    }
+
+    const now = new Date();
+    const candidateMatches = await getQuery(
+      `
+      SELECT m.match_id, m.match_date
+      FROM matches m
+      LEFT JOIN predictions p
+        ON p.match_id = m.match_id
+       AND p.predictor_id = ?
+      WHERE m.year = ?
+        AND p.prediction_id IS NULL
+      ORDER BY m.match_date ASC
+      `,
+      [predictorId, year]
+    );
+
+    let created = 0;
+
+    for (const match of candidateMatches) {
+      if (!match.match_date) {
+        continue;
+      }
+
+      const matchDate = new Date(match.match_date);
+      if (Number.isNaN(matchDate.getTime())) {
+        logger.warn('Skipping missed prediction reconciliation for invalid match date', {
+          predictorId,
+          year,
+          matchId: match.match_id,
+          matchDate: match.match_date
+        });
+        continue;
+      }
+
+      if (matchDate < cutoffDate || matchDate >= now) {
+        continue;
+      }
+
+      const result = await runQuery(
+        `INSERT OR IGNORE INTO predictions (
+          match_id,
+          predictor_id,
+          home_win_probability,
+          tipped_team,
+          is_missed
+        ) VALUES (?, ?, 50, 'home', 1)`,
+        [match.match_id, predictorId]
+      );
+
+      created += result.changes || 0;
+    }
+
+    logger.info('Completed missed prediction reconciliation', {
+      predictorId,
+      year,
+      created
+    });
+
+    return { created };
+  } catch (error) {
+    if (error.isOperational) {
+      throw error;
+    }
+
+    logger.error('Error reconciling missed predictions', {
+      predictorId,
+      year,
+      error: error.message
+    });
+    throw new AppError('Failed to reconcile missed predictions', 500, 'DATABASE_ERROR');
+  }
+}
+
+async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
+  try {
+    if (!matchId || !predictorId) {
+      throw createValidationError('Match ID and predictor ID are required');
+    }
+
+    const normalizedIsMissed = normalizeMissedFlag(isMissed);
+    const existingPrediction = await getOne(
+      'SELECT home_win_probability, tipped_team FROM predictions WHERE match_id = ? AND predictor_id = ?',
+      [matchId, predictorId]
+    );
+
+    if (!existingPrediction) {
+      if (normalizedIsMissed === 0) {
+        return {
+          changes: 0,
+          isMissed: false,
+          created: false,
+          probability: null,
+          tippedTeam: null
+        };
+      }
+
+      const insertResult = await runQuery(
+        `INSERT INTO predictions (
+          match_id,
+          predictor_id,
+          home_win_probability,
+          tipped_team,
+          is_missed
+        ) VALUES (?, ?, 50, 'home', 1)`,
+        [matchId, predictorId]
+      );
+
+      logger.info(`Created default missed prediction for match ${matchId}, predictor ${predictorId}`);
+      return {
+        changes: insertResult.changes,
+        isMissed: true,
+        created: true,
+        probability: 50,
+        tippedTeam: 'home'
+      };
+    }
+
+    const result = await runQuery(
+      'UPDATE predictions SET is_missed = ? WHERE match_id = ? AND predictor_id = ?',
+      [normalizedIsMissed, matchId, predictorId]
+    );
+
+    logger.info(`Updated missed flag for match ${matchId}, predictor ${predictorId}: ${normalizedIsMissed}`);
+    return {
+      changes: result.changes,
+      isMissed: Boolean(normalizedIsMissed),
+      created: false,
+      probability: existingPrediction.home_win_probability,
+      tippedTeam: existingPrediction.tipped_team || normalizeTippedTeam(existingPrediction.home_win_probability)
+    };
+  } catch (error) {
+    if (error.isOperational) {
+      throw error;
+    }
+
+    logger.error('Error updating missed prediction flag', {
+      matchId,
+      predictorId,
+      isMissed,
+      error: error.message
+    });
+    throw new AppError('Failed to update missed prediction flag', 500, 'DATABASE_ERROR');
+  }
+}
+
 async function getPredictionsWithResultsForYear(predictorId, year) {
   try {
     logger.debug(`Fetching predictions with results for predictor ${predictorId}, year ${year}`);
@@ -267,6 +480,8 @@ module.exports = {
   getAllPredictionsWithDetails,
   savePrediction,
   deletePrediction,
+  ensureMissedPredictionsForUserAndYear,
+  updatePredictionMissedFlag,
   getPredictionsWithResultsForYear,
   getPredictionsWithResultsForRound,
   getPredictionsWithResultsForRoundSelection

@@ -57,7 +57,10 @@ describe('public/js/main.js', () => {
     consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await flushPromises();
+    await flushPromises();
+
     if (typeof originalAlert === 'undefined') {
       delete global.alert;
     } else {
@@ -138,6 +141,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await window.__predictionsBootstrapPromise;
 
     expect(document.querySelector('.match-date').dataset.originalDate).toBe('2026-04-10T09:30:00.000Z');
     expect(document.querySelector('.match-date').textContent).not.toBe('2026-04-10T09:30:00.000Z');
@@ -199,9 +203,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
 
-    window.fetchMatchesForRound('2');
-    await flushPromises();
-    await flushPromises();
+    await window.fetchMatchesForRound('2');
 
     expect(document.querySelector('.round-button[data-round="2"]').classList.contains('selected')).toBe(true);
     expect(document.querySelector('#matches-container .match-card')).not.toBeNull();
@@ -272,10 +274,64 @@ describe('public/js/main.js', () => {
     });
     expect(window.userPredictions['44']).toEqual({
       probability: 50,
-      tippedTeam: 'away'
+      tippedTeam: 'away',
+      isMissed: false
     });
     expect(button.textContent).toBe('Saved');
     expect(document.querySelector('.home-prediction').dataset.originalValue).toBe('50');
+  });
+
+  test('renderMatches shows the missed corner for stored missed predictions', () => {
+    window.userPredictions = {
+      22: {
+        probability: 50,
+        tippedTeam: 'home',
+        is_missed: true
+      }
+    };
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: true
+      }
+    ]);
+
+    const corner = document.querySelector('.match-locked.missed');
+    expect(corner).not.toBeNull();
+    expect(corner.textContent).toContain('MISSED');
+  });
+
+  test('renderMatches shows the missed toggle button on blank admin cards', () => {
+    window.isAdmin = true;
+    window.location.pathname = '/admin/user-predictions';
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const toggleButton = document.querySelector('.toggle-missed-button[data-match-id="22"]');
+    expect(toggleButton).not.toBeNull();
+    expect(toggleButton.textContent).toContain('Missed: Off');
   });
 
   test('savePrediction refuses to post when the CSRF token is missing', () => {
@@ -604,9 +660,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
 
-    window.updateRoundButtonStates();
-    await flushPromises();
-    await flushPromises();
+    await window.updateRoundButtonStates();
 
     expect(document.querySelector('.round-button[data-round="1"]').classList.contains('needs-predictions')).toBe(true);
     expect(errorSpy).toHaveBeenCalledWith('Error checking round state:', expect.any(Error));
@@ -622,7 +676,7 @@ describe('public/js/main.js', () => {
     document.getElementById('matches-container').innerHTML = '<div class="match-card">Existing match</div>';
 
     global.fetch = jest.fn((url) => {
-      if (url === '/admin/predictions/7') {
+      if (url === '/admin/predictions/7?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -660,11 +714,9 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
 
-    window.selectUser('7', 'Selected User');
-    await flushPromises();
-    await flushPromises();
+    await window.selectUser('7', 'Selected User');
 
-    expect(global.fetch).toHaveBeenNthCalledWith(1, '/admin/predictions/7', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenNthCalledWith(1, '/admin/predictions/7?year=2026', { cache: 'no-store' });
     expect(global.fetch).toHaveBeenNthCalledWith(2, '/admin/predictions/7/round/2?year=2026', { cache: 'no-store' });
     expect(window.userPredictions).toEqual({
       22: {
@@ -761,9 +813,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
 
-    window.fetchMatchesForRound('2');
-    await flushPromises();
-    await flushPromises();
+    await window.fetchMatchesForRound('2');
 
     expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
@@ -788,9 +838,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
 
-    window.fetchMatchesForRound('2');
-    await flushPromises();
-    await flushPromises();
+    await window.fetchMatchesForRound('2');
 
     expect(document.getElementById('matches-container').textContent).toContain('Failed to load matches');
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching matches:', expect.any(Error));
@@ -812,9 +860,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
 
-    window.fetchMatchesForRound('2');
-    await flushPromises();
-    await flushPromises();
+    await window.fetchMatchesForRound('2');
 
     expect(window.getMatchesForRoundData).toHaveBeenCalledWith('2', '2026');
     expect(document.getElementById('matches-container').textContent).toContain('Cats');
@@ -919,7 +965,7 @@ describe('public/js/main.js', () => {
 
   test('selectUser refreshes admin predictions and reloads the active round', async () => {
     global.fetch = jest.fn((url) => {
-      if (url === '/admin/predictions/9') {
+      if (url === '/admin/predictions/9?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -969,16 +1015,14 @@ describe('public/js/main.js', () => {
     document.querySelector('.round-button[data-round="2"]').classList.add('selected');
     document.getElementById('matches-container').innerHTML = '<div class="match-card"></div>';
 
-    window.selectUser('9', 'Analyst');
-    await flushPromises();
-    await flushPromises();
+    await window.selectUser('9', 'Analyst');
 
     expect(document.getElementById('selected-user').textContent).toBe('Analyst');
     expect(document.getElementById('selected-user-id').value).toBe('9');
     expect(window.userPredictions).toEqual({
       55: { probability: 72, tippedTeam: 'home' }
     });
-    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9?year=2026', { cache: 'no-store' });
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9/round/2?year=2026', { cache: 'no-store' });
   });
 
@@ -992,8 +1036,7 @@ describe('public/js/main.js', () => {
     loadBrowserScript('main.js');
 
     const initialPredictions = window.userPredictions;
-    window.selectUser('9', 'Analyst');
-    await flushPromises();
+    await window.selectUser('9', 'Analyst');
 
     expect(document.getElementById('selected-user').textContent).toBe('Analyst');
     expect(document.getElementById('selected-user-id').value).toBe('9');
@@ -1005,7 +1048,7 @@ describe('public/js/main.js', () => {
 
   test('selectUser loads the first round on admin pages when no round is selected yet', async () => {
     global.fetch = jest.fn((url) => {
-      if (url === '/admin/predictions/9') {
+      if (url === '/admin/predictions/9?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -1054,22 +1097,20 @@ describe('public/js/main.js', () => {
     loadBrowserScript('main.js');
     document.getElementById('matches-container').innerHTML = '<div class="match-card"></div>';
 
-    window.selectUser('9', 'Analyst');
-    await flushPromises();
-    await flushPromises();
+    await window.selectUser('9', 'Analyst');
 
     expect(document.getElementById('selected-user').textContent).toBe('Analyst');
     expect(document.getElementById('selected-user-id').value).toBe('9');
     expect(window.userPredictions).toEqual({
       55: { probability: 72, tippedTeam: 'home' }
     });
-    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9?year=2026', { cache: 'no-store' });
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/9/round/1?year=2026', { cache: 'no-store' });
   });
 
   test('admin user buttons bootstrap selection from main.js without relying on admin.js listeners', async () => {
     global.fetch = jest.fn((url) => {
-      if (url === '/admin/predictions/7') {
+      if (url === '/admin/predictions/7?year=2026') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -1108,6 +1149,7 @@ describe('public/js/main.js', () => {
 
     loadBrowserScript('main.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await window.__predictionsBootstrapPromise;
 
     document.querySelector('.user-button').click();
     await flushPromises();
@@ -1115,7 +1157,7 @@ describe('public/js/main.js', () => {
 
     expect(document.getElementById('selected-user').textContent).toBe('Selected User');
     expect(document.getElementById('selected-user-id').value).toBe('7');
-    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7', { cache: 'no-store' });
+    expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7?year=2026', { cache: 'no-store' });
     expect(global.fetch).toHaveBeenCalledWith('/admin/predictions/7/round/1?year=2026', { cache: 'no-store' });
   });
 
@@ -1124,5 +1166,16 @@ describe('public/js/main.js', () => {
 
     expect(window.formatDateToLocalTimezone('not-a-real-date')).toBe('not-a-real-date');
     expect(window.formatDateToLocalTimezone('')).toBe('');
+  });
+
+  test('formatDateToLocalTimezone removes the weekday comma and the space before am or pm', () => {
+    loadBrowserScript('main.js');
+
+    const formattedDate = window.formatDateToLocalTimezone('2026-05-07T10:10:00.000Z');
+
+    expect(formattedDate).toMatch(/^[A-Za-z]{3} /);
+    expect(formattedDate).not.toMatch(/^[A-Za-z]{3},\s/);
+    expect(formattedDate).toMatch(/\d:\d{2}(am|pm)$/i);
+    expect(formattedDate).not.toMatch(/\d:\d{2}\s(am|pm)$/i);
   });
 });

@@ -372,6 +372,7 @@ router.post('/predictors', async (req, res, next) => {
 // Get predictions for a specific user
 router.get('/predictions/:userId', catchAsync(async (req, res) => {
   const userId = req.params.userId;
+  const { selectedYear } = await roundService.resolveYear(req.query.year);
   
   // Check if user exists
   const user = await predictorService.getPredictorById(userId);
@@ -383,6 +384,7 @@ router.get('/predictions/:userId', catchAsync(async (req, res) => {
   logger.debug(`Fetching predictions for user ${userId}`);
   
   // Get predictions for this user
+  await predictionService.ensureMissedPredictionsForUserAndYear(userId, selectedYear);
   const predictions = await predictionService.getPredictionsForUser(userId);
   
   // Convert to a map format for the frontend
@@ -393,7 +395,8 @@ router.get('/predictions/:userId', catchAsync(async (req, res) => {
 
     predictionsMap[pred.match_id] = {
       probability: pred.home_win_probability,
-      tipped_team: tippedTeam
+      tipped_team: tippedTeam,
+      is_missed: Boolean(pred.is_missed)
     };
   });
   
@@ -413,6 +416,7 @@ router.get('/predictions/:userId/round/:round', catchAsync(async (req, res) => {
   }
 
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
+  await predictionService.ensureMissedPredictionsForUserAndYear(userId, year);
   const matches = await matchService.getMatchesByRoundSelectionAndYear(req.params.round, year);
   const processedMatches = matchService.processMatchLockStatus(matches);
   const predictions = await predictionService.getPredictionsForUser(userId);
@@ -476,6 +480,35 @@ router.post('/predictions/:userId/save', catchAsync(async (req, res) => {
   logger.info(`Prediction saved for user ${userId} on match ${matchId}: ${prob}%`);
   
   res.json({ success: true });
+}));
+
+router.post('/predictions/:userId/missed', catchAsync(async (req, res) => {
+  const userId = req.params.userId;
+  const { matchId, isMissed } = req.body || {};
+
+  if (!matchId || isMissed === undefined) {
+    throw createValidationError('Missing required fields');
+  }
+
+  const user = await predictorService.getPredictorById(userId);
+  if (!user) {
+    throw createNotFoundError('User');
+  }
+
+  const result = await predictionService.updatePredictionMissedFlag(matchId, userId, isMissed);
+
+  logger.info(`Missed flag updated for user ${userId} on match ${matchId}`, {
+    adminId: req.session.user.id,
+    isMissed: result.isMissed
+  });
+
+  res.json({
+    success: true,
+    isMissed: result.isMissed,
+    probability: result.probability,
+    tippedTeam: result.tippedTeam,
+    created: result.created
+  });
 }));
 
 // Generate statistics page

@@ -19,7 +19,8 @@ function buildPredictionViewModel(prediction) {
 
   return {
     probability: prediction.home_win_probability,
-    tipped_team: tippedTeam
+    tipped_team: tippedTeam,
+    is_missed: Boolean(prediction.is_missed)
   };
 }
 
@@ -153,6 +154,7 @@ router.get('/', catchAsync(async (req, res) => {
   
   // Get user predictions
   const predictorId = req.session.user.id;
+  await predictionService.ensureMissedPredictionsForUserAndYear(predictorId, selectedYear);
   const userPredictions = await predictionService.getPredictionsForUser(req.session.user.id);
   
   // Create predictions map

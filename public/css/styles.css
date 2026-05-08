@@ -359,11 +359,11 @@ textarea {
 }
 
 .match-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: flex-start;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  column-gap: 0.5rem;
+  row-gap: 0.25rem;
   font-size: 0.875rem;
   color: var(--light-text);
   margin-bottom: 0.75rem;
@@ -374,13 +374,17 @@ textarea {
 }
 
 .match-venue {
-  margin-left: auto;
+  min-width: 0;
   text-align: right;
+  justify-self: end;
 }
 
 .match-locked {
-  color: var(--locked-color);
+  position: relative;
+  z-index: 1;
   font-weight: bold;
+  white-space: nowrap;
+  justify-self: end;
 }
 
 .match-teams {
@@ -472,14 +476,31 @@ textarea {
   color: var(--error-color);
 }
 
-.match-card.locked::before {
+.match-locked.locked {
+  color: var(--locked-color);
+}
+
+.match-locked.missed {
+  color: #8e24aa;
+}
+
+.match-card.locked::before,
+.match-card.missed::before {
   content: '';
   position: absolute;
   top: 0;
   right: 0;
   border-width: 0 40px 40px 0;
   border-style: solid;
+  pointer-events: none;
+}
+
+.match-card.locked::before {
   border-color: transparent var(--locked-color) transparent transparent;
+}
+
+.match-card.missed::before {
+  border-color: transparent #8e24aa transparent transparent;
 }
 
 .match-card.has-result {
@@ -878,6 +899,29 @@ textarea {
 
 .clear-prediction:hover {
   background-color: #e68a00;
+}
+
+.toggle-missed-button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 8px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.toggle-missed-button:hover {
+  background-color: #5a6268;
+}
+
+.toggle-missed-button:disabled {
+  background-color: var(--light-text);
+  cursor: not-allowed;
 }
 
 /* Prediction deletion state */

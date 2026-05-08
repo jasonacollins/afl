@@ -5,7 +5,7 @@ window.isAdmin = true;
 window.canOverridePredictionLocks = true;
 
 // Initialize with empty predictions
-window.userPredictions = {};
+window.userPredictions = window.userPredictions || {};
 
 // Get CSRF token from meta tag
 function getCsrfToken() {
@@ -243,6 +243,258 @@ function addClearButtons() {
   });
 }
 
+function getStoredPredictionForAdmin(matchId) {
+  if (typeof window.getStoredPrediction === 'function') {
+    return window.getStoredPrediction(matchId);
+  }
+
+  if (!window.userPredictions || !(matchId in window.userPredictions)) {
+    return null;
+  }
+
+  const prediction = window.userPredictions[matchId];
+  if (!prediction || typeof prediction !== 'object') {
+    return null;
+  }
+
+  return {
+    probability: prediction.probability !== undefined && prediction.probability !== null
+      ? String(prediction.probability)
+      : '',
+    tippedTeam: prediction.tippedTeam || prediction.tipped_team || 'home',
+    isMissed: Boolean(prediction.isMissed !== undefined ? prediction.isMissed : prediction.is_missed)
+  };
+}
+
+function updateMissedToggleButton(button, isMissed) {
+  button.dataset.isMissed = isMissed ? 'true' : 'false';
+  button.setAttribute('aria-pressed', isMissed ? 'true' : 'false');
+  button.textContent = `Missed: ${isMissed ? 'On' : 'Off'}`;
+}
+
+function syncCornerStatusOnCard(matchCard, isMissed) {
+  if (!matchCard) {
+    return;
+  }
+
+  const matchHeader = matchCard.querySelector('.match-header');
+  if (!matchHeader) {
+    return;
+  }
+
+  const isLocked = matchCard.classList.contains('locked');
+  let cornerStatus = matchHeader.querySelector('.match-locked');
+
+  if (isMissed) {
+    if (!cornerStatus) {
+      cornerStatus = document.createElement('span');
+      cornerStatus.className = 'match-locked';
+      matchHeader.appendChild(cornerStatus);
+    }
+
+    cornerStatus.className = 'match-locked missed';
+    cornerStatus.textContent = 'MISSED';
+    return;
+  }
+
+  if (isLocked) {
+    if (!cornerStatus) {
+      cornerStatus = document.createElement('span');
+      cornerStatus.className = 'match-locked';
+      matchHeader.appendChild(cornerStatus);
+    }
+
+    cornerStatus.className = 'match-locked locked';
+    cornerStatus.textContent = 'LOCKED';
+    return;
+  }
+
+  if (cornerStatus) {
+    cornerStatus.remove();
+  }
+}
+
+function syncMissedStatusOnCard(matchCard, matchId, isMissed) {
+  if (!matchCard) {
+    return;
+  }
+
+  const toggleButton = matchCard.querySelector(`.toggle-missed-button[data-match-id="${matchId}"]`);
+  if (toggleButton) {
+    updateMissedToggleButton(toggleButton, isMissed);
+  }
+
+  matchCard.classList.toggle('missed', isMissed);
+  syncCornerStatusOnCard(matchCard, isMissed);
+}
+
+function syncPredictionStateOnCard(matchCard, matchId, probability, tippedTeam) {
+  if (!matchCard || probability === null || probability === undefined || probability === '') {
+    return;
+  }
+
+  const numericProbability = parseInt(probability, 10);
+  if (Number.isNaN(numericProbability)) {
+    return;
+  }
+
+  const homeInput = matchCard.querySelector(`.home-prediction[data-match-id="${matchId}"]`);
+  const awayInput = matchCard.querySelector(`.away-prediction[data-match-id="${matchId}"]`);
+  const saveButton = matchCard.querySelector(`.save-prediction[data-match-id="${matchId}"]`);
+
+  if (homeInput) {
+    homeInput.value = String(numericProbability);
+    homeInput.dataset.originalValue = String(numericProbability);
+  }
+
+  if (awayInput) {
+    awayInput.value = String(100 - numericProbability);
+  }
+
+  if (saveButton) {
+    saveButton.textContent = 'Saved';
+    saveButton.classList.add('saved-state');
+    saveButton.classList.remove('update-state', 'delete-state');
+
+    if (numericProbability === 50) {
+      saveButton.dataset.tippedTeam = tippedTeam || 'home';
+
+      const existingTeamSelection = document.getElementById(`team-selection-${matchId}`);
+      if (!existingTeamSelection && typeof window.addTeamSelection === 'function') {
+        const homeTeamElement = matchCard.querySelector('.home-team');
+        const awayTeamElement = matchCard.querySelector('.away-team');
+        const homeTeamName = homeTeamElement ? (homeTeamElement.dataset.abbrev || homeTeamElement.textContent) : 'Home';
+        const awayTeamName = awayTeamElement ? (awayTeamElement.dataset.abbrev || awayTeamElement.textContent) : 'Away';
+        window.addTeamSelection(matchId, homeTeamName, awayTeamName, saveButton);
+      }
+
+      const teamSelection = document.getElementById(`team-selection-${matchId}`);
+      if (teamSelection) {
+        const homeButton = teamSelection.querySelector('.home-team-button');
+        const awayButton = teamSelection.querySelector('.away-team-button');
+        if (homeButton && awayButton) {
+          const tipTeam = tippedTeam || 'home';
+          homeButton.classList.toggle('selected', tipTeam === 'home');
+          awayButton.classList.toggle('selected', tipTeam === 'away');
+        }
+      }
+    } else {
+      delete saveButton.dataset.tippedTeam;
+      if (typeof window.removeTeamSelection === 'function') {
+        window.removeTeamSelection(matchId);
+      }
+    }
+  }
+
+  const getMatchData = window.getMatchDataById || globalThis.getMatchDataById;
+  const calculateAccuracyFn = window.calculateAccuracy || globalThis.calculateAccuracy;
+  const matchData = typeof getMatchData === 'function' ? getMatchData(matchId) : null;
+
+  if (!matchData || matchData.hscore === null || matchData.ascore === null || typeof calculateAccuracyFn !== 'function') {
+    return;
+  }
+
+  const predictionControls = matchCard.querySelector('.prediction-controls');
+  if (!predictionControls) {
+    return;
+  }
+
+  let metricsContainer = matchCard.querySelector('.admin-metrics-display');
+  if (!metricsContainer) {
+    metricsContainer = document.createElement('div');
+    metricsContainer.className = 'admin-metrics-display';
+    predictionControls.appendChild(metricsContainer);
+  }
+
+  metricsContainer.innerHTML = calculateAccuracyFn(matchData, numericProbability, tippedTeam || 'home');
+}
+
+function toggleMissedPredictionDirectly(matchId, userId, button) {
+  if (!userId) {
+    alert('Please select a user first');
+    return;
+  }
+
+  const currentIsMissed = button.dataset.isMissed === 'true';
+  const nextIsMissed = !currentIsMissed;
+  const originalText = button.textContent;
+  button.textContent = 'Updating...';
+  button.disabled = true;
+
+  fetch(`/admin/predictions/${userId}/missed`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-CSRF-Token': getCsrfToken()
+    },
+    body: JSON.stringify({
+      matchId,
+      isMissed: nextIsMissed
+    })
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Server error (${response.status})`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to update missed flag');
+      }
+
+      const storedPrediction = getStoredPredictionForAdmin(matchId);
+      const updateStoredPredictionFn = window.updateStoredPrediction || globalThis.updateStoredPrediction;
+      const probability = storedPrediction ? storedPrediction.probability : data.probability;
+      const tippedTeam = storedPrediction ? storedPrediction.tippedTeam : data.tippedTeam;
+
+      if (probability !== null && probability !== undefined && typeof updateStoredPredictionFn === 'function') {
+        updateStoredPredictionFn(
+          matchId,
+          probability,
+          tippedTeam,
+          { isMissed: data.isMissed }
+        );
+      }
+
+      const matchCard = button.closest('.match-card');
+      syncMissedStatusOnCard(matchCard, matchId, data.isMissed);
+      syncPredictionStateOnCard(matchCard, matchId, probability, tippedTeam);
+
+      if (typeof window.updateRoundButtonStates === 'function') {
+        window.updateRoundButtonStates();
+      }
+
+      button.disabled = false;
+      return undefined;
+    })
+    .then(() => {
+      button.disabled = false;
+    })
+    .catch(error => {
+      console.error('Error updating missed flag:', error);
+      alert('Error updating missed flag: ' + error.message);
+      button.textContent = originalText;
+      button.disabled = false;
+    });
+}
+
+function bindMissedToggleButtons() {
+  document.querySelectorAll('.toggle-missed-button').forEach((button) => {
+    if (button.dataset.missedToggleBound === 'true') {
+      return;
+    }
+
+    button.dataset.missedToggleBound = 'true';
+    button.addEventListener('click', function(event) {
+      event.preventDefault();
+      const userId = document.getElementById('selected-user-id')?.value;
+      toggleMissedPredictionDirectly(button.dataset.matchId, userId, button);
+    });
+  });
+}
+
 function getAdminMatchesForRoundData(round, year) {
   const userId = document.getElementById('selected-user-id')?.value;
   if (userId) {
@@ -255,7 +507,10 @@ function getAdminMatchesForRoundData(round, year) {
 if (typeof window !== 'undefined') {
   window.getCsrfToken = getCsrfToken;
   window.getMatchesForRoundData = getAdminMatchesForRoundData;
-  window.onMatchesRendered = addClearButtons;
+  window.onMatchesRendered = function onMatchesRendered() {
+    addClearButtons();
+    bindMissedToggleButtons();
+  };
   window.showResetPasswordForm = showResetPasswordForm;
   window.closeModal = closeModal;
   window.closeRefreshModal = closeRefreshModal;
@@ -266,6 +521,8 @@ if (typeof window !== 'undefined') {
   window.selectUserByData = selectUserByData;
   window.clearPredictionDirectly = clearPredictionDirectly;
   window.addClearButtons = addClearButtons;
+  window.bindMissedToggleButtons = bindMissedToggleButtons;
+  window.toggleMissedPredictionDirectly = toggleMissedPredictionDirectly;
   window.getAdminMatchesForRoundData = getAdminMatchesForRoundData;
 }
 
@@ -388,6 +645,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Initialize clear buttons after a short delay to ensure all other scripts have run
   setTimeout(addClearButtons, 500);
+  setTimeout(bindMissedToggleButtons, 500);
 
   // Handle API refresh button
   const refreshButton = document.getElementById('refreshApiButton');
