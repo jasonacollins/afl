@@ -70,6 +70,18 @@ async function getMissedPredictionDefaultsCutoff() {
   return cutoffDate;
 }
 
+function normalizePredictorIds(predictorIds) {
+  if (!Array.isArray(predictorIds)) {
+    throw createValidationError('Predictor IDs must be an array');
+  }
+
+  return [...new Set(
+    predictorIds
+      .map((predictorId) => Number.parseInt(predictorId, 10))
+      .filter((predictorId) => Number.isInteger(predictorId) && predictorId > 0)
+  )];
+}
+
 // Get all predictions with match and predictor information
 async function getAllPredictionsWithDetails() {
   try {
@@ -299,6 +311,90 @@ async function ensureMissedPredictionsForUserAndYear(predictorId, year) {
   }
 }
 
+async function ensureMissedPredictionsForPredictorsAndYear(predictorIds, year) {
+  try {
+    const normalizedYear = Number.parseInt(year, 10);
+    if (!Number.isInteger(normalizedYear)) {
+      throw createValidationError('Year is required');
+    }
+
+    const normalizedPredictorIds = normalizePredictorIds(predictorIds);
+    if (normalizedPredictorIds.length === 0) {
+      return { created: 0 };
+    }
+
+    const cutoffDate = await getMissedPredictionDefaultsCutoff();
+    if (!cutoffDate) {
+      logger.warn('Skipping bulk missed prediction reconciliation because cutoff is unavailable', {
+        year: normalizedYear,
+        predictorCount: normalizedPredictorIds.length
+      });
+      return { created: 0 };
+    }
+
+    const placeholders = normalizedPredictorIds.map(() => '?').join(', ');
+    const nowIso = new Date().toISOString();
+    const cutoffIso = cutoffDate.toISOString();
+    const result = await runQuery(
+      `
+      INSERT OR IGNORE INTO predictions (
+        match_id,
+        predictor_id,
+        home_win_probability,
+        tipped_team,
+        is_missed
+      )
+      SELECT
+        m.match_id,
+        pr.predictor_id,
+        50,
+        'home',
+        1
+      FROM predictors pr
+      JOIN matches m
+        ON m.year = ?
+      LEFT JOIN predictions p
+        ON p.match_id = m.match_id
+       AND p.predictor_id = pr.predictor_id
+      WHERE pr.predictor_id IN (${placeholders})
+        AND (pr.year_joined IS NULL OR CAST(pr.year_joined AS INTEGER) <= ?)
+        AND p.prediction_id IS NULL
+        AND m.match_date IS NOT NULL
+        AND datetime(m.match_date) IS NOT NULL
+        AND datetime(m.match_date) >= datetime(?)
+        AND datetime(m.match_date) < datetime(?)
+      `,
+      [
+        normalizedYear,
+        ...normalizedPredictorIds,
+        normalizedYear,
+        cutoffIso,
+        nowIso
+      ]
+    );
+
+    const created = result.changes || 0;
+    logger.info('Completed bulk missed prediction reconciliation', {
+      year: normalizedYear,
+      predictorCount: normalizedPredictorIds.length,
+      created
+    });
+
+    return { created };
+  } catch (error) {
+    if (error.isOperational) {
+      throw error;
+    }
+
+    logger.error('Error reconciling missed predictions in bulk', {
+      predictorIds,
+      year,
+      error: error.message
+    });
+    throw new AppError('Failed to reconcile missed predictions', 500, 'DATABASE_ERROR');
+  }
+}
+
 async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
   try {
     if (!matchId || !predictorId) {
@@ -481,6 +577,7 @@ module.exports = {
   savePrediction,
   deletePrediction,
   ensureMissedPredictionsForUserAndYear,
+  ensureMissedPredictionsForPredictorsAndYear,
   updatePredictionMissedFlag,
   getPredictionsWithResultsForYear,
   getPredictionsWithResultsForRound,

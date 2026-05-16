@@ -25,6 +25,7 @@ const predictionService = require('../prediction-service');
 describe('prediction-service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.useRealTimers();
   });
 
   test('savePrediction updates an existing prediction', async () => {
@@ -172,6 +173,80 @@ describe('prediction-service', () => {
 
     expect(result).toEqual({ created: 0 });
     expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('ensureMissedPredictionsForPredictorsAndYear bulk inserts default home tips for started missing matches', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2000-01-03T00:00:00.000Z').getTime());
+    getOne.mockResolvedValue({ value: '2000-01-01T00:00:00.000Z' });
+    runQuery.mockResolvedValue({ changes: 3 });
+
+    const result = await predictionService.ensureMissedPredictionsForPredictorsAndYear(
+      [2, '3', 2, 'not-a-predictor'],
+      2026
+    );
+
+    expect(result).toEqual({ created: 3 });
+    expect(runQuery).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT OR IGNORE INTO predictions'),
+      [
+        2026,
+        2,
+        3,
+        2026,
+        '2000-01-01T00:00:00.000Z',
+        '2000-01-03T00:00:00.000Z'
+      ]
+    );
+
+    jest.useRealTimers();
+  });
+
+  test('ensureMissedPredictionsForPredictorsAndYear skips when the cutoff is unavailable', async () => {
+    getOne.mockResolvedValue(null);
+
+    const result = await predictionService.ensureMissedPredictionsForPredictorsAndYear([2, 3], 2026);
+
+    expect(result).toEqual({ created: 0 });
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('ensureMissedPredictionsForPredictorsAndYear filters out future matches in the SQL insert', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2000-01-03T00:00:00.000Z').getTime());
+    getOne.mockResolvedValue({ value: '2000-01-01T00:00:00.000Z' });
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    await predictionService.ensureMissedPredictionsForPredictorsAndYear([2], 2026);
+
+    expect(runQuery.mock.calls[0][0]).toEqual(expect.stringContaining('AND datetime(m.match_date) < datetime(?)'));
+    expect(runQuery.mock.calls[0][1]).toEqual([
+      2026,
+      2,
+      2026,
+      '2000-01-01T00:00:00.000Z',
+      '2000-01-03T00:00:00.000Z'
+    ]);
+
+    jest.useRealTimers();
+  });
+
+  test('ensureMissedPredictionsForPredictorsAndYear filters predictors by joined year', async () => {
+    getOne.mockResolvedValue({ value: '2000-01-01T00:00:00.000Z' });
+    runQuery.mockResolvedValue({ changes: 1 });
+
+    await predictionService.ensureMissedPredictionsForPredictorsAndYear([2], 2026);
+
+    expect(runQuery.mock.calls[0][0]).toEqual(expect.stringContaining('CAST(pr.year_joined AS INTEGER) <= ?'));
+    expect(runQuery.mock.calls[0][1][2]).toBe(2026);
+  });
+
+  test('ensureMissedPredictionsForPredictorsAndYear is idempotent when defaults already exist', async () => {
+    getOne.mockResolvedValue({ value: '2000-01-01T00:00:00.000Z' });
+    runQuery.mockResolvedValue({ changes: 0 });
+
+    const result = await predictionService.ensureMissedPredictionsForPredictorsAndYear([2], 2026);
+
+    expect(result).toEqual({ created: 0 });
+    expect(runQuery.mock.calls[0][0]).toEqual(expect.stringContaining('INSERT OR IGNORE INTO predictions'));
   });
 
   test('updatePredictionMissedFlag updates only the missed flag', async () => {

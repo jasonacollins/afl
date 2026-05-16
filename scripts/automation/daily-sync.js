@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { getQuery } = require('../../models/db');
 const { logger } = require('../../utils/logger');
+const predictionService = require('../../services/prediction-service');
+const predictorService = require('../../services/predictor-service');
 
 const ELO_HISTORY_MODEL_PATH = 'data/models/margin/afl_elo_margin_only_trained_to_2025.json';
 const ELO_HISTORY_SEED_START_YEAR = 1990;
@@ -459,6 +461,34 @@ async function evaluateSimulationSnapshotState(year, outputPath) {
   };
 }
 
+function getMissedDefaultPredictorIds(predictors) {
+  return predictors
+    .filter(predictor =>
+      !predictor.stats_excluded &&
+      !predictor.is_admin &&
+      predictor.active !== 0
+    )
+    .map(predictor => predictor.predictor_id);
+}
+
+async function reconcileMissedPredictionDefaultsForYear(year, source) {
+  const predictors = await predictorService.getPredictorsWithAdminStatus();
+  const predictorIds = getMissedDefaultPredictorIds(predictors);
+  const result = await predictionService.ensureMissedPredictionsForPredictorsAndYear(
+    predictorIds,
+    year
+  );
+
+  logger.info('Missed prediction defaults reconciliation complete', {
+    source,
+    year,
+    predictorCount: predictorIds.length,
+    created: result.created
+  });
+
+  return result;
+}
+
 async function runPostResultRecompute(year, options = {}) {
   const source = options.source || 'manual';
   const currentYear = new Date().getFullYear();
@@ -471,6 +501,8 @@ async function runPostResultRecompute(year, options = {}) {
     source,
     isCurrentSeason
   });
+
+  await reconcileMissedPredictionDefaultsForYear(year, source);
 
   let snapshotState = null;
   let snapshotMissing = false;

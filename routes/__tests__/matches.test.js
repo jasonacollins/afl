@@ -38,7 +38,8 @@ jest.mock('../../services/match-service', () => ({
 jest.mock('../../services/prediction-service', () => ({
   getPredictionsForUser: jest.fn(),
   getPredictionsWithResultsForYear: jest.fn(),
-  getPredictionsWithResultsForRoundSelection: jest.fn()
+  getPredictionsWithResultsForRoundSelection: jest.fn(),
+  ensureMissedPredictionsForPredictorsAndYear: jest.fn()
 }));
 
 jest.mock('../../services/predictor-service', () => ({
@@ -68,6 +69,7 @@ describe('matches routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     roundService.resolveYear.mockResolvedValue({ selectedYear: 2026, years: [{ year: 2026 }] });
+    predictionService.ensureMissedPredictionsForPredictorsAndYear.mockResolvedValue({ created: 0 });
   });
 
   test('redirects anonymous users to login', async () => {
@@ -107,7 +109,7 @@ describe('matches routes', () => {
     expect(response.body).toEqual([{ round_number: '1' }]);
   });
 
-  test('GET /stats renders leaderboard data without mutating predictions and filters excluded or inactive predictors', async () => {
+  test('GET /stats reconciles missed defaults before rendering leaderboard data', async () => {
     roundService.getRoundsForYear.mockResolvedValue([
       { round_number: '1' },
       { round_number: '2' }
@@ -234,6 +236,7 @@ describe('matches routes', () => {
 
     expect(response.status).toBe(200);
     expect(runQuery).not.toHaveBeenCalled();
+    expect(predictionService.ensureMissedPredictionsForPredictorsAndYear).toHaveBeenCalledWith([1], 2026);
     expect(response.body.view).toBe('stats');
     expect(response.body.locals.selectedRound).toBe('1');
     expect(response.body.locals.currentRound).toBe('2');
@@ -353,6 +356,7 @@ describe('matches routes', () => {
     const response = await request(app).get('/stats/round/Finals%20Week%202?year=2026');
 
     expect(response.status).toBe(200);
+    expect(predictionService.ensureMissedPredictionsForPredictorsAndYear).toHaveBeenCalledWith([1], 2026);
     expect(response.body).toEqual({
       success: true,
       roundPredictorStats: [
@@ -443,6 +447,7 @@ describe('matches routes', () => {
     const response = await request(app).get('/stats?year=2026');
 
     expect(response.status).toBe(200);
+    expect(predictionService.ensureMissedPredictionsForPredictorsAndYear).toHaveBeenCalledWith([1], 2026);
     expect(logger.error).toHaveBeenCalledWith('Error formatting date for stats', {
       matchDate: 'invalidTdate',
       error: 'Invalid date'
@@ -485,6 +490,7 @@ describe('matches routes', () => {
     const response = await request(app).get('/stats/round/Wildcard%20Finals?year=2026');
 
     expect(response.status).toBe(200);
+    expect(predictionService.ensureMissedPredictionsForPredictorsAndYear).toHaveBeenCalledWith([1], 2026);
     expect(roundService.expandRoundSelection).toHaveBeenCalledWith('Wildcard Finals');
     expect(response.body.roundPredictorStats).toEqual([
       expect.objectContaining({

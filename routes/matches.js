@@ -135,6 +135,16 @@ function getSourceRoundsThroughSelection(rounds, roundSelection) {
   return sourceRounds;
 }
 
+function getMissedDefaultPredictorIds(predictors) {
+  return predictors
+    .filter(predictor =>
+      !predictor.stats_excluded &&
+      !predictor.is_admin &&
+      predictor.active !== 0
+    )
+    .map(predictor => predictor.predictor_id);
+}
+
 // Get all matches
 router.get('/round/:round', catchAsync(async (req, res) => {
   const { selectedYear: year } = await roundService.resolveYear(req.query.year);
@@ -223,6 +233,10 @@ router.get('/stats', catchAsync(async (req, res) => {
   // Get all predictors, but include admin status and filter out excluded ones
   const allPredictors = await predictorService.getPredictorsWithAdminStatus();
   const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
+  await predictionService.ensureMissedPredictionsForPredictorsAndYear(
+    getMissedDefaultPredictorIds(allPredictors),
+    selectedYear
+  );
 
   // Get matches with results for the selected year
   const completedMatches = await matchService.getCompletedMatchesForYear(selectedYear);
@@ -364,6 +378,10 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   // Get all predictors, but include admin status and filter out excluded ones
   const allPredictors = await predictorService.getPredictorsWithAdminStatus();
   const predictors = allPredictors.filter(predictor => !predictor.stats_excluded);
+  await predictionService.ensureMissedPredictionsForPredictorsAndYear(
+    getMissedDefaultPredictorIds(allPredictors),
+    selectedYear
+  );
   const rounds = roundService.combineRoundsForDisplay(
     await roundService.getRoundsForYear(selectedYear),
     selectedYear

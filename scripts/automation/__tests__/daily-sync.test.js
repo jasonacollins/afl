@@ -25,6 +25,14 @@ jest.mock('../sync-games', () => ({
   syncGamesFromAPI: jest.fn()
 }));
 
+jest.mock('../../../services/prediction-service', () => ({
+  ensureMissedPredictionsForPredictorsAndYear: jest.fn()
+}));
+
+jest.mock('../../../services/predictor-service', () => ({
+  getPredictorsWithAdminStatus: jest.fn()
+}));
+
 jest.mock('../../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
@@ -56,6 +64,8 @@ const {
 const { refreshAPIData } = require('../api-refresh');
 const { runEloPredictions } = require('../elo-predictions');
 const { syncGamesFromAPI } = require('../sync-games');
+const predictionService = require('../../../services/prediction-service');
+const predictorService = require('../../../services/predictor-service');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const { EventEmitter } = require('events');
@@ -360,6 +370,10 @@ describe('daily-sync automation orchestration', () => {
     fs.readFileSync.mockImplementation(() => {
       throw new Error('Unexpected readFileSync call');
     });
+    predictorService.getPredictorsWithAdminStatus.mockResolvedValue([
+      { predictor_id: 2, stats_excluded: 0, is_admin: 0, active: 1 }
+    ]);
+    predictionService.ensureMissedPredictionsForPredictorsAndYear.mockResolvedValue({ created: 0 });
     process.exit = jest.fn();
   });
 
@@ -446,6 +460,33 @@ describe('daily-sync automation orchestration', () => {
       simulationResults: null,
       historyResults: { success: true, message: 'ELO history updated' }
     });
+  });
+
+  test('runPostResultRecompute materializes missed defaults before model refresh', async () => {
+    const priorYear = new Date().getFullYear() - 1;
+
+    predictorService.getPredictorsWithAdminStatus.mockResolvedValue([
+      { predictor_id: 2, stats_excluded: 0, is_admin: 0, active: 1 },
+      { predictor_id: 3, stats_excluded: 1, is_admin: 0, active: 1 },
+      { predictor_id: 4, stats_excluded: 0, is_admin: 1, active: 1 },
+      { predictor_id: 5, stats_excluded: 0, is_admin: 0, active: 0 }
+    ]);
+    runEloPredictions.mockResolvedValue({
+      message: 'Predictions updated',
+      predictionsCount: 4
+    });
+    fs.existsSync.mockReturnValue(false);
+    spawn.mockImplementation(() => queueChildResult());
+
+    await runPostResultRecompute(priorYear, { source: 'result-sync' });
+
+    expect(predictionService.ensureMissedPredictionsForPredictorsAndYear).toHaveBeenCalledWith(
+      [2],
+      priorYear
+    );
+    expect(
+      predictionService.ensureMissedPredictionsForPredictorsAndYear.mock.invocationCallOrder[0]
+    ).toBeLessThan(runEloPredictions.mock.invocationCallOrder[0]);
   });
 
   test('runFallbackReconciliation performs full recompute when completed results are detected', async () => {
