@@ -91,6 +91,13 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 - Do not repoint automation defaults or overwrite existing model outputs unless explicitly requested.
 - Do not replace a production database to publish experiment output unless explicitly requested; back up first if that case arises.
 
+### ELO Replay Consistency
+
+- Margin ELO rating replay is shared through `scripts/core/elo_core.py`.
+- Prediction generation, combined prediction, ELO history generation, and season simulation should use the shared margin rating update and start-of-season carryover helpers rather than duplicating formulas.
+- Completed matches should update current ratings before future predictions or simulations, but should not be republished as mutable predictions unless an explicit override path is used.
+- Newly generated margin model artifacts should include `trained_through_year`; keep legacy `trained_to_YYYY` filename inference working for existing artifacts.
+
 ### Simulation And Generated Artifacts
 
 - `scripts/season_simulator.py` writes generated outputs to `data/simulations/season_simulation_YYYY.json`.

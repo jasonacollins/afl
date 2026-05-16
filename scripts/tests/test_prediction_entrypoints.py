@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 
 SCRIPTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -238,6 +239,7 @@ def test_margin_train_main_unwraps_parameter_payload_and_persists_performance(mo
     assert captured['model_path'] == output_dir / 'afl_elo_margin_only_trained_to_2025.json'
     assert captured['model_data']['performance'] == performance
     assert captured['model_data']['mae'] == 14.2
+    assert captured['model_data']['trained_through_year'] == 2025
     assert 'created_date' in captured['model_data']
 
 
@@ -380,6 +382,9 @@ def test_margin_predict_matches_applies_initial_carryover_and_preserves_predicto
         def apply_season_carryover(self, new_year):
             self.carryover_years.append(new_year)
 
+        def prepare_start_year(self, start_year):
+            self.apply_season_carryover(start_year)
+
         def update_ratings(self, **kwargs):
             self.predictions.append({
                 'match_id': kwargs['match_id'],
@@ -454,6 +459,79 @@ def test_margin_predict_matches_applies_initial_carryover_and_preserves_predicto
     assert captured['history_path'] == tmp_path / 'artifacts' / 'margin_elo_rating_history_from_2026.csv'
 
 
+def test_margin_predict_matches_infers_start_carryover_from_trained_to_filename(monkeypatch, tmp_path):
+    captured = {}
+    matches = pd.DataFrame([
+        {
+            'match_id': 22,
+            'round_number': '1',
+            'match_date': pd.Timestamp('2099-03-10T09:30:00Z'),
+            'venue': 'MCG',
+            'year': 2026,
+            'home_team': 'Cats',
+            'away_team': 'Swans',
+            'hscore': None,
+            'ascore': None,
+            'venue_state': 'VIC',
+            'home_team_state': 'VIC',
+            'away_team_state': 'NSW',
+        },
+    ])
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        margin_predict_module,
+        'load_model',
+        lambda path: {
+            'model_type': 'margin_elo',
+            'parameters': {
+                'base_rating': 1500,
+                'k_factor': 20,
+                'home_advantage': 0,
+                'season_carryover': 0.5,
+                'max_margin': 100,
+                'margin_scale': 0.1,
+                'scaling_factor': 10,
+            },
+            'team_ratings': {
+                'Cats': 1600,
+                'Swans': 1400,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        margin_predict_module,
+        'fetch_matches_for_prediction',
+        lambda db_path, start_year: matches,
+    )
+    monkeypatch.setattr(
+        margin_predict_module,
+        'save_predictions_to_database',
+        lambda predictions, db_path, predictor_id, override_completed=False: captured.update(
+            db_predictions=predictions,
+            db_args={
+                'db_path': db_path,
+                'predictor_id': predictor_id,
+                'override_completed': override_completed,
+            },
+        ),
+    )
+
+    margin_predict_module.predict_matches(
+        model_path='data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+        db_path='data/database/test.db',
+        start_year=2026,
+        output_dir=str(tmp_path / 'artifacts'),
+        save_to_db=True,
+        predictor_id=71,
+    )
+
+    prediction = captured['db_predictions'][0]
+    assert prediction['pre_match_home_rating'] == pytest.approx(1550.0)
+    assert prediction['pre_match_away_rating'] == pytest.approx(1450.0)
+    assert prediction['predicted_margin'] == pytest.approx(10.0)
+
+
 def test_combined_predict_matches_filters_to_future_predictions_before_database_save(monkeypatch, tmp_path):
     captured = {}
     instances = []
@@ -517,6 +595,9 @@ def test_combined_predict_matches_filters_to_future_predictions_before_database_
 
         def apply_season_carryover(self, new_year):
             self.carryover_years.append(new_year)
+
+        def prepare_start_year(self, start_year):
+            self.apply_season_carryover(start_year)
 
         def update_ratings(self, **kwargs):
             self.predictions.append({

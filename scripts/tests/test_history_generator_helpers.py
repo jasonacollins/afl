@@ -14,6 +14,7 @@ if SCRIPTS_DIR not in sys.path:
 
 import elo_history_generator as history_generator_module  # noqa: E402
 from elo_history_generator import (  # noqa: E402
+    AFLEloHistoryGenerator,
     MODEL_TYPE_MARGIN,
     MODEL_TYPE_WIN,
     atomic_write_csv,
@@ -125,6 +126,39 @@ def test_filter_history_output_and_output_path_sort_and_bound_results():
     assert get_output_csv_path('data/historical', 'afl_elo_complete_history', 1990, 2025) == (
         'data/historical/afl_elo_complete_history_1990_to_2025.csv'
     )
+
+
+def test_margin_history_generator_uses_canonical_capped_clipped_update():
+    generator = AFLEloHistoryGenerator(
+        model_type=MODEL_TYPE_MARGIN,
+        base_rating=1500,
+        k_factor=20,
+        home_advantage=50,
+        season_carryover=0.6,
+        max_margin=50,
+        margin_scale=0.1,
+        scaling_factor=10,
+    )
+    generator.initialize_ratings(['Team A', 'Team B'])
+
+    generator.update_ratings(
+        home_team='Team A',
+        away_team='Team B',
+        hscore=100,
+        ascore=0,
+        year=2026,
+        match_id=1,
+        round_number='1',
+        match_date='2026-03-10T00:00:00Z',
+        venue='MCG',
+        venue_state='VIC',
+        home_team_state='VIC',
+        away_team_state='NSW',
+    )
+
+    assert generator.team_ratings['Team A'] == pytest.approx(1516.0)
+    assert generator.team_ratings['Team B'] == pytest.approx(1484.0)
+    assert generator.rating_history[0]['rating_change'] == pytest.approx(16.0)
 
 
 def test_atomic_write_csv_and_load_existing_history_round_trip(tmp_path):

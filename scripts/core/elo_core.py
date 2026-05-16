@@ -6,6 +6,10 @@ Contains the core ELO model implementations used across the AFL prediction syste
 Provides both simple and advanced ELO models with different feature sets.
 """
 
+import os
+import re
+from dataclasses import dataclass
+
 import pandas as pd
 import numpy as np
 import json
@@ -13,6 +17,256 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 from .home_advantage import resolve_contextual_home_advantage
+
+
+@dataclass
+class MarginEloRatingUpdate:
+    """Details from applying one margin ELO rating update."""
+
+    actual_margin: float
+    capped_margin: float
+    predicted_margin: float
+    margin_error: float
+    rating_error: float
+    raw_rating_change: float
+    rating_change: float
+    home_rating_before: float
+    away_rating_before: float
+    home_rating_after: float
+    away_rating_after: float
+
+
+@dataclass
+class CarryoverTransition:
+    """One offseason carryover transition."""
+
+    year: int
+    ratings_before: Dict[str, float]
+    ratings_after: Dict[str, float]
+
+
+@dataclass
+class SeasonRatingsPreparation:
+    """Start-of-season ratings derived from a saved model artifact."""
+
+    ratings: Dict[str, float]
+    yearly_ratings: Dict
+    source: str
+    source_year: Optional[int]
+    trained_through_year: Optional[int]
+    carryover_years: List[int]
+    carryover_transitions: List[CarryoverTransition]
+
+
+def apply_elo_season_carryover(
+    ratings: Dict[str, float],
+    base_rating: float,
+    season_carryover: float
+) -> Dict[str, float]:
+    """Regress ratings toward the model base rating for one offseason."""
+    return {
+        team: base_rating + season_carryover * (float(rating) - base_rating)
+        for team, rating in ratings.items()
+    }
+
+
+def infer_trained_through_year(model_data: Dict, model_path: Optional[str] = None) -> Optional[int]:
+    """Infer the last completed training season from metadata or legacy filenames."""
+    candidate_values = [
+        model_data.get('trained_through_year'),
+        model_data.get('train_end_year'),
+        model_data.get('end_year'),
+    ]
+
+    for container_key in ('training_window', 'train_window', 'optimization_details'):
+        container = model_data.get(container_key)
+        if isinstance(container, dict):
+            candidate_values.extend([
+                container.get('end_year'),
+                container.get('train_end_year'),
+                container.get('trained_through_year'),
+            ])
+
+    for value in candidate_values:
+        if value is None:
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+
+    if model_path:
+        filename = os.path.basename(str(model_path))
+        match = re.search(r'trained_to_(\d{4})(?:\D|$)', filename)
+        if match:
+            return int(match.group(1))
+
+    return None
+
+
+def prepare_start_of_season_ratings(
+    model_data: Dict,
+    target_year: int,
+    model_path: Optional[str] = None,
+    base_rating: Optional[float] = None,
+    season_carryover: Optional[float] = None
+) -> SeasonRatingsPreparation:
+    """
+    Resolve model ratings at the start of a target season.
+
+    Prefer the exact previous year's yearly snapshot when present. Otherwise,
+    use explicit/legacy trained-through metadata and apply one carryover per
+    offseason between the source year and target year.
+    """
+    params = model_data.get('parameters', {})
+    resolved_base_rating = float(
+        base_rating if base_rating is not None else params.get('base_rating', 1500)
+    )
+    resolved_carryover = float(
+        season_carryover
+        if season_carryover is not None
+        else params.get('season_carryover', 1.0)
+    )
+
+    yearly_ratings = model_data.get('yearly_ratings') or {}
+    numeric_yearly_ratings = {}
+    for year, ratings in yearly_ratings.items():
+        if str(year).isdigit() and isinstance(ratings, dict):
+            numeric_yearly_ratings[int(year)] = ratings
+
+    target_year = int(target_year)
+    previous_year = target_year - 1
+    trained_through_year = infer_trained_through_year(model_data, model_path)
+
+    if previous_year in numeric_yearly_ratings:
+        source = 'yearly_ratings'
+        source_year = previous_year
+        ratings = dict(numeric_yearly_ratings[previous_year])
+    else:
+        source = 'team_ratings'
+        source_year = trained_through_year
+        ratings = dict(model_data.get('team_ratings', model_data.get('ratings', {})))
+
+        prior_years = [
+            year for year in numeric_yearly_ratings
+            if year < target_year and (trained_through_year is None or year > trained_through_year)
+        ]
+        if source_year is None and prior_years:
+            source = 'yearly_ratings'
+            source_year = max(prior_years)
+            ratings = dict(numeric_yearly_ratings[source_year])
+
+    ratings = {
+        team: float(rating)
+        for team, rating in ratings.items()
+    }
+
+    carryover_years = []
+    carryover_transitions = []
+    if source_year is not None and target_year > int(source_year):
+        for carryover_year in range(int(source_year) + 1, target_year + 1):
+            ratings_before = ratings.copy()
+            ratings = apply_elo_season_carryover(
+                ratings,
+                resolved_base_rating,
+                resolved_carryover
+            )
+            carryover_years.append(carryover_year)
+            carryover_transitions.append(CarryoverTransition(
+                year=carryover_year,
+                ratings_before=ratings_before,
+                ratings_after=ratings.copy()
+            ))
+
+    return SeasonRatingsPreparation(
+        ratings=ratings,
+        yearly_ratings=yearly_ratings,
+        source=source,
+        source_year=source_year,
+        trained_through_year=trained_through_year,
+        carryover_years=carryover_years,
+        carryover_transitions=carryover_transitions
+    )
+
+
+def calculate_margin_elo_rating_update(
+    home_rating: float,
+    away_rating: float,
+    actual_margin: float,
+    applied_home_advantage: float,
+    k_factor: float,
+    margin_scale: float,
+    scaling_factor: float,
+    max_margin: float
+) -> MarginEloRatingUpdate:
+    """Calculate the canonical margin ELO rating change for one completed match."""
+    if float(scaling_factor) == 0:
+        raise ValueError('scaling_factor cannot be zero for margin ELO rating updates')
+
+    home_rating = float(home_rating)
+    away_rating = float(away_rating)
+    actual_margin = float(actual_margin)
+    applied_home_advantage = float(applied_home_advantage)
+    k_factor = float(k_factor)
+    margin_scale = float(margin_scale)
+    scaling_factor = float(scaling_factor)
+    max_margin = float(max_margin)
+
+    rating_diff = (home_rating + applied_home_advantage) - away_rating
+    predicted_margin = rating_diff * margin_scale
+    capped_margin = np.sign(actual_margin) * min(abs(actual_margin), max_margin)
+    margin_error = predicted_margin - actual_margin
+    rating_error = predicted_margin - capped_margin
+    raw_rating_change = -k_factor * rating_error / scaling_factor
+    max_change = min(40, k_factor * 0.8)
+    rating_change = float(np.clip(raw_rating_change, -max_change, max_change))
+
+    return MarginEloRatingUpdate(
+        actual_margin=actual_margin,
+        capped_margin=capped_margin,
+        predicted_margin=predicted_margin,
+        margin_error=margin_error,
+        rating_error=rating_error,
+        raw_rating_change=raw_rating_change,
+        rating_change=rating_change,
+        home_rating_before=home_rating,
+        away_rating_before=away_rating,
+        home_rating_after=home_rating + rating_change,
+        away_rating_after=away_rating - rating_change
+    )
+
+
+def apply_margin_elo_rating_update(
+    ratings: Dict[str, float],
+    home_team: str,
+    away_team: str,
+    actual_margin: float,
+    applied_home_advantage: float,
+    k_factor: float,
+    margin_scale: float,
+    scaling_factor: float,
+    max_margin: float,
+    base_rating: float = 1500
+) -> MarginEloRatingUpdate:
+    """Apply the canonical margin ELO update to a ratings dictionary in-place."""
+    if home_team not in ratings:
+        ratings[home_team] = float(base_rating)
+    if away_team not in ratings:
+        ratings[away_team] = float(base_rating)
+
+    update = calculate_margin_elo_rating_update(
+        home_rating=ratings[home_team],
+        away_rating=ratings[away_team],
+        actual_margin=actual_margin,
+        applied_home_advantage=applied_home_advantage,
+        k_factor=k_factor,
+        margin_scale=margin_scale,
+        scaling_factor=scaling_factor,
+        max_margin=max_margin
+    )
+    ratings[home_team] = update.home_rating_after
+    ratings[away_team] = update.away_rating_after
+    return update
 
 
 class AFLEloModel:
@@ -274,9 +528,11 @@ class AFLEloModel:
     
     def apply_season_carryover(self, new_year: int) -> None:
         """Apply regression to mean between seasons"""
-        for team in self.team_ratings:
-            # Regress ratings toward base rating
-            self.team_ratings[team] = self.base_rating + self.season_carryover * (self.team_ratings[team] - self.base_rating)
+        self.team_ratings = apply_elo_season_carryover(
+            self.team_ratings,
+            self.base_rating,
+            self.season_carryover
+        )
         
         # Store ratings before the season starts
         self.yearly_ratings[f"{new_year}_start"] = self.team_ratings.copy()
@@ -469,12 +725,11 @@ class SimpleELO:
         
         Formula: new_rating = base_rating + carryover * (old_rating - base_rating)
         """
-        for team in self.ratings:
-            old_rating = self.ratings[team]
-            self.ratings[team] = (
-                self.base_rating + 
-                self.season_carryover * (old_rating - self.base_rating)
-            )
+        self.ratings = apply_elo_season_carryover(
+            self.ratings,
+            self.base_rating,
+            self.season_carryover
+        )
     
     def train_on_data(self, matches_df: pd.DataFrame) -> None:
         """
@@ -810,42 +1065,33 @@ class MarginEloModel:
         away_team_state: Optional[str] = None
     ):
         """Update ratings based on actual margin"""
-        # Get current ratings
-        home_rating = self.team_ratings.get(home_team, self.base_rating)
-        away_rating = self.team_ratings.get(away_team, self.base_rating)
-        
-        # Predict margin
-        predicted_margin = self.predict_margin(
-            home_team,
-            away_team,
+        applied_home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
             venue_state=venue_state,
             home_team_state=home_team_state,
             away_team_state=away_team_state
         )
-        
-        # Cap actual margin to reduce impact of blowouts
-        capped_margin = np.sign(actual_margin) * min(abs(actual_margin), self.max_margin)
-        
-        # Calculate margin prediction error
-        margin_error = capped_margin - predicted_margin
-        
-        # Calculate the raw rating change
-        raw_rating_change = self.k_factor * margin_error / self.scaling_factor
-        
-        # Clip the rating change to prevent explosion and ensure stability
-        max_change = min(40, self.k_factor * 0.8)  # Dynamic clipping based on k_factor
-        rating_change = np.clip(raw_rating_change, -max_change, max_change)
-        
-        self.team_ratings[home_team] = home_rating + rating_change
-        self.team_ratings[away_team] = away_rating - rating_change
+        return apply_margin_elo_rating_update(
+            self.team_ratings,
+            home_team,
+            away_team,
+            actual_margin,
+            applied_home_advantage=applied_home_advantage,
+            k_factor=self.k_factor,
+            margin_scale=self.margin_scale,
+            scaling_factor=self.scaling_factor,
+            max_margin=self.max_margin,
+            base_rating=self.base_rating
+        )
     
     def apply_season_carryover(self):
         """Apply season carryover - regress ratings toward base rating"""
-        for team in self.team_ratings:
-            current_rating = self.team_ratings[team]
-            self.team_ratings[team] = (
-                self.base_rating + self.season_carryover * (current_rating - self.base_rating)
-            )
+        self.team_ratings = apply_elo_season_carryover(
+            self.team_ratings,
+            self.base_rating,
+            self.season_carryover
+        )
     
     def get_model_data(self):
         """Get model data for saving"""

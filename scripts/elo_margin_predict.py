@@ -11,7 +11,11 @@ from core.data_io import (
     save_predictions_to_database,
     load_model
 )
-from core.elo_core import MarginEloModel
+from core.elo_core import (
+    apply_elo_season_carryover,
+    apply_margin_elo_rating_update,
+    prepare_start_of_season_ratings
+)
 from core.home_advantage import resolve_contextual_home_advantage
 from core.scoring import evaluate_predictions, format_scoring_summary
 
@@ -32,6 +36,8 @@ class AFLMarginEloPredictor:
         # Initialize empty attributes
         self.team_ratings = {}
         self.params = {}
+        self.model_path = model_path
+        self.model_data = {}
         
         if not self.load_model(model_path):
             raise ValueError(f"Failed to load margin-only ELO model from {model_path}")
@@ -43,6 +49,7 @@ class AFLMarginEloPredictor:
         """Load the trained margin-only ELO model using core function"""
         try:
             model_data = load_model(model_path)
+            self.model_data = model_data
             
             # Verify this is a margin-only model
             if model_data.get('model_type') not in ['margin_only_elo', 'margin_elo']:
@@ -174,9 +181,11 @@ class AFLMarginEloPredictor:
         # Store current ratings before carryover
         ratings_before = self.team_ratings.copy()
         
-        for team in self.team_ratings:
-            # Regress ratings toward base rating
-            self.team_ratings[team] = self.base_rating + self.season_carryover * (self.team_ratings[team] - self.base_rating)
+        self.team_ratings = apply_elo_season_carryover(
+            self.team_ratings,
+            self.base_rating,
+            self.season_carryover
+        )
         
         # Store the ratings transition in history
         self.rating_history.append({
@@ -185,6 +194,39 @@ class AFLMarginEloPredictor:
             'ratings_before': ratings_before,
             'ratings_after': self.team_ratings.copy()
         })
+
+    def prepare_start_year(self, start_year):
+        """Prepare model ratings for the start of a prediction season."""
+        model_data = dict(self.model_data)
+        model_data['parameters'] = self.params
+        model_data['team_ratings'] = self.team_ratings
+        model_data['yearly_ratings'] = self.yearly_ratings
+
+        prepared = prepare_start_of_season_ratings(
+            model_data,
+            start_year,
+            model_path=self.model_path,
+            base_rating=self.base_rating,
+            season_carryover=self.season_carryover
+        )
+
+        if prepared.carryover_years:
+            print(
+                f"Prepared start-of-{start_year} ratings from {prepared.source} "
+                f"year {prepared.source_year}; applied carryover for "
+                f"{', '.join(map(str, prepared.carryover_years))}"
+            )
+
+        for transition in prepared.carryover_transitions:
+            self.rating_history.append({
+                'event': 'season_carryover',
+                'year': transition.year,
+                'ratings_before': transition.ratings_before,
+                'ratings_after': transition.ratings_after
+            })
+
+        self.team_ratings = prepared.ratings
+        return prepared
     
     def update_ratings(
         self,
@@ -265,19 +307,20 @@ class AFLMarginEloPredictor:
         if hscore is not None and ascore is not None:
             # Calculate actual margin
             actual_margin = hscore - ascore
-            capped_margin = self._cap_margin(actual_margin)
-            
-            # Calculate prediction error
-            margin_error = predicted_margin - actual_margin
-            
-            # Update ratings based on margin error
-            # Positive error means we over-predicted home team margin
-            # So we should decrease home rating and increase away team rating
-            rating_change = -self.k_factor * margin_error / self.scaling_factor
-            
-            # Update ratings
-            self.team_ratings[home_team] += rating_change
-            self.team_ratings[away_team] -= rating_change
+            rating_update = apply_margin_elo_rating_update(
+                self.team_ratings,
+                home_team,
+                away_team,
+                actual_margin,
+                applied_home_advantage=applied_home_advantage,
+                k_factor=self.k_factor,
+                margin_scale=self.margin_scale,
+                scaling_factor=self.scaling_factor,
+                max_margin=self.max_margin,
+                base_rating=self.base_rating
+            )
+            margin_error = rating_update.margin_error
+            rating_change = rating_update.rating_change
             
             # Determine actual result
             actual_result = 'home_win' if hscore > ascore else ('away_win' if hscore < ascore else 'draw')
@@ -290,8 +333,8 @@ class AFLMarginEloPredictor:
                 'margin': actual_margin,
                 'margin_error': margin_error,
                 'rating_change': rating_change,
-                'post_match_home_rating': self.team_ratings[home_team],
-                'post_match_away_rating': self.team_ratings[away_team],
+                'post_match_home_rating': rating_update.home_rating_after,
+                'post_match_away_rating': rating_update.away_rating_after,
                 'correct': (home_win_prob > 0.5 and hscore > ascore) or 
                            (home_win_prob < 0.5 and hscore < ascore) or 
                            (home_win_prob == 0.5 and hscore == ascore)
@@ -310,8 +353,8 @@ class AFLMarginEloPredictor:
                 'away_score': ascore,
                 'home_rating_before': home_rating,
                 'away_rating_before': away_rating,
-                'home_rating_after': self.team_ratings[home_team],
-                'away_rating_after': self.team_ratings[away_team],
+                'home_rating_after': rating_update.home_rating_after,
+                'away_rating_after': rating_update.away_rating_after,
                 'rating_change': rating_change,
                 'margin_error': margin_error
             })
@@ -519,13 +562,7 @@ def predict_matches(model_path, db_path='data/database/afl_predictions.db', star
     
     print(f"Found {len(matches)} matches from {years.min()} to {years.max()}")
     
-    # Check if we need to apply season carryover for the starting year
-    # This happens when start_year is greater than the last year in the model's yearly_ratings
-    if hasattr(predictor, 'yearly_ratings') and predictor.yearly_ratings:
-        last_trained_year = max(map(int, predictor.yearly_ratings.keys()))
-        if start_year > last_trained_year:
-            print(f"Model trained through {last_trained_year}, applying season carryover for {start_year}")
-            predictor.apply_season_carryover(start_year)
+    predictor.prepare_start_year(start_year)
     
     # Track the current year to detect year changes
     current_year = None

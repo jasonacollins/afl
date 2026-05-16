@@ -12,7 +12,16 @@ SCRIPTS_DIR = os.path.join(CURRENT_DIR, '..')
 if SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, SCRIPTS_DIR)
 
-from core.elo_core import AFLEloModel, SimpleELO, create_simple_elo_model, train_elo_model  # noqa: E402
+from core.elo_core import (  # noqa: E402
+    AFLEloModel,
+    SimpleELO,
+    apply_margin_elo_rating_update,
+    calculate_margin_elo_rating_update,
+    create_simple_elo_model,
+    infer_trained_through_year,
+    prepare_start_of_season_ratings,
+    train_elo_model,
+)
 
 
 def build_training_data(afl_team_states):
@@ -118,6 +127,171 @@ def test_train_elo_model_uses_default_factory_and_persists_year_boundaries(afl_t
     assert '2025_start' in model.yearly_ratings
     assert '2025' in model.yearly_ratings
     assert model.yearly_ratings['2025_start'] != model.yearly_ratings['2024']
+
+
+def test_margin_elo_rating_update_caps_and_clips_rating_change():
+    update = calculate_margin_elo_rating_update(
+        home_rating=1500,
+        away_rating=1500,
+        actual_margin=100,
+        applied_home_advantage=50,
+        k_factor=20,
+        margin_scale=0.1,
+        scaling_factor=10,
+        max_margin=50,
+    )
+
+    assert update.predicted_margin == pytest.approx(5.0)
+    assert update.capped_margin == pytest.approx(50.0)
+    assert update.margin_error == pytest.approx(-95.0)
+    assert update.rating_error == pytest.approx(-45.0)
+    assert update.raw_rating_change == pytest.approx(90.0)
+    assert update.rating_change == pytest.approx(16.0)
+    assert update.home_rating_after == pytest.approx(1516.0)
+    assert update.away_rating_after == pytest.approx(1484.0)
+
+
+def test_margin_elo_rating_update_rejects_zero_scaling_factor():
+    with pytest.raises(ValueError, match='scaling_factor cannot be zero'):
+        calculate_margin_elo_rating_update(
+            home_rating=1500,
+            away_rating=1500,
+            actual_margin=10,
+            applied_home_advantage=0,
+            k_factor=20,
+            margin_scale=0.1,
+            scaling_factor=0,
+            max_margin=100,
+        )
+
+
+def test_apply_margin_elo_rating_update_mutates_ratings_with_base_fallback():
+    ratings = {'Team A': 1510}
+
+    update = apply_margin_elo_rating_update(
+        ratings,
+        'Team A',
+        'Team B',
+        actual_margin=10,
+        applied_home_advantage=0,
+        k_factor=20,
+        margin_scale=0.1,
+        scaling_factor=10,
+        max_margin=100,
+        base_rating=1500,
+    )
+
+    assert update.home_rating_before == pytest.approx(1510.0)
+    assert update.away_rating_before == pytest.approx(1500.0)
+    assert ratings['Team A'] == pytest.approx(update.home_rating_after)
+    assert ratings['Team B'] == pytest.approx(update.away_rating_after)
+
+
+def test_infer_trained_through_year_uses_nested_metadata_and_filename_fallback():
+    assert infer_trained_through_year({
+        'training_window': {'end_year': '2024'}
+    }) == 2024
+    assert infer_trained_through_year(
+        {'trained_through_year': 'not-a-year'},
+        'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+    ) == 2025
+    assert infer_trained_through_year({'optimization_details': {'end_year': None}}) is None
+
+
+def test_prepare_start_of_season_ratings_infers_legacy_trained_to_year():
+    prepared = prepare_start_of_season_ratings(
+        {
+            'parameters': {
+                'base_rating': 1500,
+                'season_carryover': 0.5,
+            },
+            'team_ratings': {
+                'Team A': 1600,
+                'Team B': 1400,
+            },
+        },
+        2026,
+        model_path='data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+    )
+
+    assert prepared.source == 'team_ratings'
+    assert prepared.trained_through_year == 2025
+    assert prepared.carryover_years == [2026]
+    assert prepared.ratings == {'Team A': 1550.0, 'Team B': 1450.0}
+
+
+def test_prepare_start_of_season_ratings_uses_prior_snapshot_when_no_metadata():
+    prepared = prepare_start_of_season_ratings(
+        {
+            'parameters': {
+                'base_rating': 1500,
+                'season_carryover': 0.5,
+            },
+            'team_ratings': {
+                'Team A': 1700,
+                'Team B': 1300,
+            },
+            'yearly_ratings': {
+                '2024': {
+                    'Team A': 1600,
+                    'Team B': 1400,
+                }
+            },
+        },
+        2026,
+    )
+
+    assert prepared.source == 'yearly_ratings'
+    assert prepared.source_year == 2024
+    assert prepared.carryover_years == [2025, 2026]
+    assert prepared.ratings == {'Team A': 1525.0, 'Team B': 1475.0}
+
+
+def test_prepare_start_of_season_ratings_does_not_carry_same_training_year():
+    prepared = prepare_start_of_season_ratings(
+        {
+            'parameters': {
+                'base_rating': 1500,
+                'season_carryover': 0.5,
+            },
+            'team_ratings': {
+                'Team A': 1600,
+                'Team B': 1400,
+            },
+            'trained_through_year': 2025,
+        },
+        2025,
+    )
+
+    assert prepared.carryover_years == []
+    assert prepared.ratings == {'Team A': 1600.0, 'Team B': 1400.0}
+
+
+def test_prepare_start_of_season_ratings_prefers_previous_year_snapshot():
+    prepared = prepare_start_of_season_ratings(
+        {
+            'parameters': {
+                'base_rating': 1500,
+                'season_carryover': 0.5,
+            },
+            'team_ratings': {
+                'Team A': 1700,
+                'Team B': 1300,
+            },
+            'yearly_ratings': {
+                '2025': {
+                    'Team A': 1600,
+                    'Team B': 1400,
+                }
+            },
+            'trained_through_year': 2025,
+        },
+        2026,
+    )
+
+    assert prepared.source == 'yearly_ratings'
+    assert prepared.source_year == 2025
+    assert prepared.ratings == {'Team A': 1550.0, 'Team B': 1450.0}
 
 
 def test_simple_elo_covers_factories_results_carryover_training_and_serialization():

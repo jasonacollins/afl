@@ -37,6 +37,7 @@ import tempfile
 import numpy as np
 import pandas as pd
 
+from core.elo_core import apply_elo_season_carryover, apply_margin_elo_rating_update
 from core.home_advantage import resolve_contextual_home_advantage
 
 
@@ -251,21 +252,26 @@ class AFLEloHistoryGenerator:
         home_team_state=None,
         away_team_state=None
     ):
-        if self.scaling_factor == 0:
-            raise ValueError('scaling_factor cannot be zero for margin model history generation')
-
-        predicted_margin = self.predict_margin(
-            home_team,
-            away_team,
+        applied_home_advantage = self.get_contextual_home_advantage(
+            home_team=home_team,
+            away_team=away_team,
             venue_state=venue_state,
             home_team_state=home_team_state,
             away_team_state=away_team_state
         )
-        actual_margin = hscore - ascore
-        margin_error = predicted_margin - actual_margin
-
-        # Keep aligned with scripts/elo_margin_predict.py
-        return -self.k_factor * margin_error / self.scaling_factor
+        update = apply_margin_elo_rating_update(
+            self.team_ratings,
+            home_team,
+            away_team,
+            hscore - ascore,
+            applied_home_advantage=applied_home_advantage,
+            k_factor=self.k_factor,
+            margin_scale=self.margin_scale,
+            scaling_factor=self.scaling_factor,
+            max_margin=self.max_margin,
+            base_rating=self.base_rating
+        )
+        return update.rating_change
 
     def update_ratings(
         self,
@@ -310,9 +316,8 @@ class AFLEloHistoryGenerator:
                 home_team_state=home_team_state,
                 away_team_state=away_team_state
             )
-
-        self.team_ratings[home_team] += rating_change
-        self.team_ratings[away_team] -= rating_change
+            self.team_ratings[home_team] += rating_change
+            self.team_ratings[away_team] -= rating_change
 
         self.rating_history.append({
             'match_id': match_id,
@@ -348,9 +353,11 @@ class AFLEloHistoryGenerator:
 
     def apply_season_carryover(self, new_year):
         print(f'Applying season carryover for {new_year}...')
-        for team in self.team_ratings:
-            old_rating = self.team_ratings[team]
-            self.team_ratings[team] = self.base_rating + self.season_carryover * (old_rating - self.base_rating)
+        self.team_ratings = apply_elo_season_carryover(
+            self.team_ratings,
+            self.base_rating,
+            self.season_carryover
+        )
 
     def get_history_dataframe(self):
         if not self.rating_history:

@@ -211,6 +211,7 @@ def main():
     model_data = model.get_model_data()
     model_data['performance'] = performance
     model_data['mae'] = performance['mae']
+    model_data['trained_through_year'] = args.end_year
     model_data['created_date'] = datetime.now().isoformat()
     
     save_model(model_data, output_path)

@@ -434,7 +434,7 @@ def test_update_ratings_from_completed_matches_updates_combined_win_and_margin_r
 
     win_prob = 1.0 / (1.0 + 10 ** (-50 / 400))
     expected_win_change = 20 * (1.0 - win_prob)
-    expected_margin_change = -20 * ((50 * 0.1) - 100) / 10
+    expected_margin_change = 16.0
 
     assert simulator.initial_ratings['Team A'] == pytest.approx(1500 + expected_win_change)
     assert simulator.initial_ratings['Team B'] == pytest.approx(1500 - expected_win_change)

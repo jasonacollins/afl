@@ -23,7 +23,10 @@ from collections import defaultdict
 
 # Import core modules
 from core.data_io import load_model, fetch_matches_for_prediction
-from core.elo_core import MarginEloModel
+from core.elo_core import (
+    apply_margin_elo_rating_update,
+    prepare_start_of_season_ratings
+)
 
 
 def interpolate_percentile(values, percentile):
@@ -354,6 +357,7 @@ class SeasonSimulator:
             self.max_margin = self.win_params['max_margin']
             self.season_carryover = self.win_params['season_carryover']
             self.margin_season_carryover = self.margin_params['season_carryover']
+            self.margin_home_advantage = self.margin_params.get('home_advantage', self.home_advantage)
             self.win_k_factor = self.win_params['k_factor']
             self.margin_k_factor = self.margin_params['k_factor']
             self.margin_factor = self.win_params.get('margin_factor', 0)
@@ -364,12 +368,14 @@ class SeasonSimulator:
             self.initial_ratings, self.yearly_ratings = self.prepare_start_of_year_ratings(
                 win_model_data,
                 self.season_carryover,
-                'win'
+                'win',
+                model_path=self.win_model_path
             )
             self.margin_ratings, self.margin_yearly_ratings = self.prepare_start_of_year_ratings(
                 margin_model_data,
                 self.margin_season_carryover,
-                'margin'
+                'margin',
+                model_path=self.margin_model_path
             )
             self.model_mode = 'combined'
             self.elo_source_label = 'win_elo'
@@ -386,6 +392,7 @@ class SeasonSimulator:
 
             self.base_rating = self.margin_params['base_rating']
             self.home_advantage = self.margin_params['home_advantage']
+            self.margin_home_advantage = self.home_advantage
             self.max_margin = self.margin_params['max_margin']
             self.season_carryover = self.margin_params['season_carryover']
             self.margin_season_carryover = self.margin_params['season_carryover']
@@ -399,7 +406,8 @@ class SeasonSimulator:
             self.initial_ratings, self.yearly_ratings = self.prepare_start_of_year_ratings(
                 model_data,
                 self.season_carryover,
-                'margin'
+                'margin',
+                model_path=self.margin_model_path
             )
             self.margin_yearly_ratings = self.yearly_ratings
             self.margin_ratings = None
@@ -424,38 +432,27 @@ class SeasonSimulator:
         # Load matches
         self.load_matches()
 
-    def prepare_start_of_year_ratings(self, model_data, season_carryover, model_label):
+    def prepare_start_of_year_ratings(self, model_data, season_carryover, model_label, model_path=None):
         """
         Prepare start-of-season ratings from model metadata and carryover settings.
         """
-        yearly_ratings = model_data.get('yearly_ratings', {})
-        ratings = model_data['team_ratings'].copy()
+        prepared = prepare_start_of_season_ratings(
+            model_data,
+            self.year,
+            model_path=model_path,
+            season_carryover=season_carryover
+        )
 
-        prev_year_key = str(self.year - 1)
-        needs_carryover = False
+        if prepared.source_year is not None:
+            print(f"Using {model_label} ratings from {prepared.source} year {prepared.source_year}")
 
-        if prev_year_key in yearly_ratings:
-            print(f"Using end-of-{self.year - 1} {model_label} ratings from yearly_ratings")
-            ratings = yearly_ratings[prev_year_key].copy()
-            needs_carryover = True
-        elif self.year > 2020:
-            print(f"Using {model_label} model team_ratings as end-of-{self.year - 1} ratings")
-            print(f"({model_label.capitalize()} model trained through {self.year - 1})")
-            needs_carryover = True
-
-        if needs_carryover:
+        if prepared.carryover_years:
             print(
                 f"Applying {model_label} season carryover ({season_carryover}) "
-                f"to get start-of-{self.year} ratings"
+                f"for {', '.join(map(str, prepared.carryover_years))}"
             )
-            for team in ratings:
-                old_rating = ratings[team]
-                ratings[team] = (
-                    self.base_rating +
-                    season_carryover * (old_rating - self.base_rating)
-                )
 
-        return ratings, yearly_ratings
+        return prepared.ratings, prepared.yearly_ratings
 
     def load_matches(self):
         """Load matches for the specified year"""
@@ -1032,25 +1029,36 @@ class SeasonSimulator:
                 self.initial_ratings[away_team] = win_away_rating - win_rating_change
                 win_rating_changes.append(abs(win_rating_change))
 
-                margin_rating_diff = (margin_home_rating + self.home_advantage) - margin_away_rating
-                predicted_margin = margin_rating_diff * self.margin_scale
-                margin_error = predicted_margin - actual_margin
-                margin_rating_change = (
-                    -self.margin_k_factor * margin_error / self.scaling_factor
+                margin_update = apply_margin_elo_rating_update(
+                    self.margin_ratings,
+                    home_team,
+                    away_team,
+                    actual_margin,
+                    applied_home_advantage=getattr(self, 'margin_home_advantage', self.home_advantage),
+                    k_factor=self.margin_k_factor,
+                    margin_scale=self.margin_scale,
+                    scaling_factor=self.scaling_factor,
+                    max_margin=getattr(self, 'margin_params', {}).get('max_margin', self.max_margin),
+                    base_rating=self.base_rating
                 )
-                self.margin_ratings[home_team] = margin_home_rating + margin_rating_change
-                self.margin_ratings[away_team] = margin_away_rating - margin_rating_change
+                margin_rating_change = margin_update.rating_change
                 margin_rating_changes.append(abs(margin_rating_change))
                 continue
 
             # Margin-only mode: ratings update from margin error
-            win_rating_diff = (win_home_rating + self.home_advantage) - win_away_rating
-            predicted_margin = win_rating_diff * self.margin_scale
-            margin_error = predicted_margin - actual_margin
-            rating_change = -self.margin_k_factor * margin_error / self.scaling_factor
-
-            self.initial_ratings[home_team] = win_home_rating + rating_change
-            self.initial_ratings[away_team] = win_away_rating - rating_change
+            margin_update = apply_margin_elo_rating_update(
+                self.initial_ratings,
+                home_team,
+                away_team,
+                actual_margin,
+                applied_home_advantage=getattr(self, 'margin_home_advantage', self.home_advantage),
+                k_factor=self.margin_k_factor,
+                margin_scale=self.margin_scale,
+                scaling_factor=self.scaling_factor,
+                max_margin=self.max_margin,
+                base_rating=self.base_rating
+            )
+            rating_change = margin_update.rating_change
             margin_rating_changes.append(abs(rating_change))
 
         print(f"Ratings updated through completed matches")
