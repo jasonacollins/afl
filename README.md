@@ -170,7 +170,13 @@ Production runs on a VM origin behind Cloudflare, not Cloud Run.
 - Zone: `australia-southeast1-a`
 - App path: `/var/www/afl-predictions`
 
-Deploy from the VM with:
+Preferred local deploy:
+
+```bash
+./deploy.sh
+```
+
+Manual VM deploy fallback:
 
 ```bash
 gcloud compute ssh afl-predictions-vm --project afl-predictions-jc --zone australia-southeast1-a

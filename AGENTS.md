@@ -16,6 +16,27 @@ This file is the agent-only supplement to `README.md`.
 - Run relevant verification commands when they are needed to validate the requested change, then report what ran and any gaps.
 - Keep documentation edits timeless. Avoid date-sensitive phrasing, temporary status notes, and duplicate guidance across docs.
 
+## Production Deploy Workflow
+
+When the user asks to deploy this app, use the repo-root `./deploy.sh` production deploy wrapper.
+
+- `deploy-prep.sh` prepares data locally and is not a production deploy script.
+- `drebuild.sh` rebuilds local Docker containers and is not a production deploy script.
+- Production runs on the VM at `/var/www/afl-predictions`; it is not deployed with Cloud Run.
+
+For "commit and deploy" requests:
+
+1. Confirm the worktree contains only intended changes.
+2. Run the relevant tests unless they were already run for the final change.
+3. Commit the intended changes.
+4. Run:
+
+```bash
+./deploy.sh
+```
+
+The script pushes `main` when local `main` is ahead of `origin/main`, deploys on the VM, prints the remote `HEAD`, shows container status, and performs an HTTP smoke check. If sandboxing blocks `gcloud` from accessing local credentials, rerun `./deploy.sh` with escalated permissions.
+
 ## Codebase Invariants
 
 ### Cross-Runtime Scoring
