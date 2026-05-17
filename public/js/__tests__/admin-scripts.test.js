@@ -10,12 +10,62 @@ function buildAdminScriptsDom() {
     <meta name="csrf-token" content="scripts-csrf-token">
     <div id="scriptsPageError" class="is-hidden"></div>
     <div id="activeRunBanner" class="is-hidden"></div>
+    <details id="catalogPanel">
+      <summary>Model And Output Catalogue <span id="catalogResultCount"></span></summary>
+      <select id="catalogScopeFilter">
+        <option value="models" selected>Model artifacts</option>
+        <option value="outputs">Generated outputs</option>
+        <option value="all">Everything</option>
+      </select>
+      <select id="catalogKindFilter"></select>
+      <input id="catalogSearch" value="">
+      <div id="catalogList"></div>
+    </details>
+
+    <button class="workflow-launcher-button is-active" data-workflow-target="predictionsWorkflow" aria-selected="true">Make predictions</button>
+    <button class="workflow-launcher-button" data-workflow-target="trainingWorkflow" aria-selected="false">Train model</button>
+    <section id="predictionsWorkflow" data-workflow-panel></section>
+    <section id="trainingWorkflow" class="is-hidden" data-workflow-panel></section>
+
+    <form class="script-run-form" data-script-key="guided-predictions">
+      <select id="guidedPredictionMode" name="predictionMode">
+        <option value="recommended" selected>Recommended bundle</option>
+        <option value="marginOnly">Margin-only</option>
+      </select>
+      <input id="guidedPredictionYear" name="startYear" value="">
+      <select id="guidedPredictionPredictorId" name="predictorId"></select>
+      <div data-guided-prediction-mode-panel="recommended" id="guidedRecommendedWinPanel">
+        <select id="guidedPredictionWinModelPath" name="winModelPath"></select>
+      </div>
+      <div data-guided-prediction-mode-panel="recommended" id="guidedRecommendedMethodsPanel">
+        <select id="guidedPredictionMarginMethodsPath" name="marginMethodsPath"></select>
+      </div>
+      <div data-guided-prediction-mode-panel="marginOnly" id="guidedMarginOnlyPanel">
+        <select id="guidedPredictionMarginModelPath" name="modelPath"></select>
+      </div>
+      <input type="hidden" id="guidedPredictionSaveToDb" name="saveToDb" value="true">
+      <input type="hidden" id="guidedPredictionFutureOnly" name="futureOnly" value="true">
+      <details id="guidedPredictionAdvanced" class="danger-zone">
+        <summary>Dangerous options</summary>
+        <input type="checkbox" id="guidedPredictionOverrideCompleted" name="overrideCompleted">
+        <input type="checkbox" id="guidedPredictionAllowModelMismatch" name="allowModelMismatch">
+        <input id="guidedPredictionDbPath" name="dbPath" value="">
+        <input id="guidedPredictionOutputDir" name="outputDir" value="">
+        <input id="guidedPredictionMethodOverride" name="methodOverride" value="">
+      </details>
+      <div id="guidedPredictionReview">
+        <span id="guidedPredictionReviewPredictor"></span>
+        <span id="guidedPredictionReviewSeason"></span>
+        <span id="guidedPredictionReviewArtifacts"></span>
+        <span id="guidedPredictionReviewOutput"></span>
+        <span id="guidedPredictionReviewSafety"></span>
+      </div>
+      <button type="submit">Run prediction workflow</button>
+    </form>
+
     <div id="logRunLabel"></div>
     <pre id="scriptLogsOutput">No logs loaded.</pre>
     <table><tbody id="scriptRunHistoryBody"></tbody></table>
-
-    <div data-predictions-mode-panel="optimized" id="optimizedPanel"></div>
-    <div data-predictions-mode-panel="margin" id="marginPanel"></div>
 
     <select id="trainOptimizationTarget">
       <option value="win" selected>Win</option>
@@ -24,11 +74,7 @@ function buildAdminScriptsDom() {
     <div data-train-mode-panel="win" id="trainWinPanel"></div>
     <div data-train-mode-panel="margin" id="trainMarginPanel"></div>
 
-    <form class="script-run-form" data-script-key="combined-predictions">
-      <select id="predictionsMode" name="predictionMode">
-        <option value="optimized" selected>Optimized</option>
-        <option value="margin">Margin</option>
-      </select>
+    <form class="script-run-form" data-script-key="margin-optimize">
       <input id="syncYear" name="syncYear" value="">
       <input id="apiRefreshYear" name="apiRefreshYear" value="">
       <input id="combinedStartYear" name="combinedStartYear" value="">
@@ -83,6 +129,7 @@ function buildAdminScriptsDom() {
       <select id="winMarginMethodsOptimizeEloParamsPath" name="winMarginMethodsOptimizeEloParamsPath"></select>
       <select id="combinedPredictorId" name="combinedPredictorId"></select>
       <select id="optimizedPredictorId" name="optimizedPredictorId"></select>
+      <select id="simWinModelPath" name="simWinModelPath"></select>
 
       <input type="checkbox" id="optimizedFutureOnly" name="optimizedFutureOnly" checked>
       <input type="checkbox" id="optimizedOverrideCompleted" name="optimizedOverrideCompleted">
@@ -132,6 +179,111 @@ function buildMetadataResponse() {
         'data/models/win/optimal_margin_methods_trained_to_2025.json'
       ]
     },
+    modelCatalog: {
+      artifacts: [
+        {
+          path: 'data/models/win/afl_elo_win_trained_to_2024.json',
+          kind: 'trained_win_model',
+          kindLabel: 'Win model',
+          trainedThroughYear: 2024,
+          label: 'Win model - trained through 2024 - Brier 0.2028 (afl_elo_win_trained_to_2024.json)',
+          detail: 'training through 2024 | Brier 0.2028'
+        },
+        {
+          path: 'data/models/win/afl_elo_win_trained_to_2025.json',
+          kind: 'trained_win_model',
+          kindLabel: 'Win model',
+          trainedThroughYear: 2025,
+          label: 'Win model - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)',
+          detail: 'training through 2025 | Brier 0.2027'
+        },
+        {
+          path: 'data/models/win/optimal_elo_params_win_trained_to_2025.json',
+          kind: 'win_params',
+          kindLabel: 'Win params',
+          trainedThroughYear: 2025,
+          label: 'Win params - trained through 2025 - Log loss 0.2184 (optimal_elo_params_win_trained_to_2025.json)',
+          detail: 'training through 2025 | Log loss 0.2184'
+        },
+        {
+          path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+          kind: 'win_margin_methods',
+          kindLabel: 'Win margin methods',
+          trainedThroughYear: 2025,
+          label: 'Win margin methods - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)',
+          detail: 'training 1990-2025 | requires win model through 2025'
+        },
+        {
+          path: 'data/models/margin/afl_elo_margin_only_trained_to_2024.json',
+          kind: 'trained_margin_model',
+          kindLabel: 'Margin model',
+          trainedThroughYear: 2024,
+          label: 'Margin model - trained through 2024 - MAE 29.77 (afl_elo_margin_only_trained_to_2024.json)',
+          detail: 'training through 2024 | MAE 29.77'
+        },
+        {
+          path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+          kind: 'trained_margin_model',
+          kindLabel: 'Margin model',
+          trainedThroughYear: 2025,
+          label: 'Margin model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)',
+          detail: 'training through 2025 | MAE 29.85'
+        },
+        {
+          path: 'data/models/margin/optimal_margin_only_elo_params_trained_to_2025.json',
+          kind: 'margin_params',
+          kindLabel: 'Margin params',
+          trainedThroughYear: 2025,
+          label: 'Margin params - trained 1990-2025 - MAE 29.66 (optimal_margin_only_elo_params_trained_to_2025.json)',
+          detail: 'training 1990-2025 | MAE 29.66'
+        }
+      ]
+    },
+    outputCatalog: {
+      outputs: [
+        {
+          path: 'data/predictions/margin/margin_elo_predictions_2026_2026.csv',
+          kind: 'margin_predictions',
+          kindLabel: 'Margin predictions',
+          label: 'Margin predictions - 2026 - 207 rows (margin_elo_predictions_2026_2026.csv)',
+          detail: ''
+        }
+      ]
+    },
+    recommendedBundles: {
+      predictions: {
+        primary: {
+          scriptKey: 'win-margin-methods-predictions',
+          predictorId: 7,
+          season: 2026,
+          outputDir: 'data/predictions/win',
+          saveToDb: true,
+          futureOnly: true,
+          overrideCompleted: false,
+          allowModelMismatch: false,
+          winModel: {
+            path: 'data/models/win/afl_elo_win_trained_to_2025.json',
+            label: 'Win model - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)'
+          },
+          marginMethods: {
+            path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+            label: 'Win margin methods - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)'
+          }
+        },
+        marginOnly: {
+          scriptKey: 'margin-predictions',
+          predictorId: 6,
+          season: 2026,
+          outputDir: 'data/predictions/margin',
+          saveToDb: true,
+          overrideCompleted: false,
+          model: {
+            path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+            label: 'Margin model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)'
+          }
+        }
+      }
+    },
     activePredictors: [
       { predictor_id: 6, display_name: "Dad's AI" },
       { predictor_id: 7, display_name: 'Optimized AI' }
@@ -169,8 +321,9 @@ describe('public/js/admin-scripts.js', () => {
 
     dom = createDom(buildAdminScriptsDom(), { url: 'https://example.test/admin/scripts' });
     restoreDomGlobals = installDomGlobals(dom);
-    makeWritableSelectValue(dom.window.document.getElementById('predictionsMode'), 'optimized');
+    makeWritableSelectValue(dom.window.document.getElementById('guidedPredictionMode'), 'recommended');
     makeWritableSelectValue(dom.window.document.getElementById('trainOptimizationTarget'), 'win');
+    makeWritableSelectValue(dom.window.document.getElementById('catalogScopeFilter'), 'models');
 
     originalFetch = global.fetch;
     originalSetInterval = global.setInterval;
@@ -240,13 +393,42 @@ describe('public/js/admin-scripts.js', () => {
 
     expect(document.getElementById('apiRefreshYear').value).toBe('2026');
     expect(document.getElementById('marginTrainEndYear').value).toBe('2025');
-    expect(document.getElementById('combinedDbPath').value).toBe('data/database/afl_predictions.db');
-    expect(document.getElementById('optimizedWinModelPath').value)
+    expect(document.getElementById('guidedPredictionDbPath').value).toBe('data/database/afl_predictions.db');
+    expect(document.getElementById('guidedPredictionYear').value).toBe('2026');
+    expect(document.getElementById('guidedPredictionWinModelPath').value)
       .toBe('data/models/win/afl_elo_win_trained_to_2025.json');
-    expect(document.getElementById('combinedMarginModelPath').value)
+    expect(document.getElementById('guidedPredictionWinModelPath').options[0].textContent)
+      .toContain('Brier 0.2027');
+    expect(document.getElementById('guidedPredictionMarginMethodsPath').value)
+      .toBe('data/models/win/optimal_margin_methods_trained_to_2025.json');
+    expect(document.getElementById('guidedPredictionMarginModelPath').value)
       .toBe('data/models/margin/afl_elo_margin_only_trained_to_2025.json');
-    expect(document.getElementById('combinedPredictorId').value).toBe('6');
-    expect(document.getElementById('optimizedPredictorId').value).toBe('7');
+    expect(document.getElementById('marginTrainParamsFile').value)
+      .toBe('data/models/margin/optimal_margin_only_elo_params_trained_to_2025.json');
+    expect(document.getElementById('guidedPredictionPredictorId').value).toBe('7');
+    expect(document.getElementById('guidedPredictionReviewArtifacts').textContent)
+      .toContain('Win model - trained through 2025');
+    expect(document.getElementById('guidedPredictionReviewOutput').textContent)
+      .toContain('data/predictions/win');
+    expect(document.getElementById('guidedPredictionReviewSafety').textContent)
+      .toContain('left untouched');
+    expect(document.getElementById('guidedPredictionAdvanced').hasAttribute('open')).toBe(false);
+    expect(document.getElementById('catalogPanel').hasAttribute('open')).toBe(false);
+    expect(document.getElementById('catalogResultCount').textContent).toBe('7/7 artifacts');
+    expect(document.getElementById('catalogList').textContent)
+      .toContain('trained through 2025 - MAE 29.85');
+    expect(document.getElementById('catalogKindFilter').textContent)
+      .toContain('Margin model');
+
+    document.getElementById('catalogScopeFilter').value = 'outputs';
+    document.getElementById('catalogScopeFilter').dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(document.getElementById('catalogResultCount').textContent).toBe('1/1 outputs');
+    expect(document.getElementById('catalogList').textContent).toContain('2026 - 207 rows');
+
+    document.getElementById('catalogSearch').value = 'missing-entry';
+    document.getElementById('catalogSearch').dispatchEvent(new window.Event('input', { bubbles: true }));
+    expect(document.getElementById('catalogResultCount').textContent).toBe('0/1 outputs');
+    expect(document.getElementById('catalogList').textContent).toContain('No catalogue entries match');
     expect(document.getElementById('activeRunBanner').textContent).toContain('Run #18');
     expect(document.querySelector('.script-run-form button[type="submit"]').disabled).toBe(true);
     expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), 2000);
@@ -257,10 +439,15 @@ describe('public/js/admin-scripts.js', () => {
     expect(document.getElementById('marginOptimizeOutputPath').value)
       .toBe('data/models/margin/optimal_margin_only_elo_params_trained_to_2024.json');
 
-    document.getElementById('predictionsMode').value = 'margin';
-    document.getElementById('predictionsMode').dispatchEvent(new window.Event('change', { bubbles: true }));
-    expect(document.getElementById('optimizedWinModelPath').required).toBe(false);
-    expect(document.getElementById('combinedMarginModelPath').required).toBe(true);
+    document.querySelector('[data-workflow-target="trainingWorkflow"]').click();
+    expect(document.getElementById('predictionsWorkflow').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('trainingWorkflow').classList.contains('is-hidden')).toBe(false);
+
+    document.getElementById('guidedPredictionMode').value = 'marginOnly';
+    document.getElementById('guidedPredictionMode').dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(document.getElementById('guidedPredictionWinModelPath').required).toBe(false);
+    expect(document.getElementById('guidedPredictionMarginModelPath').required).toBe(true);
+    expect(document.getElementById('guidedPredictionOutputDir').value).toBe('data/predictions/margin');
   });
 
   test('submits margin prediction runs with transformed params and starts log polling state', async () => {
@@ -320,16 +507,16 @@ describe('public/js/admin-scripts.js', () => {
     await flushPromises();
     await flushPromises();
 
-    const modeSelect = document.getElementById('predictionsMode');
-    modeSelect.value = 'margin';
+    const modeSelect = document.getElementById('guidedPredictionMode');
+    modeSelect.value = 'marginOnly';
     modeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 
-    document.getElementById('combinedStartYear').value = '2026';
-    document.getElementById('combinedMarginModelPath').value =
+    document.getElementById('guidedPredictionYear').value = '2026';
+    document.getElementById('guidedPredictionMarginModelPath').value =
       'data/models/margin/afl_elo_margin_only_trained_to_2025.json';
-    document.getElementById('combinedPredictorId').value = '6';
-    document.getElementById('combinedDbPath').value = 'data/database/afl_predictions.db';
-    document.getElementById('combinedOutputDir').value = 'data/predictions/margin';
+    document.getElementById('guidedPredictionPredictorId').value = '6';
+    document.getElementById('guidedPredictionDbPath').value = 'data/database/afl_predictions.db';
+    document.getElementById('guidedPredictionOutputDir').value = 'data/predictions/margin';
 
     document.querySelector('.script-run-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await flushPromises();
@@ -343,13 +530,14 @@ describe('public/js/admin-scripts.js', () => {
     const payload = JSON.parse(postCall[1].body);
     expect(payload.scriptKey).toBe('margin-predictions');
     expect(payload.params).toEqual(expect.objectContaining({
-      combinedStartYear: '2026',
+      startYear: '2026',
       modelPath: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
-      combinedPredictorId: '6',
+      predictorId: '6',
       dbPath: 'data/database/afl_predictions.db',
       outputDir: 'data/predictions/margin'
     }));
-    expect(payload.params.optimizedWinModelPath).toBeUndefined();
+    expect(payload.params.winModelPath).toBeUndefined();
+    expect(payload.params.marginMethodsPath).toBeUndefined();
 
     expect(document.getElementById('logRunLabel').textContent).toContain('run #33');
     expect(document.getElementById('scriptLogsOutput').textContent).toContain('Predictions started');
@@ -495,19 +683,17 @@ describe('public/js/admin-scripts.js', () => {
     await flushPromises();
     await flushPromises();
 
-    document.getElementById('predictionsMode').value = 'optimized';
-    document.getElementById('optimizedWinModelPath').value =
+    document.getElementById('guidedPredictionMode').value = 'recommended';
+    document.getElementById('guidedPredictionWinModelPath').value =
       'data/models/win/afl_elo_win_trained_to_2025.json';
-    document.getElementById('optimizedMarginMethodsPath').value =
+    document.getElementById('guidedPredictionMarginMethodsPath').value =
       'data/models/win/optimal_margin_methods_trained_to_2025.json';
-    document.getElementById('optimizedPredictorId').value = '7';
-    document.getElementById('optimizedDbPath').value = 'data/database/afl_predictions.db';
-    document.getElementById('optimizedOutputDir').value = 'data/predictions/win';
-    document.getElementById('optimizedMethodOverride').value = 'simple';
-    document.getElementById('optimizedAllowModelMismatch').checked = true;
-    document.getElementById('optimizedFutureOnly').checked = true;
-    document.getElementById('optimizedSaveToDb').checked = true;
-    document.getElementById('optimizedOverrideCompleted').checked = false;
+    document.getElementById('guidedPredictionPredictorId').value = '7';
+    document.getElementById('guidedPredictionDbPath').value = 'data/database/afl_predictions.db';
+    document.getElementById('guidedPredictionOutputDir').value = 'data/predictions/win';
+    document.getElementById('guidedPredictionMethodOverride').value = 'simple';
+    document.getElementById('guidedPredictionAllowModelMismatch').checked = true;
+    document.getElementById('guidedPredictionOverrideCompleted').checked = false;
 
     document.querySelector('.script-run-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     await flushPromises();
@@ -527,8 +713,7 @@ describe('public/js/admin-scripts.js', () => {
       methodOverride: 'simple',
       allowModelMismatch: true
     }));
-    expect(payload.params.marginModelPath).toBeUndefined();
-    expect(payload.params.combinedPredictorId).toBeUndefined();
+    expect(payload.params.modelPath).toBeUndefined();
     expect(document.getElementById('activeRunBanner').textContent).toContain('Run #57');
     expect(document.querySelector('.script-run-form button[type="submit"]').disabled).toBe(true);
   });
@@ -768,8 +953,8 @@ describe('public/js/admin-scripts.js', () => {
     expect(document.getElementById('activeRunBanner').classList.contains('is-hidden')).toBe(true);
     expect(document.querySelector('.script-run-form button[type="submit"]').disabled).toBe(false);
 
-    expect(document.getElementById('optimizedWinModelPath').textContent).toContain('No options available');
-    expect(document.getElementById('combinedPredictorId').textContent).toContain('No options available');
+    expect(document.getElementById('guidedPredictionWinModelPath').textContent).toContain('No options available');
+    expect(document.getElementById('guidedPredictionPredictorId').textContent).toContain('No options available');
 
     const winTrainParams = document.getElementById('winTrainParamsFile');
     expect(winTrainParams.options).toHaveLength(2);
@@ -795,10 +980,10 @@ describe('public/js/admin-scripts.js', () => {
     endYearInput.dispatchEvent(new window.Event('input', { bubbles: true }));
     expect(outputPathInput.value).toBe('data/models/margin/custom_margin_params.json');
 
-    const modeSelect = document.getElementById('predictionsMode');
+    const modeSelect = document.getElementById('guidedPredictionMode');
     modeSelect.value = 'invalid-mode';
     modeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
-    expect(document.getElementById('optimizedPanel').classList.contains('is-hidden')).toBe(false);
-    expect(document.getElementById('marginPanel').classList.contains('is-hidden')).toBe(true);
+    expect(document.getElementById('guidedRecommendedWinPanel').classList.contains('is-hidden')).toBe(false);
+    expect(document.getElementById('guidedMarginOnlyPanel').classList.contains('is-hidden')).toBe(true);
   });
 });

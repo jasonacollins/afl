@@ -941,6 +941,38 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
       winMarginMethodsPredictorId: 8,
       dbPath: 'data/database/afl_predictions.db'
     }));
+    expect(metadata.modelCatalog.artifacts).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: 'data/models/win/afl_elo_win_trained_to_2025.json',
+        kind: 'trained_win_model'
+      }),
+      expect.objectContaining({
+        path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+        kind: 'trained_margin_model'
+      })
+    ]));
+    expect(metadata.outputCatalog.outputs).toEqual(expect.any(Array));
+    expect(metadata.recommendedBundles.predictions.primary).toEqual(expect.objectContaining({
+      scriptKey: 'win-margin-methods-predictions',
+      predictorId: 8,
+      winModel: expect.objectContaining({
+        path: 'data/models/win/afl_elo_win_trained_to_2025.json'
+      }),
+      marginMethods: expect.objectContaining({
+        path: 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+      })
+    }));
+    expect(metadata.recommendedBundles.predictions.marginOnly).toEqual(expect.objectContaining({
+      scriptKey: 'margin-predictions',
+      predictorId: 1,
+      model: expect.objectContaining({
+        path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json'
+      })
+    }));
+    expect(metadata.workflows.predictions.dangerousFields).toEqual(expect.arrayContaining([
+      'overrideCompleted',
+      'allowModelMismatch'
+    ]));
     expect(metadata.scripts).toEqual(expect.any(Array));
   });
 

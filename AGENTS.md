@@ -77,10 +77,13 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 
 - Script definitions live in `services/admin-script-definitions.js`.
 - Job orchestration lives in `services/admin-script-runner.js`.
+- Model/output catalogue discovery lives in `services/model-catalog-service.js` and should stay read-only.
 - Admin routes are exposed from `routes/admin.js`.
+- `/admin/scripts` is an intent-led workflow UI. Guided browser choices should map to existing script keys and params; do not add multi-script orchestration unless explicitly requested.
 - Only one admin script run may be active at a time.
 - Run metadata is stored in `admin_script_runs`.
 - Log files are stored under `logs/admin-scripts/`.
+- `/admin/api/script-metadata` supplies workflow defaults, recommended prediction bundles, active predictors, and catalogue entries. Keep recommendations derived from existing artifacts rather than hard-coded filenames.
 - Preserve the fixture-sync contract: `sync-games` bootstraps missing fixtures, while `api-refresh` only updates existing ones.
 - Keep the admin warning path intact when API data exists for a season with no matching DB fixtures.
 

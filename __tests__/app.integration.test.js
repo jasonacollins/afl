@@ -775,8 +775,9 @@ describe('app integration security stack', () => {
     expect(adminResponse.text).toContain('/js/admin.js');
 
     expect(scriptsResponse.text).toContain('Scripts');
-    expect(scriptsResponse.text).toContain('Run Sync Games');
-    expect(scriptsResponse.text).toContain('Run Predictions');
+    expect(scriptsResponse.text).toContain('Choose a task');
+    expect(scriptsResponse.text).toContain('Make predictions');
+    expect(scriptsResponse.text).toContain('Run prediction workflow');
     expect(scriptsResponse.text).toContain('/js/admin-scripts.js');
   });
 });

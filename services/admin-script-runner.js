@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { runQuery, getQuery, getOne } = require('../models/db');
 const { logger } = require('../utils/logger');
+const modelCatalogService = require('./model-catalog-service');
 const {
   YEAR_MIN,
   getYearMax,
@@ -246,10 +247,143 @@ async function getModelFiles() {
   return { win, margin, history, winMarginMethods, winParams, winModels, winModelOrParams };
 }
 
+function summarizeCatalogArtifact(artifact) {
+  if (!artifact) {
+    return null;
+  }
+
+  return {
+    path: artifact.path,
+    label: artifact.label,
+    detail: artifact.detail,
+    kind: artifact.kind,
+    kindLabel: artifact.kindLabel,
+    trainedThroughYear: artifact.trainedThroughYear || null,
+    compatibility: artifact.compatibility || {}
+  };
+}
+
+function getLatestCatalogArtifact(modelCatalog, kind, predicate = () => true) {
+  const artifacts = Array.isArray(modelCatalog?.artifacts) ? modelCatalog.artifacts : [];
+  return artifacts.find((artifact) => artifact.kind === kind && predicate(artifact)) || null;
+}
+
+function getCatalogArtifactsByKind(modelCatalog, kind) {
+  const artifacts = Array.isArray(modelCatalog?.artifacts) ? modelCatalog.artifacts : [];
+  return artifacts.filter((artifact) => artifact.kind === kind);
+}
+
+function getCompatibleMarginMethodsForWinModel(modelCatalog, winModel) {
+  if (!winModel) {
+    return null;
+  }
+
+  return getLatestCatalogArtifact(modelCatalog, 'win_margin_methods', (artifact) => {
+    const requiredYear = artifact.compatibility?.requiredWinModelTrainEndYear;
+    return requiredYear
+      ? requiredYear === winModel.trainedThroughYear
+      : artifact.trainedThroughYear === winModel.trainedThroughYear;
+  });
+}
+
+function getRecommendedPredictionBundles(modelCatalog, activePredictors, currentYear) {
+  const latestWinModel = getLatestCatalogArtifact(modelCatalog, 'trained_win_model');
+  let selectedWinModel = latestWinModel;
+  let compatibleMarginMethods = null;
+  for (const winModel of getCatalogArtifactsByKind(modelCatalog, 'trained_win_model')) {
+    const marginMethods = getCompatibleMarginMethodsForWinModel(modelCatalog, winModel);
+    if (marginMethods) {
+      selectedWinModel = winModel;
+      compatibleMarginMethods = marginMethods;
+      break;
+    }
+  }
+
+  const latestMarginMethods = getLatestCatalogArtifact(modelCatalog, 'win_margin_methods');
+  const selectedMarginMethods = compatibleMarginMethods || latestMarginMethods;
+  const latestMarginModel = getLatestCatalogArtifact(modelCatalog, 'trained_margin_model');
+
+  return {
+    predictions: {
+      primary: {
+        mode: 'recommended',
+        scriptKey: 'win-margin-methods-predictions',
+        label: 'Recommended bundle',
+        description: 'Latest trained win model with matching margin-method output.',
+        season: currentYear,
+        predictorId: chooseDefaultPredictorId(activePredictors, 8),
+        outputDir: DEFAULTS.winMarginMethodsOutputDir,
+        saveToDb: true,
+        futureOnly: true,
+        overrideCompleted: false,
+        allowModelMismatch: false,
+        winModel: summarizeCatalogArtifact(selectedWinModel),
+        marginMethods: summarizeCatalogArtifact(selectedMarginMethods),
+        isCompatible: Boolean(selectedWinModel && compatibleMarginMethods),
+        warnings: selectedWinModel && selectedMarginMethods && !compatibleMarginMethods
+          ? ['No compatible win model and margin-method pair could be inferred from metadata.']
+          : []
+      },
+      marginOnly: {
+        mode: 'marginOnly',
+        scriptKey: 'margin-predictions',
+        label: 'Margin-only',
+        description: 'Latest trained margin model, deriving win probability from margin output.',
+        season: currentYear,
+        predictorId: chooseDefaultPredictorId(activePredictors, 7),
+        outputDir: DEFAULTS.marginPredictionsOutputDir,
+        saveToDb: true,
+        overrideCompleted: false,
+        model: summarizeCatalogArtifact(latestMarginModel)
+      }
+    }
+  };
+}
+
+function getWorkflowMetadata(currentYear) {
+  return {
+    predictions: {
+      label: 'Make predictions',
+      summary: 'Generate future match predictions and optionally publish them to a predictor in the database.',
+      defaultSeason: currentYear,
+      dangerousFields: [
+        'overrideCompleted',
+        'allowModelMismatch',
+        'dbPath',
+        'outputDir',
+        'methodOverride'
+      ]
+    },
+    training: {
+      label: 'Train model',
+      summary: 'Optimise parameters, then train a model artifact from those parameters.',
+      defaultStartYear: 1990,
+      defaultEndYear: currentYear - 1
+    },
+    data: {
+      label: 'Update data',
+      summary: 'Refresh fixture and score data without changing model artifacts.'
+    },
+    simulation: {
+      label: 'Run simulation',
+      summary: 'Run the season simulator and write the normal simulation JSON output.',
+      defaultSeason: currentYear
+    },
+    history: {
+      label: 'Update ELO history',
+      summary: 'Append or rebuild the historical ELO chart data from a selected model.'
+    }
+  };
+}
+
 async function getScriptMetadata() {
   const [modelFiles, activePredictors] = await Promise.all([
     getModelFiles(),
     getActivePredictors()
+  ]);
+  const [modelCatalog, outputCatalog] = await Promise.all([
+    modelCatalogService.getModelCatalog({ modelFiles }),
+    modelCatalogService.getOutputCatalog()
   ]);
   const currentYear = new Date().getFullYear();
   const defaultMarginOptimizeEndYear = getDefaultMarginOptimizeEndYear();
@@ -258,6 +392,10 @@ async function getScriptMetadata() {
   return {
     scripts: getScriptCatalog(),
     modelFiles,
+    modelCatalog,
+    outputCatalog,
+    recommendedBundles: getRecommendedPredictionBundles(modelCatalog, activePredictors, currentYear),
+    workflows: getWorkflowMetadata(currentYear),
     activePredictors,
     defaults: {
       currentYear,

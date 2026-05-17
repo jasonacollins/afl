@@ -100,6 +100,379 @@
     });
   }
 
+  function getCatalogArtifacts() {
+    return scriptMetadata?.modelCatalog?.artifacts || [];
+  }
+
+  function getCatalogOutputs() {
+    return scriptMetadata?.outputCatalog?.outputs || [];
+  }
+
+  function getArtifactByPath(artifactPath) {
+    return getCatalogArtifacts().find((artifact) => artifact.path === artifactPath) || null;
+  }
+
+  function getPredictionBundle(bundleName) {
+    return scriptMetadata?.recommendedBundles?.predictions?.[bundleName] || null;
+  }
+
+  function getSelectLabel(selectId) {
+    const select = getEl(selectId);
+    if (!select) {
+      return '-';
+    }
+
+    const option = Array.from(select.options || [])
+      .find((item) => item.value === String(select.value))
+      || (select.options && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null);
+    return option ? option.textContent : (select.value || '-');
+  }
+
+  function getPredictorLabel(predictorId) {
+    const predictor = (scriptMetadata?.activePredictors || [])
+      .find((item) => String(item.predictor_id) === String(predictorId));
+
+    if (!predictor) {
+      return predictorId ? `Predictor #${predictorId}` : '-';
+    }
+
+    return `${predictor.display_name || predictor.name || 'Predictor'} (#${predictor.predictor_id})`;
+  }
+
+  function getArtifactOptions(kinds, fallbackEntries) {
+    const allowedKinds = new Set(Array.isArray(kinds) ? kinds : [kinds]);
+    const catalogOptions = getCatalogArtifacts()
+      .filter((artifact) => allowedKinds.has(artifact.kind))
+      .map((artifact) => ({
+        value: artifact.path,
+        label: artifact.label || artifact.path,
+        trainedThroughYear: artifact.trainedThroughYear || 0
+      }));
+
+    if (catalogOptions.length > 0) {
+      return catalogOptions.sort((left, right) => {
+        const yearDiff = right.trainedThroughYear - left.trainedThroughYear;
+        if (yearDiff !== 0) {
+          return yearDiff;
+        }
+        return left.label.localeCompare(right.label);
+      });
+    }
+
+    return (fallbackEntries || []).map((entry) => {
+      const artifact = getArtifactByPath(entry);
+      return {
+        value: entry,
+        label: artifact?.label || entry,
+        trainedThroughYear: artifact?.trainedThroughYear || extractTrainedToYearFromPath(entry) || 0
+      };
+    });
+  }
+
+  function setSelectSelectedValue(select, selectedValue) {
+    if (!select || selectedValue === undefined || selectedValue === null) {
+      return;
+    }
+
+    const selectedText = String(selectedValue);
+    const options = Array.from(select.options || []).map((option) => ({
+      value: option.value,
+      textContent: option.textContent
+    }));
+
+    if (!options.some((option) => String(option.value) === selectedText)) {
+      return;
+    }
+
+    select.innerHTML = '';
+    options.forEach((option) => {
+      const element = document.createElement('option');
+      element.value = option.value;
+      element.textContent = option.textContent;
+      if (String(option.value) === selectedText) {
+        element.selected = true;
+      }
+      select.appendChild(element);
+    });
+  }
+
+  function getCompactCatalogTitle(entry) {
+    const label = String(entry.label || entry.path || '');
+    const kindPrefix = entry.kindLabel ? `${entry.kindLabel} - ` : '';
+    const withoutKind = kindPrefix && label.startsWith(kindPrefix)
+      ? label.slice(kindPrefix.length)
+      : label;
+    return withoutKind.replace(/\s*\([^()]+\)\s*$/, '');
+  }
+
+  function getCatalogEntries() {
+    const artifacts = getCatalogArtifacts().map((entry) => ({
+      ...entry,
+      scope: 'models',
+      scopeLabel: 'Model artifacts'
+    }));
+    const outputs = getCatalogOutputs().map((entry) => ({
+      ...entry,
+      scope: 'outputs',
+      scopeLabel: 'Generated outputs'
+    }));
+
+    return [...artifacts, ...outputs].map((entry) => {
+      const season = entry.seasonRange
+        ? `${entry.seasonRange.startYear || ''} ${entry.seasonRange.endYear || ''}`
+        : '';
+      const searchText = [
+        entry.scopeLabel,
+        entry.kindLabel,
+        entry.label,
+        entry.detail,
+        entry.path,
+        entry.family,
+        entry.trainedThroughYear,
+        season,
+        entry.modelMode
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      return { ...entry, searchText };
+    });
+  }
+
+  function getCatalogScope() {
+    const value = getEl('catalogScopeFilter')?.value || 'models';
+    return ['models', 'outputs', 'all'].includes(value) ? value : 'models';
+  }
+
+  function getCatalogScopeLabel(scope) {
+    if (scope === 'outputs') return 'outputs';
+    if (scope === 'all') return 'items';
+    return 'artifacts';
+  }
+
+  function syncCatalogKindOptions(scopedEntries) {
+    const kindFilter = getEl('catalogKindFilter');
+    if (!kindFilter) return '';
+
+    const previousValue = kindFilter.value;
+    const kinds = [...new Map(scopedEntries.map((entry) => [
+      entry.kind,
+      entry.kindLabel || entry.kind
+    ])).entries()]
+      .sort((left, right) => left[1].localeCompare(right[1]));
+
+    kindFilter.innerHTML = '';
+    const allOption = document.createElement('option');
+    allOption.value = '';
+    allOption.textContent = 'All types';
+    kindFilter.appendChild(allOption);
+
+    kinds.forEach(([kind, label]) => {
+      const option = document.createElement('option');
+      option.value = kind;
+      option.textContent = label;
+      kindFilter.appendChild(option);
+    });
+
+    const stillAvailable = kinds.some(([kind]) => kind === previousValue);
+    kindFilter.value = stillAvailable ? previousValue : '';
+    return kindFilter.value;
+  }
+
+  function renderCatalogRows(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return '<p class="catalog-empty">No catalogue entries match those filters.</p>';
+    }
+
+    return entries.map((entry) => `
+      <div class="catalog-row">
+        <span class="catalog-kind-badge">${escapeHtml(entry.kindLabel || 'Artifact')}</span>
+        <div class="catalog-row-body">
+          <strong class="catalog-title">${escapeHtml(getCompactCatalogTitle(entry))}</strong>
+          ${entry.detail ? `<span class="catalog-meta">${escapeHtml(entry.detail)}</span>` : ''}
+          <code class="catalog-path">${escapeHtml(entry.path)}</code>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderCatalogBrowser() {
+    const list = getEl('catalogList');
+    const count = getEl('catalogResultCount');
+    if (!list) return;
+
+    if (!scriptMetadata) {
+      list.innerHTML = '<p class="catalog-empty">Loading catalogue...</p>';
+      if (count) {
+        count.textContent = 'Loading...';
+      }
+      return;
+    }
+
+    const scope = getCatalogScope();
+    const allEntries = getCatalogEntries();
+    const scopedEntries = scope === 'all'
+      ? allEntries
+      : allEntries.filter((entry) => entry.scope === scope);
+    const selectedKind = syncCatalogKindOptions(scopedEntries);
+    const searchText = (getEl('catalogSearch')?.value || '').trim().toLowerCase();
+
+    const filteredEntries = scopedEntries.filter((entry) => {
+      const kindMatches = !selectedKind || entry.kind === selectedKind;
+      const searchMatches = !searchText || entry.searchText.includes(searchText);
+      return kindMatches && searchMatches;
+    });
+
+    list.innerHTML = renderCatalogRows(filteredEntries);
+    if (count) {
+      count.textContent = `${filteredEntries.length}/${scopedEntries.length} ${getCatalogScopeLabel(scope)}`;
+    }
+  }
+
+  function bindCatalogFilters() {
+    ['catalogScopeFilter', 'catalogKindFilter', 'catalogSearch'].forEach((id) => {
+      const element = getEl(id);
+      if (!element) return;
+      element.addEventListener('input', renderCatalogBrowser);
+      element.addEventListener('change', renderCatalogBrowser);
+    });
+  }
+
+  function getGuidedPredictionMode() {
+    return getEl('guidedPredictionMode')?.value === 'marginOnly' ? 'marginOnly' : 'recommended';
+  }
+
+  function setWorkflowPanel(targetId) {
+    const panels = document.querySelectorAll('[data-workflow-panel]');
+    const buttons = document.querySelectorAll('[data-workflow-target]');
+
+    panels.forEach((panel) => {
+      setElementHidden(panel, panel.id !== targetId);
+    });
+
+    buttons.forEach((button) => {
+      const isActive = button.getAttribute('data-workflow-target') === targetId;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-selected', String(isActive));
+    });
+  }
+
+  function bindWorkflowLauncher() {
+    document.querySelectorAll('[data-workflow-target]').forEach((button) => {
+      button.addEventListener('click', () => {
+        setWorkflowPanel(button.getAttribute('data-workflow-target'));
+      });
+    });
+  }
+
+  function setGuidedPredictionModePanel(mode) {
+    const normalizedMode = mode === 'marginOnly' ? 'marginOnly' : 'recommended';
+    document.querySelectorAll('[data-guided-prediction-mode-panel]').forEach((panel) => {
+      const panelModes = (panel.getAttribute('data-guided-prediction-mode-panel') || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+      setElementHidden(panel, !panelModes.includes(normalizedMode));
+    });
+
+    const winModelSelect = getEl('guidedPredictionWinModelPath');
+    const marginMethodsSelect = getEl('guidedPredictionMarginMethodsPath');
+    const marginModelSelect = getEl('guidedPredictionMarginModelPath');
+
+    if (winModelSelect) {
+      winModelSelect.required = normalizedMode === 'recommended';
+    }
+    if (marginMethodsSelect) {
+      marginMethodsSelect.required = normalizedMode === 'recommended';
+    }
+    if (marginModelSelect) {
+      marginModelSelect.required = normalizedMode === 'marginOnly';
+    }
+
+    const defaults = scriptMetadata?.defaults || {};
+    const outputDirInput = getEl('guidedPredictionOutputDir');
+    if (outputDirInput) {
+      const marginDefault = defaults.marginPredictionsOutputDir || 'data/predictions/margin';
+      const recommendedDefault = defaults.winMarginMethodsOutputDir || 'data/predictions/win';
+      const currentValue = outputDirInput.value.trim();
+      if (!currentValue || [marginDefault, recommendedDefault, defaults.combinedOutputDir].includes(currentValue)) {
+        outputDirInput.value = normalizedMode === 'marginOnly' ? marginDefault : recommendedDefault;
+      }
+    }
+
+    const predictorSelect = getEl('guidedPredictionPredictorId');
+    const primaryPredictorId = getPredictionBundle('primary')?.predictorId || defaults.winMarginMethodsPredictorId;
+    const marginPredictorId = getPredictionBundle('marginOnly')?.predictorId || defaults.marginPredictorId;
+    const targetPredictorId = normalizedMode === 'marginOnly' ? marginPredictorId : primaryPredictorId;
+    const alternatePredictorId = normalizedMode === 'marginOnly' ? primaryPredictorId : marginPredictorId;
+    if (predictorSelect && targetPredictorId) {
+      if (!predictorSelect.value || String(predictorSelect.value) === String(alternatePredictorId)) {
+        setSelectSelectedValue(predictorSelect, targetPredictorId);
+      }
+    }
+
+    updateGuidedPredictionReview();
+  }
+
+  function updateGuidedPredictionReview() {
+    const mode = getGuidedPredictionMode();
+    const season = getEl('guidedPredictionYear')?.value || '-';
+    const predictorId = getEl('guidedPredictionPredictorId')?.value || '';
+    const outputDir = getEl('guidedPredictionOutputDir')?.value || '-';
+    const overrideCompleted = Boolean(getEl('guidedPredictionOverrideCompleted')?.checked);
+
+    const predictorReview = getEl('guidedPredictionReviewPredictor');
+    const seasonReview = getEl('guidedPredictionReviewSeason');
+    const artifactsReview = getEl('guidedPredictionReviewArtifacts');
+    const outputReview = getEl('guidedPredictionReviewOutput');
+    const safetyReview = getEl('guidedPredictionReviewSafety');
+
+    if (predictorReview) {
+      predictorReview.textContent = getPredictorLabel(predictorId);
+    }
+    if (seasonReview) {
+      seasonReview.textContent = season;
+    }
+    if (artifactsReview) {
+      artifactsReview.textContent = mode === 'marginOnly'
+        ? getSelectLabel('guidedPredictionMarginModelPath')
+        : `${getSelectLabel('guidedPredictionWinModelPath')} + ${getSelectLabel('guidedPredictionMarginMethodsPath')}`;
+    }
+    if (outputReview) {
+      outputReview.textContent = `${outputDir}; publish to DB; normal CSV output`;
+    }
+    if (safetyReview) {
+      safetyReview.textContent = overrideCompleted
+        ? 'Completed or already-started matches may be overwritten.'
+        : 'Completed or already-started matches are left untouched.';
+      safetyReview.classList.toggle('danger-text', overrideCompleted);
+    }
+  }
+
+  function bindGuidedPredictionControls() {
+    const modeSelect = getEl('guidedPredictionMode');
+    if (modeSelect) {
+      modeSelect.addEventListener('change', (event) => {
+        setGuidedPredictionModePanel(event.target.value);
+      });
+    }
+
+    [
+      'guidedPredictionYear',
+      'guidedPredictionPredictorId',
+      'guidedPredictionWinModelPath',
+      'guidedPredictionMarginMethodsPath',
+      'guidedPredictionMarginModelPath',
+      'guidedPredictionOutputDir',
+      'guidedPredictionOverrideCompleted'
+    ].forEach((id) => {
+      const element = getEl(id);
+      if (!element) return;
+      element.addEventListener('input', updateGuidedPredictionReview);
+      element.addEventListener('change', updateGuidedPredictionReview);
+    });
+
+    setGuidedPredictionModePanel(getGuidedPredictionMode());
+  }
+
   function buildMarginOptimizeOutputPath(endYear) {
     return `data/models/margin/optimal_margin_only_elo_params_trained_to_${endYear}.json`;
   }
@@ -254,6 +627,7 @@
       'syncYear',
       'apiRefreshYear',
       'combinedStartYear',
+      'guidedPredictionYear',
       'winTrainStartYear',
       'winTrainEndYear',
       'marginOptimizeStartYear',
@@ -268,15 +642,34 @@
       'historyOutputEndYear',
       'simYear'
     ];
+    const trainingStartYearIds = [
+      'winTrainStartYear',
+      'marginOptimizeStartYear',
+      'winMarginMethodsOptimizeStartYear',
+      'marginTrainStartYear'
+    ];
+    const trainingEndYearIds = [
+      'winTrainEndYear',
+      'marginOptimizeEndYear',
+      'winMarginMethodsOptimizeEndYear',
+      'marginTrainEndYear'
+    ];
 
     yearInputIds.forEach((id) => {
       const input = getEl(id);
       if (!input) return;
+      if (!input.value && trainingStartYearIds.includes(id)) {
+        input.value = '1990';
+      }
+      if (!input.value && trainingEndYearIds.includes(id)) {
+        input.value = String(currentYear - 1);
+      }
       if (!input.value && (
+        id === 'syncYear' ||
         id === 'apiRefreshYear' ||
         id === 'combinedStartYear' ||
-        id === 'simYear' ||
-        id === 'winTrainEndYear'
+        id === 'guidedPredictionYear' ||
+        id === 'simYear'
       )) {
         input.value = String(currentYear);
       }
@@ -291,11 +684,17 @@
     if (getEl('optimizedDbPath') && !getEl('optimizedDbPath').value) {
       getEl('optimizedDbPath').value = defaults.dbPath || '';
     }
+    if (getEl('guidedPredictionDbPath') && !getEl('guidedPredictionDbPath').value) {
+      getEl('guidedPredictionDbPath').value = defaults.dbPath || '';
+    }
     if (getEl('combinedOutputDir') && !getEl('combinedOutputDir').value) {
       getEl('combinedOutputDir').value = defaults.marginPredictionsOutputDir || 'data/predictions/margin';
     }
     if (getEl('optimizedOutputDir') && !getEl('optimizedOutputDir').value) {
       getEl('optimizedOutputDir').value = defaults.winMarginMethodsOutputDir || 'data/predictions/win';
+    }
+    if (getEl('guidedPredictionOutputDir') && !getEl('guidedPredictionOutputDir').value) {
+      getEl('guidedPredictionOutputDir').value = defaults.winMarginMethodsOutputDir || 'data/predictions/win';
     }
     if (getEl('historyDbPath') && !getEl('historyDbPath').value) {
       getEl('historyDbPath').value = defaults.dbPath || '';
@@ -373,6 +772,7 @@
     }
 
     const allWinFiles = scriptMetadata.modelFiles?.win || [];
+    const allMarginFiles = scriptMetadata.modelFiles?.margin || [];
     const winModelEntries = scriptMetadata.modelFiles?.winModels
       || allWinFiles.filter((entry) => /afl_elo_win_trained_to_\d{4}\.json$/i.test(entry));
     const winParamsEntries = scriptMetadata.modelFiles?.winParams
@@ -382,20 +782,35 @@
         /afl_elo_win_trained_to_\d{4}\.json$/i.test(entry)
         || /optimal_elo_params_win(?:_trained_to_\d{4})?\.json$/i.test(entry)
       );
-    const winModelOptions = winModelEntries.map((entry) => ({ value: entry, label: entry }));
-    const winParamsOptions = winParamsEntries.map((entry) => ({ value: entry, label: entry }));
-    const winModelOrParamsOptions = winModelOrParamsEntries.map((entry) => ({ value: entry, label: entry }));
-    const winMarginMethodsOptions = (
+    const marginModelEntries = allMarginFiles.filter((entry) => /afl_elo_margin_only_trained_to_\d{4}\.json$/i.test(entry));
+    const marginParamsEntries = allMarginFiles.filter((entry) => /optimal_margin_only_elo_params(?:_trained_to_\d{4})?\.json$/i.test(entry));
+
+    const winModelOptions = getArtifactOptions('trained_win_model', winModelEntries);
+    const winParamsOptions = getArtifactOptions('win_params', winParamsEntries);
+    const winModelOrParamsOptions = getArtifactOptions(['trained_win_model', 'win_params'], winModelOrParamsEntries);
+    const winMarginMethodsOptions = getArtifactOptions(
+      'win_margin_methods',
       scriptMetadata.modelFiles?.winMarginMethods
       || allWinFiles.filter((entry) => /optimal_margin_methods/i.test(entry))
-    ).map((entry) => ({ value: entry, label: entry }));
-    const marginModelOptions = (scriptMetadata.modelFiles?.margin || []).map((entry) => ({ value: entry, label: entry }));
-    const historyModelOptions = (scriptMetadata.modelFiles?.history || []).map((entry) => ({ value: entry, label: entry }));
+    );
+    const marginModelOptions = getArtifactOptions('trained_margin_model', marginModelEntries);
+    const marginParamsOptions = getArtifactOptions('margin_params', marginParamsEntries);
+    const historyModelOptions = getArtifactOptions(
+      ['trained_margin_model', 'trained_win_model'],
+      scriptMetadata.modelFiles?.history || [...marginModelEntries, ...winModelEntries]
+    );
     const defaultMarginModelPath = chooseLatestTrainedMarginModel(marginModelOptions);
     const defaultWinModelPath = chooseLatestTrainedWinModel(winModelOptions);
     const defaultHistoryModelPath = defaultMarginModelPath || (historyModelOptions[0] ? historyModelOptions[0].value : null);
+    const primaryBundle = getPredictionBundle('primary');
+    const marginOnlyBundle = getPredictionBundle('marginOnly');
+    const recommendedWinModelPath = primaryBundle?.winModel?.path || defaultWinModelPath;
+    const recommendedMarginMethodsPath = primaryBundle?.marginMethods?.path
+      || (winMarginMethodsOptions[0] ? winMarginMethodsOptions[0].value : null);
+    const recommendedMarginModelPath = marginOnlyBundle?.model?.path || defaultMarginModelPath;
 
     populateSelect('optimizedWinModelPath', winModelOptions, defaultWinModelPath);
+    populateSelect('guidedPredictionWinModelPath', winModelOptions, recommendedWinModelPath);
     populateSelect(
       'winMarginMethodsOptimizeEloParamsPath',
       winModelOrParamsOptions,
@@ -404,10 +819,17 @@
     populateSelect('historyModelPath', historyModelOptions, defaultHistoryModelPath);
     populateSelect('combinedMarginModelPath', marginModelOptions, defaultMarginModelPath);
     populateSelect('optimizedMarginMethodsPath', winMarginMethodsOptions, winMarginMethodsOptions[0] ? winMarginMethodsOptions[0].value : null);
+    populateSelect('guidedPredictionMarginMethodsPath', winMarginMethodsOptions, recommendedMarginMethodsPath);
+    populateSelect('guidedPredictionMarginModelPath', marginModelOptions, recommendedMarginModelPath);
     populateSelect('simModelPath', marginModelOptions, defaultMarginModelPath);
+    populateSelect('simWinModelPath', winModelOptions, null, true);
     populateSelect('winTrainParamsFile', winParamsOptions, (winParamsOptions[0] || {}).value, true);
     populateSelect('winTrainMarginParams', winMarginMethodsOptions, (winMarginMethodsOptions[0] || {}).value, true);
-    populateSelect('marginTrainParamsFile', marginModelOptions, (marginModelOptions.find((option) => option.value.includes('optimal_margin_only_elo_params')) || marginModelOptions[0] || {}).value);
+    populateSelect(
+      'marginTrainParamsFile',
+      marginParamsOptions,
+      (marginParamsOptions.find((option) => option.value.includes('optimal_margin_only_elo_params')) || marginParamsOptions[0] || {}).value
+    );
 
     const predictorOptions = (scriptMetadata.activePredictors || []).map((predictor) => ({
       value: predictor.predictor_id,
@@ -416,6 +838,13 @@
 
     populateSelect('combinedPredictorId', predictorOptions, defaults.marginPredictorId || defaults.predictorId);
     populateSelect('optimizedPredictorId', predictorOptions, defaults.winMarginMethodsPredictorId || defaults.predictorId);
+    populateSelect(
+      'guidedPredictionPredictorId',
+      predictorOptions,
+      primaryBundle?.predictorId || defaults.winMarginMethodsPredictorId || defaults.predictorId
+    );
+    setGuidedPredictionModePanel(getGuidedPredictionMode());
+    renderCatalogBrowser();
   }
 
   async function loadMetadata() {
@@ -599,6 +1028,23 @@
 
     try {
       const params = getFormParams(form);
+
+      if (baseScriptKey === 'guided-predictions') {
+        const predictionMode = params.predictionMode === 'marginOnly' ? 'marginOnly' : 'recommended';
+        delete params.predictionMode;
+
+        if (predictionMode === 'marginOnly') {
+          scriptKey = 'margin-predictions';
+          delete params.winModelPath;
+          delete params.marginMethodsPath;
+          delete params.futureOnly;
+          delete params.methodOverride;
+          delete params.allowModelMismatch;
+        } else {
+          scriptKey = 'win-margin-methods-predictions';
+          delete params.modelPath;
+        }
+      }
 
       if (baseScriptKey === 'combined-predictions') {
         const allowedModes = new Set(['optimized', 'margin']);
@@ -863,12 +1309,16 @@
     initializeSubmitButtons();
     bindFormHandlers();
     bindHistoryActions();
+    bindWorkflowLauncher();
+    bindGuidedPredictionControls();
     bindPredictionsModeToggle();
     bindTrainingModeToggle();
+    bindCatalogFilters();
 
     try {
       await loadMetadata();
       setPredictionsModePanel(getEl('predictionsMode') ? getEl('predictionsMode').value : 'optimized');
+      setGuidedPredictionModePanel(getGuidedPredictionMode());
       setupMarginOptimizeOutputPathSync();
       setupWinMarginMethodsOptimizeOutputPathSync();
       await refreshRuns();

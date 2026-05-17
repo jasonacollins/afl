@@ -86,9 +86,9 @@ The app uses Squiggle's API plus the games event stream for live result reconcil
 
 For detailed model-training and prediction workflows, see [scripts/README.md](scripts/README.md).
 
-## Admin Scripts Runner
+## Admin Workflows
 
-Admins can trigger allowlisted operational and model scripts from `/admin/scripts` without shell access.
+Admins can trigger allowlisted operational and model scripts from `/admin/scripts` without shell access. The page is task-led: start from `Make predictions`, `Train model`, `Update data`, `Run simulation`, or `Update ELO history`, then review the selected impact before starting a run.
 
 Supported workflows include:
 
@@ -98,6 +98,8 @@ Supported workflows include:
 - win-margin method optimization
 - ELO history regeneration
 - season simulation generation
+
+The model and output catalogue on the scripts page is a searchable reference for artifacts under `data/models`, `data/predictions`, `data/historical`, and `data/simulations`. It helps select the right model or output but does not move, promote, or overwrite artifacts.
 
 Operationally:
 
