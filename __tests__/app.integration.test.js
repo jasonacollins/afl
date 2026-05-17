@@ -435,8 +435,8 @@ describe('app integration security stack', () => {
     expect(csrfFailure.status).toBe(403);
     expect(csrfFailure.text).toContain('CSRF token validation failed');
 
-    const scriptsPage = await agent.get('/admin/scripts').expect(200);
-    const pageCsrfToken = extractCsrfToken(scriptsPage.text);
+    const dataPage = await agent.get('/admin/data').expect(200);
+    const pageCsrfToken = extractCsrfToken(dataPage.text);
 
     const success = await agent
       .post('/admin/api/script-runs')
@@ -524,7 +524,8 @@ describe('app integration security stack', () => {
           status: 'running'
         })
       ],
-      activeRunId: 21
+      activeRunId: 21,
+      activeRun: { run_id: 21 }
     });
     expect(runResponse.status).toBe(200);
     expect(runResponse.body).toEqual({
@@ -548,20 +549,14 @@ describe('app integration security stack', () => {
       ],
       lastSeq: 3
     });
-    expect(listRuns).toHaveBeenCalledWith(5);
+    expect(listRuns).toHaveBeenCalledWith(5, {});
     expect(getExistingActiveRun).toHaveBeenCalledTimes(1);
     expect(getRunById).toHaveBeenCalledWith(21);
     expect(getRunLogs).toHaveBeenCalledWith(21, 2, 4);
   });
 
-  test('admin API refresh requires CSRF and reaches the refresh module with a valid token after real login', async () => {
+  test('removed direct admin API refresh route does not resolve after real login', async () => {
     const passwordHash = bcrypt.hashSync('admin-secret', 4);
-    const refreshAPIData = jest.fn().mockResolvedValue({
-      success: true,
-      year: 2026,
-      updateCount: 3,
-      scoresUpdated: 1
-    });
 
     await unloadDbModule(loaded && loaded.dbModule);
     loaded = loadRealAppModule(path.join(tempDir, 'app.db'), {
@@ -576,9 +571,6 @@ describe('app integration security stack', () => {
       },
       adminScriptRunner: {
         recoverInterruptedRuns: jest.fn()
-      },
-      apiRefreshModule: {
-        refreshAPIData
       }
     });
 
@@ -594,29 +586,15 @@ describe('app integration security stack', () => {
       expectedLocation: '/admin'
     });
 
-    const csrfFailure = await agent
-      .post('/admin/api-refresh')
-      .send({ year: 2026, forceScoreUpdate: true });
+    const dataPage = await agent.get('/admin/data').expect(200);
+    const csrfToken = extractCsrfToken(dataPage.text);
 
-    expect(csrfFailure.status).toBe(403);
-    expect(csrfFailure.text).toContain('CSRF token validation failed');
-
-    const scriptsPage = await agent.get('/admin/scripts').expect(200);
-    const csrfToken = extractCsrfToken(scriptsPage.text);
-
-    const success = await agent
+    const response = await agent
       .post('/admin/api-refresh')
       .set('X-CSRF-Token', csrfToken)
       .send({ year: '2026', forceScoreUpdate: true });
 
-    expect(success.status).toBe(200);
-    expect(success.body).toEqual({
-      success: true,
-      year: 2026,
-      updateCount: 3,
-      scoresUpdated: 1
-    });
-    expect(refreshAPIData).toHaveBeenCalledWith(2026, { forceScoreUpdate: true });
+    expect(response.status).toBe(404);
   });
 
   test('admin database upload uses the real CSRF-protected app stack before replacement and restart', async () => {
@@ -672,8 +650,8 @@ describe('app integration security stack', () => {
     expect(csrfFailure.status).toBe(403);
     expect(csrfFailure.text).toContain('CSRF token validation failed');
 
-    const scriptsPage = await agent.get('/admin/scripts').expect(200);
-    const csrfToken = extractCsrfToken(scriptsPage.text);
+    const dataPage = await agent.get('/admin/data').expect(200);
+    const csrfToken = extractCsrfToken(dataPage.text);
 
     const success = await agent
       .post('/admin/upload-database')
@@ -758,9 +736,10 @@ describe('app integration security stack', () => {
       .expect('Location', '/admin');
 
     const adminResponse = await agent.get('/admin').expect(200);
-    const scriptsResponse = await agent.get('/admin/scripts').expect(200);
+    const modelsResponse = await agent.get('/admin/models').expect(200);
+    const dataResponse = await agent.get('/admin/data').expect(200);
 
-    for (const response of [adminResponse, scriptsResponse]) {
+    for (const response of [adminResponse, modelsResponse, dataResponse]) {
       expect(response.headers['content-security-policy']).toContain("default-src 'self'");
       expect(response.text).toContain('<meta name="csrf-token" content="');
       expect(response.text).toContain('Admin panel');
@@ -774,11 +753,17 @@ describe('app integration security stack', () => {
     expect(adminResponse.text).toContain('Dad&#39;s AI');
     expect(adminResponse.text).toContain('/js/admin.js');
 
-    expect(scriptsResponse.text).toContain('Scripts');
-    expect(scriptsResponse.text).toContain('Choose a task');
-    expect(scriptsResponse.text).toContain('Make predictions');
-    expect(scriptsResponse.text).toContain('Run prediction workflow');
-    expect(scriptsResponse.text).toContain('/js/admin-scripts.js');
+    expect(modelsResponse.text).toContain('Models');
+    expect(modelsResponse.text).toContain('Model Workflows');
+    expect(modelsResponse.text).toContain('Make predictions');
+    expect(modelsResponse.text).toContain('Run prediction workflow');
+    expect(modelsResponse.text).toContain('/js/admin-scripts.js');
+
+    expect(dataResponse.text).toContain('Data');
+    expect(dataResponse.text).toContain('Data Workflows');
+    expect(dataResponse.text).toContain('Export database');
+    expect(dataResponse.text).toContain('/js/admin.js');
+    expect(dataResponse.text).toContain('/js/admin-scripts.js');
   });
 });
 

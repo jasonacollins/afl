@@ -57,10 +57,6 @@ function closeModal() {
   setElementHiddenById('resetPasswordModal', true);
 }
 
-function closeRefreshModal() {
-  setElementHiddenById('refreshApiModal', true);
-}
-
 function closeUploadModal() {
   setElementHiddenById('uploadDatabaseModal', true);
 }
@@ -513,7 +509,6 @@ if (typeof window !== 'undefined') {
   };
   window.showResetPasswordForm = showResetPasswordForm;
   window.closeModal = closeModal;
-  window.closeRefreshModal = closeRefreshModal;
   window.closeUploadModal = closeUploadModal;
   window.confirmDeleteUser = confirmDeleteUser;
   window.closeDeleteModal = closeDeleteModal;
@@ -647,86 +642,12 @@ document.addEventListener('DOMContentLoaded', function() {
   setTimeout(addClearButtons, 500);
   setTimeout(bindMissedToggleButtons, 500);
 
-  // Handle API refresh button
-  const refreshButton = document.getElementById('refreshApiButton');
-  const refreshForm = document.getElementById('refreshApiForm');
   const uploadButton = document.getElementById('uploadDatabaseButton');
   const uploadForm = document.getElementById('uploadDatabaseForm');
-
-  if (refreshButton) {
-    refreshButton.addEventListener('click', function() {
-      setElementHiddenById('refreshApiModal', false);
-    });
-  }
 
   if (uploadButton) {
     uploadButton.addEventListener('click', function() {
       setElementHiddenById('uploadDatabaseModal', false);
-    });
-  }
-
-  if (refreshForm) {
-    refreshForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      const year = document.getElementById('refreshYear').value;
-      const forceScoreUpdate = document.getElementById('forceScoreUpdate').checked;
-      const statusDiv = document.getElementById('refreshStatus');
-      const submitButton = this.querySelector('button[type="submit"]');
-
-      // Update UI
-      const forceUpdateMsg = forceScoreUpdate ? ' with force score update enabled' : '';
-      statusDiv.innerHTML = `<p class="alert success">Refreshing data from API${forceUpdateMsg}, please wait...</p>`;
-      submitButton.disabled = true;
-
-      // Make API request
-      fetch('/admin/api-refresh', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-CSRF-Token': getCsrfToken()
-        },
-        body: JSON.stringify({
-          year,
-          forceScoreUpdate
-        }),
-      })
-      .then(response => {
-        if (!response.ok) throw new Error(`Server error (${response.status})`);
-        return response.json();
-      })
-      .then(data => {
-        if (data.success) {
-          let statusHTML = `<p class="alert success">${data.message}</p>`;
-
-          // Add skipped games information if available
-          if (data.skippedGames && data.skippedGames.length > 0) {
-            statusHTML += '<div class="skipped-games">';
-            statusHTML += '<h4>Skipped Games:</h4>';
-            statusHTML += '<ul>';
-            data.skippedGames.forEach(game => {
-              statusHTML += `<li>${game}</li>`;
-            });
-            statusHTML += '</ul>';
-            statusHTML += '</div>';
-          }
-
-          statusDiv.innerHTML = statusHTML;
-        } else {
-          statusDiv.innerHTML = `<p class="alert error">${data.message}</p>`;
-        }
-
-        // Re-enable the button after 3 seconds
-        setTimeout(() => {
-          submitButton.disabled = false;
-        }, 3000);
-      })
-      .catch(error => {
-        console.error('Fetch error:', error);
-        statusDiv.innerHTML = `<p class="alert error">Error: ${error.message}</p>`;
-        submitButton.disabled = false;
-      });
     });
   }
 
@@ -834,10 +755,6 @@ document.addEventListener('DOMContentLoaded', function() {
       closeModal();
       return;
     }
-    if (target.closest('[data-action="close-refresh-modal"]')) {
-      closeRefreshModal();
-      return;
-    }
     if (target.closest('[data-action="close-upload-modal"]')) {
       closeUploadModal();
       return;
@@ -851,14 +768,11 @@ document.addEventListener('DOMContentLoaded', function() {
 // Close modal if user clicks outside of it
 window.onclick = function(event) {
   const resetModal = document.getElementById('resetPasswordModal');
-  const refreshModal = document.getElementById('refreshApiModal');
   const uploadModal = document.getElementById('uploadDatabaseModal');
   const deleteModal = document.getElementById('deleteUserModal');
 
   if (event.target === resetModal) {
     closeModal();
-  } else if (event.target === refreshModal) {
-    closeRefreshModal();
   } else if (event.target === uploadModal) {
     closeUploadModal();
   } else if (event.target === deleteModal) {

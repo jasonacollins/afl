@@ -10,6 +10,7 @@ function buildAdminScriptsDom() {
     <meta name="csrf-token" content="scripts-csrf-token">
     <div id="scriptsPageError" class="is-hidden"></div>
     <div id="activeRunBanner" class="is-hidden"></div>
+    <div data-run-scope="models"></div>
     <details id="catalogPanel">
       <summary>Model And Output Catalogue <span id="catalogResultCount"></span></summary>
       <select id="catalogScopeFilter">
@@ -139,6 +140,34 @@ function buildAdminScriptsDom() {
 
       <button type="submit">Run Predictions</button>
     </form>
+  `;
+}
+
+function buildAdminDataDom() {
+  return `
+    <meta name="csrf-token" content="data-csrf-token">
+    <div id="scriptsPageError" class="is-hidden"></div>
+    <div id="activeRunBanner" class="is-hidden"></div>
+    <div data-run-scope="data"></div>
+
+    <form class="script-run-form" data-script-key="sync-games" id="syncGamesForm">
+      <input id="syncYear" name="year" value="">
+      <input id="syncRound" name="round" value="">
+      <input id="syncGameId" name="gameId" value="">
+      <input id="syncTeamId" name="teamId" value="">
+      <input id="syncComplete" name="complete" value="">
+      <button type="submit">Run sync fixtures</button>
+    </form>
+
+    <form class="script-run-form" data-script-key="api-refresh" id="apiRefreshScriptForm">
+      <input id="apiRefreshYear" name="year" value="">
+      <input type="checkbox" id="apiRefreshForce" name="forceScoreUpdate">
+      <button type="submit">Run refresh results</button>
+    </form>
+
+    <div id="logRunLabel"></div>
+    <pre id="scriptLogsOutput">No logs loaded.</pre>
+    <table><tbody id="scriptRunHistoryBody"></tbody></table>
   `;
 }
 
@@ -319,7 +348,7 @@ describe('public/js/admin-scripts.js', () => {
   beforeEach(() => {
     jest.resetModules();
 
-    dom = createDom(buildAdminScriptsDom(), { url: 'https://example.test/admin/scripts' });
+    dom = createDom(buildAdminScriptsDom(), { url: 'https://example.test/admin/models' });
     restoreDomGlobals = installDomGlobals(dom);
     makeWritableSelectValue(dom.window.document.getElementById('guidedPredictionMode'), 'recommended');
     makeWritableSelectValue(dom.window.document.getElementById('trainOptimizationTarget'), 'win');
@@ -364,7 +393,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30') {
+      if (url === '/admin/api/script-runs?limit=30&scope=models') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -459,7 +488,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30' && !options) {
+      if (url === '/admin/api/script-runs?limit=30&scope=models' && !options) {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -543,6 +572,175 @@ describe('public/js/admin-scripts.js', () => {
     expect(document.getElementById('scriptLogsOutput').textContent).toContain('Predictions started');
   });
 
+  test('data page scopes history and submits data workflows through script runs', async () => {
+    restoreDomGlobals();
+    dom.window.close();
+    dom = createDom(buildAdminDataDom(), { url: 'https://example.test/admin/data' });
+    restoreDomGlobals = installDomGlobals(dom);
+    window.fetch = global.fetch;
+    window.setInterval = global.setInterval;
+    window.clearInterval = global.clearInterval;
+
+    let nextRunId = 70;
+    global.fetch.mockImplementation((url, options) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => buildMetadataResponse()
+        });
+      }
+
+      if (url === '/admin/api/script-runs?limit=30&scope=data' && !options) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            runs: [
+              {
+                run_id: 12,
+                script_key: 'sync-games',
+                status: 'completed',
+                created_at: '2026-04-03T09:00:00.000Z',
+                finished_at: '2026-04-03T09:10:00.000Z',
+                created_by_name: 'Admin'
+              }
+            ],
+            activeRun: null
+          })
+        });
+      }
+
+      if (url === '/admin/api/script-runs') {
+        const runId = nextRunId;
+        nextRunId += 1;
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            run: {
+              runId,
+              status: 'queued'
+            }
+          })
+        });
+      }
+
+      if (/^\/admin\/api\/script-runs\/7[01]\/logs\?afterSeq=0&limit=500$/.test(url)) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            logs: [],
+            lastSeq: 0
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('syncYear').value).toBe('2026');
+    expect(document.getElementById('apiRefreshYear').value).toBe('2026');
+    expect(document.getElementById('scriptRunHistoryBody').textContent).toContain('sync-games');
+    expect(document.getElementById('scriptRunHistoryBody').textContent).not.toContain('win-train');
+
+    document.getElementById('syncRound').value = '1';
+    document.getElementById('syncGamesForm').dispatchEvent(new window.Event('submit', {
+      bubbles: true,
+      cancelable: true
+    }));
+    await flushPromises();
+    await flushPromises();
+
+    document.getElementById('apiRefreshForce').checked = true;
+    document.getElementById('apiRefreshScriptForm').dispatchEvent(new window.Event('submit', {
+      bubbles: true,
+      cancelable: true
+    }));
+    await flushPromises();
+    await flushPromises();
+
+    const postCalls = global.fetch.mock.calls.filter(([url]) => url === '/admin/api/script-runs');
+    expect(postCalls).toHaveLength(2);
+    expect(postCalls[0][1].headers['X-CSRF-Token']).toBe('data-csrf-token');
+    expect(JSON.parse(postCalls[0][1].body)).toEqual({
+      scriptKey: 'sync-games',
+      params: {
+        year: '2026',
+        round: '1'
+      }
+    });
+    expect(JSON.parse(postCalls[1][1].body)).toEqual({
+      scriptKey: 'api-refresh',
+      params: {
+        year: '2026',
+        forceScoreUpdate: true
+      }
+    });
+  });
+
+  test('data page active banner blocks forms for model runs outside the filtered history', async () => {
+    restoreDomGlobals();
+    dom.window.close();
+    dom = createDom(buildAdminDataDom(), { url: 'https://example.test/admin/data' });
+    restoreDomGlobals = installDomGlobals(dom);
+    window.fetch = global.fetch;
+    window.setInterval = global.setInterval;
+    window.clearInterval = global.clearInterval;
+
+    global.fetch.mockImplementation((url) => {
+      if (url === '/admin/api/script-metadata') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => buildMetadataResponse()
+        });
+      }
+
+      if (url === '/admin/api/script-runs?limit=30&scope=data') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            success: true,
+            runs: [
+              {
+                run_id: 12,
+                script_key: 'sync-games',
+                status: 'completed',
+                created_at: '2026-04-03T09:00:00.000Z',
+                finished_at: '2026-04-03T09:10:00.000Z',
+                created_by_name: 'Admin'
+              }
+            ],
+            activeRun: {
+              run_id: 99,
+              script_key: 'win-train',
+              status: 'running',
+              created_at: '2026-04-03T10:00:00.000Z'
+            }
+          })
+        });
+      }
+
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    loadBrowserScript('admin-scripts.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+    await flushPromises();
+    await flushPromises();
+
+    expect(document.getElementById('scriptRunHistoryBody').textContent).toContain('sync-games');
+    expect(document.getElementById('scriptRunHistoryBody').textContent).not.toContain('win-train');
+    expect(document.getElementById('activeRunBanner').textContent).toContain('Run #99');
+    expect(document.getElementById('syncGamesForm').querySelector('button[type="submit"]').disabled).toBe(true);
+    expect(document.getElementById('apiRefreshScriptForm').querySelector('button[type="submit"]').disabled).toBe(true);
+  });
+
   test('loads selected run details and appends logs from history actions', async () => {
     global.fetch.mockImplementation((url) => {
       if (url === '/admin/api/script-metadata') {
@@ -552,7 +750,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30') {
+      if (url === '/admin/api/script-runs?limit=30&scope=models') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -631,7 +829,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30' && !options) {
+      if (url === '/admin/api/script-runs?limit=30&scope=models' && !options) {
         historyCallCount += 1;
         return Promise.resolve({
           ok: true,
@@ -727,7 +925,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30') {
+      if (url === '/admin/api/script-runs?limit=30&scope=models') {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -787,7 +985,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30') {
+      if (url === '/admin/api/script-runs?limit=30&scope=models') {
         if (refreshMode === 'pending') {
           return pendingRefresh;
         }
@@ -931,7 +1129,7 @@ describe('public/js/admin-scripts.js', () => {
         });
       }
 
-      if (url === '/admin/api/script-runs?limit=30') {
+      if (url === '/admin/api/script-runs?limit=30&scope=models') {
         return Promise.resolve({
           ok: true,
           json: async () => ({

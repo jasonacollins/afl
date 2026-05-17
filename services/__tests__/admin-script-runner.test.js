@@ -1033,6 +1033,23 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
     expect(getQuery).toHaveBeenCalledWith(expect.stringContaining('LIMIT ?'), [100]);
   });
 
+  test('listRuns applies include and exclude script key filters', async () => {
+    const { getQuery } = require('../../models/db');
+    getQuery.mockResolvedValue([]);
+
+    await adminScriptRunner.listRuns(5, { scriptKeys: ['sync-games', 'api-refresh'] });
+    expect(getQuery).toHaveBeenLastCalledWith(
+      expect.stringContaining('r.script_key IN (?, ?)'),
+      ['sync-games', 'api-refresh', 5]
+    );
+
+    await adminScriptRunner.listRuns(6, { excludeScriptKeys: ['sync-games', 'api-refresh'] });
+    expect(getQuery).toHaveBeenLastCalledWith(
+      expect.stringContaining('r.script_key NOT IN (?, ?)'),
+      ['sync-games', 'api-refresh', 6]
+    );
+  });
+
   test('getRunById returns mapped metadata and null when the run does not exist', async () => {
     getOne
       .mockResolvedValueOnce({

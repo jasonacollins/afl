@@ -79,7 +79,8 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 - Job orchestration lives in `services/admin-script-runner.js`.
 - Model/output catalogue discovery lives in `services/model-catalog-service.js` and should stay read-only.
 - Admin routes are exposed from `routes/admin.js`.
-- `/admin/scripts` is an intent-led workflow UI. Guided browser choices should map to existing script keys and params; do not add multi-script orchestration unless explicitly requested.
+- Keep `/admin/models` focused on model workflows and `/admin/data` focused on data maintenance actions.
+- Guided browser choices should map to existing script keys and params; do not add multi-script orchestration unless explicitly requested.
 - Only one admin script run may be active at a time.
 - Run metadata is stored in `admin_script_runs`.
 - Log files are stored under `logs/admin-scripts/`.

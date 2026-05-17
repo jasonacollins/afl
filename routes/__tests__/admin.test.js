@@ -86,10 +86,6 @@ jest.mock('../../services/featured-predictions', () => ({
   getDefaultFeaturedPredictorId: jest.fn()
 }));
 
-jest.mock('../../scripts/automation/api-refresh', () => ({
-  refreshAPIData: jest.fn()
-}));
-
 jest.mock('../../utils/logger', () => ({
   logger: {
     info: jest.fn(),
@@ -112,7 +108,6 @@ const adminScriptRunner = require('../../services/admin-script-runner');
 const resultUpdateService = require('../../services/result-update-service');
 const adminDatabaseService = require('../../services/admin-database-service');
 const featuredPredictionsService = require('../../services/featured-predictions');
-const { refreshAPIData } = require('../../scripts/automation/api-refresh');
 const adminRouter = require('../admin');
 const { createRouterTestApp } = require('./test-app');
 
@@ -227,24 +222,17 @@ describe('admin routes', () => {
     });
   });
 
-  test('GET /operations renders the admin operations page', async () => {
-    require('../../services/round-service').resolveYear.mockResolvedValue({
-      selectedYear: 2026,
-      years: [2026, 2025]
-    });
-
+  test('GET /models renders the admin models page', async () => {
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 1 }, isAdmin: true }
     });
 
-    const response = await request(app).get('/operations');
+    const response = await request(app).get('/models');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      view: 'admin-operations',
+      view: 'admin-models',
       locals: {
-        years: [2026, 2025],
-        selectedYear: 2026,
         isAdmin: true,
         success: null,
         error: null
@@ -252,22 +240,32 @@ describe('admin routes', () => {
     });
   });
 
-  test('GET /scripts renders the admin scripts page', async () => {
+  test('GET /data renders the admin data page', async () => {
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 1 }, isAdmin: true }
     });
 
-    const response = await request(app).get('/scripts');
+    const response = await request(app).get('/data');
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      view: 'admin-scripts',
+      view: 'admin-data',
       locals: {
         isAdmin: true,
         success: null,
         error: null
       }
     });
+  });
+
+  test('removed admin workflow URLs no longer resolve', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    await expect(request(app).get('/scripts')).resolves.toHaveProperty('status', 404);
+    await expect(request(app).get('/operations')).resolves.toHaveProperty('status', 404);
+    await expect(request(app).post('/api-refresh').send({ year: 2026 })).resolves.toHaveProperty('status', 404);
   });
 
   test('POST /api/script-runs validates missing scriptKey', async () => {
@@ -321,7 +319,7 @@ describe('admin routes', () => {
 
   test('GET /api/script-runs lists runs and active run id', async () => {
     adminScriptRunner.listRuns.mockResolvedValue([{ run_id: 2, status: 'running' }]);
-    adminScriptRunner.getExistingActiveRun.mockResolvedValue({ run_id: 2 });
+    adminScriptRunner.getExistingActiveRun.mockResolvedValue({ run_id: 2, script_key: 'win-train', status: 'running' });
 
     const app = createRouterTestApp(adminRouter, {
       sessionData: { user: { id: 1 }, isAdmin: true }
@@ -330,11 +328,31 @@ describe('admin routes', () => {
     const response = await request(app).get('/api/script-runs?limit=5');
 
     expect(response.status).toBe(200);
-    expect(adminScriptRunner.listRuns).toHaveBeenCalledWith(5);
+    expect(adminScriptRunner.listRuns).toHaveBeenCalledWith(5, {});
     expect(response.body).toEqual({
       success: true,
       runs: [{ run_id: 2, status: 'running' }],
-      activeRunId: 2
+      activeRunId: 2,
+      activeRun: { run_id: 2, script_key: 'win-train', status: 'running' }
+    });
+  });
+
+  test('GET /api/script-runs scopes data and model history filters', async () => {
+    adminScriptRunner.listRuns.mockResolvedValue([]);
+    adminScriptRunner.getExistingActiveRun.mockResolvedValue(null);
+
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    await request(app).get('/api/script-runs?limit=5&scope=data');
+    expect(adminScriptRunner.listRuns).toHaveBeenLastCalledWith(5, {
+      scriptKeys: ['sync-games', 'api-refresh']
+    });
+
+    await request(app).get('/api/script-runs?limit=5&scope=models');
+    expect(adminScriptRunner.listRuns).toHaveBeenLastCalledWith(5, {
+      excludeScriptKeys: ['sync-games', 'api-refresh']
     });
   });
 
@@ -857,32 +875,6 @@ describe('admin routes', () => {
     expect(response.status).toBe(302);
     expect(predictorService.deletePredictor).toHaveBeenCalledWith('8');
     expect(response.headers.location).toBe('/admin?success=User%20deleted%20successfully');
-  });
-
-  test('POST /api-refresh returns refresh results', async () => {
-    refreshAPIData.mockResolvedValue({
-      success: true,
-      insertCount: 1,
-      updateCount: 2,
-      scoresUpdated: 3
-    });
-
-    const app = createRouterTestApp(adminRouter, {
-      sessionData: { user: { id: 1 }, isAdmin: true }
-    });
-
-    const response = await request(app)
-      .post('/api-refresh')
-      .send({ year: 2026, forceScoreUpdate: true });
-
-    expect(response.status).toBe(200);
-    expect(refreshAPIData).toHaveBeenCalledWith(2026, { forceScoreUpdate: true });
-    expect(response.body).toEqual({
-      success: true,
-      insertCount: 1,
-      updateCount: 2,
-      scoresUpdated: 3
-    });
   });
 
   test('GET /export/predictions returns CSV output with scoring columns', async () => {

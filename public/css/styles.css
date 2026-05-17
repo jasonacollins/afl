@@ -1404,14 +1404,44 @@ textarea {
   }
 }
 
-.export-actions {
-  margin-bottom: 1.5rem;
-  text-align: right;
+.export-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
-.export-actions .button {
-  display: inline-block;
-  margin-left: 0.5rem;
+.export-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-height: 5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: white;
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+.export-action-card:hover {
+  border-color: var(--primary-color);
+  background-color: rgba(26, 115, 232, 0.05);
+  text-decoration: none;
+}
+
+.export-action-card span {
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.export-action-card small {
+  color: var(--light-text);
+  line-height: 1.35;
 }
 
 /* In public/css/styles.css */

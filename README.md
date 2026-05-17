@@ -8,7 +8,7 @@ AFL Predictions is a Node.js and Express application for AFL forecasting, leader
 - Scores predictors with tip points, Brier score, and bits score
 - Publishes a public predictions homepage, ELO page, simulation page, and stats page
 - Syncs fixtures and results from Squiggle
-- Provides an admin area for predictor management, user-prediction management, operational scripts, and database operations
+- Provides an admin area for predictor management, user-prediction editing, model workflows, and data operations
 
 ## Main Pages
 
@@ -19,8 +19,8 @@ AFL Predictions is a Node.js and Express application for AFL forecasting, leader
 - `/matches/stats` - leaderboard, round results, and cumulative standings
 - `/admin` - predictor management
 - `/admin/user-predictions` - user-prediction editing
-- `/admin/scripts` - admin scripts runner
-- `/admin/operations` - exports, uploads, and operational actions
+- `/admin/models` - model prediction, training, simulation, and ELO history workflows
+- `/admin/data` - fixture/result sync, exports, uploads, and database actions
 
 User-facing navigation is centered around `Model predictions`, `ELO`, and `Simulation`. The app also normalizes finals labels for display: pre-2026 seasons show `Finals Week 1`, while 2026 onward uses `Finals Week 2` and includes `Wildcard Finals`.
 
@@ -88,18 +88,9 @@ For detailed model-training and prediction workflows, see [scripts/README.md](sc
 
 ## Admin Workflows
 
-Admins can trigger allowlisted operational and model scripts from `/admin/scripts` without shell access. The page is task-led: start from `Make predictions`, `Train model`, `Update data`, `Run simulation`, or `Update ELO history`, then review the selected impact before starting a run.
+Admins can trigger allowlisted jobs without shell access. Model jobs run from `/admin/models`; data sync, exports, and database upload actions live under `/admin/data`.
 
-Supported workflows include:
-
-- fixture and result sync
-- prediction generation
-- win and margin model training
-- win-margin method optimization
-- ELO history regeneration
-- season simulation generation
-
-The model and output catalogue on the scripts page is a searchable reference for artifacts under `data/models`, `data/predictions`, `data/historical`, and `data/simulations`. It helps select the right model or output but does not move, promote, or overwrite artifacts.
+The model and output catalogue on the models page is a searchable reference for artifacts under `data/models`, `data/predictions`, `data/historical`, and `data/simulations`. It helps select the right model or output but does not move, promote, or overwrite artifacts.
 
 Operationally:
 

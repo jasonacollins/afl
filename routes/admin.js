@@ -17,6 +17,8 @@ const adminScriptRunner = require('../services/admin-script-runner');
 const resultUpdateService = require('../services/result-update-service');
 const adminDatabaseService = require('../services/admin-database-service');
 
+const DATA_SCRIPT_KEYS = ['sync-games', 'api-refresh'];
+
 // Require authentication and admin for all admin routes
 router.use(isAuthenticated);
 router.use(isAdmin);
@@ -44,15 +46,6 @@ async function getUserPredictionsViewModel(yearQuery) {
     years,
     selectedYear,
     selectedUser: null
-  };
-}
-
-async function getOperationsViewModel(yearQuery) {
-  const { selectedYear, years } = await roundService.resolveYear(yearQuery);
-
-  return {
-    years,
-    selectedYear
   };
 }
 
@@ -160,24 +153,20 @@ router.get('/user-predictions', catchAsync(async (req, res) => {
   });
 }));
 
-router.get('/operations', catchAsync(async (req, res) => {
-  logger.info(`Admin operations page accessed by user ${req.session.user.id}`);
+router.get('/models', catchAsync(async (req, res) => {
+  logger.info(`Admin models page accessed by user ${req.session.user.id}`);
 
-  const viewModel = await getOperationsViewModel(req.query.year);
-
-  res.render('admin-operations', {
-    ...viewModel,
+  res.render('admin-models', {
+    isAdmin: true,
     success: req.query.success || null,
-    error: req.query.error || null,
-    isAdmin: true
+    error: req.query.error || null
   });
 }));
 
-// Admin scripts runner page
-router.get('/scripts', catchAsync(async (req, res) => {
-  logger.info(`Admin scripts page accessed by user ${req.session.user.id}`);
+router.get('/data', catchAsync(async (req, res) => {
+  logger.info(`Admin data page accessed by user ${req.session.user.id}`);
 
-  res.render('admin-scripts', {
+  res.render('admin-data', {
     isAdmin: true,
     success: req.query.success || null,
     error: req.query.error || null
@@ -241,13 +230,22 @@ router.post('/api/script-runs', catchAsync(async (req, res) => {
 router.get('/api/script-runs', catchAsync(async (req, res) => {
   const rawLimit = Number.parseInt(req.query.limit, 10);
   const limit = Number.isInteger(rawLimit) ? rawLimit : 20;
-  const runs = await adminScriptRunner.listRuns(limit);
+  let listOptions = {};
+
+  if (req.query.scope === 'data') {
+    listOptions = { scriptKeys: DATA_SCRIPT_KEYS };
+  } else if (req.query.scope === 'models') {
+    listOptions = { excludeScriptKeys: DATA_SCRIPT_KEYS };
+  }
+
+  const runs = await adminScriptRunner.listRuns(limit, listOptions);
   const activeRun = await adminScriptRunner.getExistingActiveRun();
 
   res.json({
     success: true,
     runs,
-    activeRunId: activeRun ? activeRun.run_id : null
+    activeRunId: activeRun ? activeRun.run_id : null,
+    activeRun: activeRun || null
   });
 }));
 
@@ -751,31 +749,6 @@ router.post('/reset-password/:userId', async (req, res, next) => {
     next(error);
   }
 });
-
-// API refresh route
-router.post('/api-refresh', catchAsync(async (req, res) => {
-  const year = req.body.year || new Date().getFullYear();
-  const forceScoreUpdate = req.body.forceScoreUpdate === 'true' || req.body.forceScoreUpdate === true;
-  
-  logger.info(`API refresh initiated by admin ${req.session.user.id} for year ${year}`, {
-    forceScoreUpdate
-  });
-  
-  // Import the refreshAPIData function
-  const { refreshAPIData } = require('../scripts/automation/api-refresh');
-  
-  // Call the function with the year and options object
-  const result = await refreshAPIData(parseInt(year), { forceScoreUpdate });
-  
-  logger.info(`API refresh completed for year ${year}`, {
-    success: result.success,
-    insertCount: result.insertCount,
-    updateCount: result.updateCount,
-    scoresUpdated: result.scoresUpdated
-  });
-  
-  return res.json(result);
-}));
 
 // Delete user route
 router.post('/delete-user/:userId', async (req, res, next) => {

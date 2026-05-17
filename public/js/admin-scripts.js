@@ -336,6 +336,17 @@
     });
   }
 
+  function getRunScope() {
+    const scope = document.querySelector('[data-run-scope]')?.getAttribute('data-run-scope') || '';
+    return ['models', 'data'].includes(scope) ? scope : '';
+  }
+
+  function getRunsUrl() {
+    const scope = getRunScope();
+    const suffix = scope ? `&scope=${encodeURIComponent(scope)}` : '';
+    return `/admin/api/script-runs?limit=30${suffix}`;
+  }
+
   function getGuidedPredictionMode() {
     return getEl('guidedPredictionMode')?.value === 'marginOnly' ? 'marginOnly' : 'recommended';
   }
@@ -941,23 +952,24 @@
   }
 
   async function refreshRuns() {
-    const response = await fetch('/admin/api/script-runs?limit=30');
+    const response = await fetch(getRunsUrl());
     const data = await response.json();
 
     if (!response.ok || !data.success) {
       throw new Error(data.error || 'Failed to load run history');
     }
 
-    renderHistory(data.runs);
+    const runs = Array.isArray(data.runs) ? data.runs : [];
+    renderHistory(runs);
 
-    const activeRun = Array.isArray(data.runs)
-      ? data.runs.find((run) => RUNNING_STATES.has(run.status))
-      : null;
+    const activeRun = data.activeRun
+      || runs.find((run) => RUNNING_STATES.has(run.status))
+      || null;
 
-    updateActiveRunBanner(activeRun || null);
+    updateActiveRunBanner(activeRun);
 
     if (selectedRunId !== null) {
-      const selected = data.runs.find((run) => run.run_id === selectedRunId);
+      const selected = runs.find((run) => run.run_id === selectedRunId);
       if (selected) {
         selectedRunStatus = selected.status;
         const logRunLabel = getEl('logRunLabel');

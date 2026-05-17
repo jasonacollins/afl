@@ -1418,8 +1418,28 @@ async function startScriptRun(scriptKey, params, adminUserId) {
   };
 }
 
-async function listRuns(limit = 20) {
+async function listRuns(limit = 20, options = {}) {
   const safeLimit = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 100)) : 20;
+  const scriptKeys = Array.isArray(options.scriptKeys)
+    ? options.scriptKeys.filter((key) => typeof key === 'string' && key.length > 0)
+    : [];
+  const excludeScriptKeys = Array.isArray(options.excludeScriptKeys)
+    ? options.excludeScriptKeys.filter((key) => typeof key === 'string' && key.length > 0)
+    : [];
+  const whereClauses = [];
+  const params = [];
+
+  if (scriptKeys.length > 0) {
+    whereClauses.push(`r.script_key IN (${scriptKeys.map(() => '?').join(', ')})`);
+    params.push(...scriptKeys);
+  }
+
+  if (excludeScriptKeys.length > 0) {
+    whereClauses.push(`r.script_key NOT IN (${excludeScriptKeys.map(() => '?').join(', ')})`);
+    params.push(...excludeScriptKeys);
+  }
+
+  params.push(safeLimit);
 
   const rows = await getQuery(
     `SELECT
@@ -1436,9 +1456,10 @@ async function listRuns(limit = 20) {
       COALESCE(p.display_name, p.name) AS created_by_name
      FROM admin_script_runs r
      LEFT JOIN predictors p ON p.predictor_id = r.created_by_predictor_id
+     ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
      ORDER BY r.created_at DESC
      LIMIT ?`,
-    [safeLimit]
+    params
   );
 
   return rows.map((row) => ({

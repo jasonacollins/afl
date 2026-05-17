@@ -4,8 +4,8 @@
   <div class="tab-navigation">
     <a href="/admin" class="tab">Predictor Management</a>
     <a href="/admin/user-predictions" class="tab">Manage User Predictions</a>
-    <a href="/admin/scripts" class="tab active">Scripts</a>
-    <a href="/admin/operations" class="tab">Operations</a>
+    <a href="/admin/models" class="tab active">Models</a>
+    <a href="/admin/data" class="tab">Data</a>
   </div>
 
   <% if (locals.success) { %>
@@ -20,7 +20,7 @@
 
   <div id="activeRunBanner" class="alert warning is-hidden"></div>
 
-  <div class="admin-container scripts-layout">
+  <div class="admin-container scripts-layout" data-run-scope="models">
     <div class="admin-section scripts-catalog-section">
       <details id="catalogPanel" class="catalog-panel">
         <summary>
@@ -56,10 +56,10 @@
     </div>
 
     <div class="admin-section workflow-shell">
-      <h2>Choose a task</h2>
+      <h2>Model Workflows</h2>
       <p>Only one run can be active at a time. The catalogue above is reference material; start from a task unless you already know the exact artifact you need.</p>
 
-      <div class="workflow-launcher" role="tablist" aria-label="Admin script tasks">
+      <div class="workflow-launcher" role="tablist" aria-label="Model workflow tasks">
         <button type="button" class="workflow-launcher-button is-active" data-workflow-target="predictionsWorkflow" role="tab" aria-selected="true">
           <span>Make predictions</span>
           <small>Publish future tips</small>
@@ -67,10 +67,6 @@
         <button type="button" class="workflow-launcher-button" data-workflow-target="trainingWorkflow" role="tab" aria-selected="false">
           <span>Train model</span>
           <small>Create model artifacts</small>
-        </button>
-        <button type="button" class="workflow-launcher-button" data-workflow-target="dataWorkflow" role="tab" aria-selected="false">
-          <span>Update data</span>
-          <small>Fixtures and scores</small>
         </button>
         <button type="button" class="workflow-launcher-button" data-workflow-target="simulationWorkflow" role="tab" aria-selected="false">
           <span>Run simulation</span>
@@ -372,66 +368,6 @@
               <button type="submit" class="button primary-button">Run margin training stage</button>
             </form>
           </div>
-        </div>
-      </section>
-
-      <section id="dataWorkflow" class="workflow-panel is-hidden" data-workflow-panel>
-        <div class="workflow-panel-heading">
-          <div>
-            <h3>Update data</h3>
-            <p>Use Sync Games for fixture bootstrap. Use API Refresh when fixtures already exist and you need score or status updates.</p>
-          </div>
-        </div>
-
-        <div class="workflow-two-column">
-          <form class="script-run-form workflow-stage" data-script-key="sync-games">
-            <h4>Sync games</h4>
-            <div class="form-group">
-              <label for="syncYear">Season</label>
-              <input type="number" id="syncYear" name="year" min="1990">
-            </div>
-            <details class="script-advanced">
-              <summary>Advanced sync filters</summary>
-              <div class="workflow-form-grid">
-                <div class="form-group">
-                  <label for="syncRound">Round</label>
-                  <input type="text" id="syncRound" name="round" placeholder="e.g. 1 or OR">
-                </div>
-                <div class="form-group">
-                  <label for="syncGameId">Game ID</label>
-                  <input type="number" id="syncGameId" name="gameId" min="1">
-                </div>
-                <div class="form-group">
-                  <label for="syncTeamId">Team ID</label>
-                  <input type="number" id="syncTeamId" name="teamId" min="1">
-                </div>
-                <div class="form-group">
-                  <label for="syncComplete">Complete %</label>
-                  <input type="number" id="syncComplete" name="complete" min="0" max="100">
-                </div>
-              </div>
-            </details>
-            <div class="workflow-review compact">
-              <strong>Impact:</strong> can create missing fixtures and update game metadata.
-            </div>
-            <button type="submit" class="button primary-button">Run sync games</button>
-          </form>
-
-          <form class="script-run-form workflow-stage" data-script-key="api-refresh">
-            <h4>API refresh</h4>
-            <div class="form-group">
-              <label for="apiRefreshYear">Season</label>
-              <input type="number" id="apiRefreshYear" name="year" min="1990" required>
-            </div>
-            <div class="form-group checkbox">
-              <input type="checkbox" id="apiRefreshForce" name="forceScoreUpdate">
-              <label for="apiRefreshForce">Force score update</label>
-            </div>
-            <div class="workflow-review compact">
-              <strong>Impact:</strong> updates existing fixtures only; it does not bootstrap a missing season.
-            </div>
-            <button type="submit" class="button primary-button">Run API refresh</button>
-          </form>
         </div>
       </section>
 

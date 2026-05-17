@@ -36,19 +36,11 @@ describe('public/js/admin.js', () => {
         <form id="resetPasswordForm"></form>
         <input id="newPassword" value="existing">
       </div>
-      <div id="refreshApiModal" class="is-hidden"></div>
       <div id="uploadDatabaseModal" class="is-hidden"></div>
       <div id="deleteUserModal" class="is-hidden">
         <span id="deleteUserName"></span>
         <form id="deleteUserForm"></form>
       </div>
-      <button id="refreshApiButton">Refresh API</button>
-      <form id="refreshApiForm">
-        <input id="refreshYear" value="2026">
-        <input id="forceScoreUpdate" type="checkbox">
-        <div id="refreshStatus"></div>
-        <button type="submit">Run Refresh</button>
-      </form>
       <button id="uploadDatabaseButton">Upload DB</button>
       <form id="uploadDatabaseForm">
         <input id="databaseFile" type="file">
@@ -427,42 +419,6 @@ describe('public/js/admin.js', () => {
     expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('<p>metrics</p>');
   });
 
-  test('refresh API form includes forceScoreUpdate and renders skipped game details', async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        message: 'Refresh completed',
-        skippedGames: ['Cats vs Swans', 'Lions vs Dockers']
-      })
-    });
-
-    loadBrowserScript('admin.js');
-    document.dispatchEvent(new window.Event('DOMContentLoaded'));
-
-    document.getElementById('forceScoreUpdate').checked = true;
-    document.getElementById('refreshApiForm').dispatchEvent(new window.Event('submit', {
-      bubbles: true,
-      cancelable: true
-    }));
-    await flushPromises();
-
-    expect(global.fetch).toHaveBeenCalledWith('/admin/api-refresh', expect.objectContaining({
-      method: 'POST',
-      headers: expect.objectContaining({
-        'X-CSRF-Token': 'admin-csrf-token'
-      })
-    }));
-    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
-      year: '2026',
-      forceScoreUpdate: true
-    });
-    expect(document.getElementById('refreshStatus').textContent).toContain('Refresh completed');
-    expect(document.getElementById('refreshStatus').textContent).toContain('Skipped Games');
-    expect(document.getElementById('refreshStatus').textContent).toContain('Cats vs Swans');
-    expect(document.querySelector('#refreshApiForm button[type="submit"]').disabled).toBe(false);
-  });
-
   test('upload form blocks submission when no database file is selected', () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
@@ -608,37 +564,6 @@ describe('public/js/admin.js', () => {
     expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('');
   });
 
-  test('refresh form submits API refresh options and renders skipped games', async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        success: true,
-        message: 'Refresh complete',
-        skippedGames: ['Game A', 'Game B']
-      })
-    });
-
-    loadBrowserScript('admin.js');
-    document.dispatchEvent(new window.Event('DOMContentLoaded'));
-
-    document.getElementById('forceScoreUpdate').checked = true;
-    document.getElementById('refreshApiForm').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    await flushPromises();
-
-    expect(global.fetch).toHaveBeenCalledWith('/admin/api-refresh', expect.objectContaining({
-      method: 'POST',
-      headers: expect.objectContaining({
-        'X-CSRF-Token': 'admin-csrf-token'
-      })
-    }));
-    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
-      year: '2026',
-      forceScoreUpdate: true
-    });
-    expect(document.getElementById('refreshStatus').innerHTML).toContain('Refresh complete');
-    expect(document.getElementById('refreshStatus').innerHTML).toContain('Skipped Games');
-  });
-
   test('upload form requires a database file and reloads after a successful upload', async () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
@@ -672,27 +597,14 @@ describe('public/js/admin.js', () => {
     expect(window.location.reload).toHaveBeenCalled();
   });
 
-  test('refresh form and upload form re-enable their submit buttons after failure responses', async () => {
+  test('upload form re-enables its submit button after failure responses', async () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
 
-    global.fetch
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: false, message: 'Refresh blocked' })
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: false, message: 'Upload blocked' })
-      });
-
-    const refreshForm = document.getElementById('refreshApiForm');
-    const refreshSubmit = refreshForm.querySelector('button[type="submit"]');
-    refreshForm.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    await flushPromises();
-
-    expect(document.getElementById('refreshStatus').innerHTML).toContain('Refresh blocked');
-    expect(refreshSubmit.disabled).toBe(false);
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: false, message: 'Upload blocked' })
+    });
 
     const fileInput = document.getElementById('databaseFile');
     setInputFiles(fileInput, [{ name: 'afl_predictions.db' }]);
@@ -734,26 +646,22 @@ describe('public/js/admin.js', () => {
     expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(true);
   });
 
-  test('button click handlers open refresh and upload modals, and outside clicks close each modal type', () => {
+  test('button click handlers open upload modal, and outside clicks close each modal type', () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
 
-    document.getElementById('refreshApiButton').click();
     document.getElementById('uploadDatabaseButton').click();
     window.showResetPasswordForm('12', 'Alice');
     window.confirmDeleteUser('21', 'Bob');
 
-    expect(document.getElementById('refreshApiModal').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('uploadDatabaseModal').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('resetPasswordModal').classList.contains('is-hidden')).toBe(false);
     expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(false);
 
-    window.onclick({ target: document.getElementById('refreshApiModal') });
     window.onclick({ target: document.getElementById('uploadDatabaseModal') });
     window.onclick({ target: document.getElementById('resetPasswordModal') });
     window.onclick({ target: document.getElementById('deleteUserModal') });
 
-    expect(document.getElementById('refreshApiModal').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('uploadDatabaseModal').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('resetPasswordModal').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('deleteUserModal').classList.contains('is-hidden')).toBe(true);

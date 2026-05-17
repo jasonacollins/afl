@@ -1,0 +1,156 @@
+<%- include('partials/header') %>
+
+<div class="container">
+  <div class="tab-navigation">
+    <a href="/admin" class="tab">Predictor Management</a>
+    <a href="/admin/user-predictions" class="tab">Manage User Predictions</a>
+    <a href="/admin/models" class="tab">Models</a>
+    <a href="/admin/data" class="tab active">Data</a>
+  </div>
+
+  <% if (locals.success) { %>
+    <div class="alert success"><%= success %></div>
+  <% } %>
+
+  <% if (locals.error) { %>
+    <div class="alert error"><%= error %></div>
+  <% } %>
+
+  <div id="scriptsPageError" class="alert error is-hidden"></div>
+
+  <div id="activeRunBanner" class="alert warning is-hidden"></div>
+
+  <div class="admin-container scripts-layout" data-run-scope="data">
+    <div class="admin-section workflow-shell">
+      <h2>Data Workflows</h2>
+      <p>Use Sync Games to bootstrap missing fixtures. Use API Refresh when fixtures already exist and need score or status updates.</p>
+
+      <div class="workflow-two-column">
+        <form class="script-run-form workflow-stage" data-script-key="sync-games">
+          <h4>Sync fixtures</h4>
+          <div class="form-group">
+            <label for="syncYear">Season</label>
+            <input type="number" id="syncYear" name="year" min="1990">
+          </div>
+          <details class="script-advanced">
+            <summary>Advanced sync filters</summary>
+            <div class="workflow-form-grid">
+              <div class="form-group">
+                <label for="syncRound">Round</label>
+                <input type="text" id="syncRound" name="round" placeholder="e.g. 1 or OR">
+              </div>
+              <div class="form-group">
+                <label for="syncGameId">Game ID</label>
+                <input type="number" id="syncGameId" name="gameId" min="1">
+              </div>
+              <div class="form-group">
+                <label for="syncTeamId">Team ID</label>
+                <input type="number" id="syncTeamId" name="teamId" min="1">
+              </div>
+              <div class="form-group">
+                <label for="syncComplete">Complete %</label>
+                <input type="number" id="syncComplete" name="complete" min="0" max="100">
+              </div>
+            </div>
+          </details>
+          <div class="workflow-review compact">
+            <strong>Impact:</strong> can create missing fixtures and update game metadata.
+          </div>
+          <button type="submit" class="button primary-button">Run sync fixtures</button>
+        </form>
+
+        <form class="script-run-form workflow-stage" data-script-key="api-refresh">
+          <h4>Refresh results</h4>
+          <div class="form-group">
+            <label for="apiRefreshYear">Season</label>
+            <input type="number" id="apiRefreshYear" name="year" min="1990" required>
+          </div>
+          <details class="script-advanced danger-zone">
+            <summary>Advanced refresh options</summary>
+            <div class="form-group checkbox">
+              <input type="checkbox" id="apiRefreshForce" name="forceScoreUpdate">
+              <label for="apiRefreshForce">Force score update</label>
+            </div>
+          </details>
+          <div class="workflow-review compact">
+            <strong>Impact:</strong> updates existing fixtures only; it does not bootstrap a missing season.
+          </div>
+          <button type="submit" class="button primary-button">Run refresh results</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>Exports And Database Actions</h2>
+      <p>Export prediction data, download a database snapshot, or replace the database from an upload.</p>
+
+      <div class="export-action-grid">
+        <a href="/admin/export/predictions" class="export-action-card">
+          <span>Export predictions</span>
+          <small>Download every prediction as CSV for analysis or archiving.</small>
+        </a>
+        <a href="/admin/export/database" class="export-action-card">
+          <span>Export database</span>
+          <small>Download a SQLite snapshot before maintenance or risky changes.</small>
+        </a>
+        <button id="uploadDatabaseButton" type="button" class="export-action-card">
+          <span>Upload database</span>
+          <small>Validate and replace the live database from a SQLite file.</small>
+        </button>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>Run History</h2>
+      <div class="history-table-wrapper">
+        <table class="admin-table" id="scriptRunHistoryTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Script</th>
+              <th>Status</th>
+              <th>Started</th>
+              <th>Finished</th>
+              <th>By</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="scriptRunHistoryBody">
+            <tr>
+              <td colspan="7">Loading history...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h2>Run Logs</h2>
+      <p id="logRunLabel">Select a run from history to view logs.</p>
+      <pre id="scriptLogsOutput" class="script-logs-output">No logs loaded.</pre>
+    </div>
+  </div>
+</div>
+
+<div id="uploadDatabaseModal" class="modal is-hidden">
+  <div class="modal-content">
+    <span class="close" data-action="close-upload-modal">&times;</span>
+    <h3>Upload Database</h3>
+    <div class="warning-message">
+      <strong>Warning:</strong> This will replace the entire database. Make sure you have a backup!
+    </div>
+    <form id="uploadDatabaseForm" enctype="multipart/form-data">
+      <div class="form-group">
+        <label for="databaseFile">Select SQLite Database File:</label>
+        <input type="file" id="databaseFile" name="databaseFile" accept=".db,.sqlite" required>
+      </div>
+      <div id="uploadStatus"></div>
+      <button type="submit" class="button primary-button">Upload & Replace Database</button>
+    </form>
+  </div>
+</div>
+
+<script src="<%= assetPath('/js/admin.js') %>"></script>
+<script src="<%= assetPath('/js/admin-scripts.js') %>"></script>
+
+<%- include('partials/footer') %>
