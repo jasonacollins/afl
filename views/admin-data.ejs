@@ -54,7 +54,7 @@
             </div>
           </details>
           <div class="workflow-review compact">
-            <strong>Impact:</strong> can create missing fixtures and update game metadata.
+            Adds missing fixtures and updates existing game details from Squiggle.
           </div>
           <button type="submit" class="button primary-button">Run sync fixtures</button>
         </form>
@@ -65,7 +65,7 @@
             <label for="apiRefreshYear">Season</label>
             <input type="number" id="apiRefreshYear" name="year" min="1990" required>
           </div>
-          <details class="script-advanced danger-zone">
+          <details class="script-advanced">
             <summary>Advanced refresh options</summary>
             <div class="form-group checkbox">
               <input type="checkbox" id="apiRefreshForce" name="forceScoreUpdate">
@@ -73,7 +73,7 @@
             </div>
           </details>
           <div class="workflow-review compact">
-            <strong>Impact:</strong> updates existing fixtures only; it does not bootstrap a missing season.
+            Updates existing fixtures only; it does not bootstrap a missing season.
           </div>
           <button type="submit" class="button primary-button">Run refresh results</button>
         </form>
