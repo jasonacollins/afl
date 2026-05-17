@@ -138,6 +138,14 @@ def test_win_train_main_uses_loaded_parameters_and_writes_margin_artifact(monkey
     )
     monkeypatch.setattr(
         win_train_module,
+        'optimize_margin_methods_for_model',
+        lambda model_path, **kwargs: captured.update(
+            margin_methods_model_path=Path(model_path),
+            margin_methods_kwargs=kwargs,
+        ) or ({'artifact_type': 'win_margin_methods'}, kwargs['output_path']),
+    )
+    monkeypatch.setattr(
+        win_train_module,
         'train_margin_model',
         lambda data, model, margin_params: captured.update(
             margin_training=(data, model, margin_params)
@@ -150,6 +158,16 @@ def test_win_train_main_uses_loaded_parameters_and_writes_margin_artifact(monkey
     assert captured['train_params'] == loaded_params
     assert captured['model_path'] == output_dir / 'afl_elo_win_trained_to_2025.json'
     assert captured['csv_path'] == Path('data/predictions/win/afl_elo_win_trained_to_2025_predictions.csv')
+    assert captured['margin_methods_model_path'] == output_dir / 'afl_elo_win_trained_to_2025.json'
+    assert captured['margin_methods_kwargs'] == {
+        'db_path': str(db_path),
+        'start_year': 2024,
+        'end_year': 2025,
+        'n_calls': 100,
+        'random_seed': 42,
+        'output_path': str(output_dir / 'optimal_margin_methods_trained_to_2025.json'),
+        'generated_by': 'elo_win_train.py',
+    }
     assert captured['model_data']['performance_metrics'] == {
         'accuracy': 0.75,
         'brier_score': 0.18,

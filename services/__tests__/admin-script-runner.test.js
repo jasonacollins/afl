@@ -112,6 +112,75 @@ describe('Admin Script Runner - win margin methods command builder', () => {
       predictorId: 8
     })).rejects.toThrow('marginMethodsPath must reference an optimal_margin_methods artifact');
   });
+
+  test('derives a compatible margin adapter from the selected win model', async () => {
+    const readdirSpy = jest.spyOn(fs, 'readdir').mockImplementation((directoryPath) => {
+      const directory = String(directoryPath);
+      if (directory.endsWith('data/models/win')) {
+        return Promise.resolve([
+          { name: 'afl_elo_win_trained_to_2025.json', isFile: () => true },
+          { name: 'optimal_margin_methods_trained_to_2025.json', isFile: () => true }
+        ]);
+      }
+      if (directory.endsWith('data/models/margin')) {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve([]);
+    });
+
+    try {
+      const commandSpec = await buildScriptCommand('win-margin-methods-predictions', {
+        startYear: 2026,
+        winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+        predictorId: 8
+      });
+
+      expect(commandSpec.args).toEqual(expect.arrayContaining([
+        '--margin-methods', 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+      ]));
+      expect(commandSpec.normalizedParams.marginMethodsPath)
+        .toBe('data/models/win/optimal_margin_methods_trained_to_2025.json');
+    } finally {
+      readdirSpy.mockRestore();
+    }
+  });
+
+  test('rejects mismatched win model and margin adapter unless bypassed', async () => {
+    const readdirSpy = jest.spyOn(fs, 'readdir').mockImplementation((directoryPath) => {
+      const directory = String(directoryPath);
+      if (directory.endsWith('data/models/win')) {
+        return Promise.resolve([
+          { name: 'afl_elo_win_trained_to_2025.json', isFile: () => true },
+          { name: 'optimal_margin_methods_trained_to_2024.json', isFile: () => true }
+        ]);
+      }
+      if (directory.endsWith('data/models/margin')) {
+        return Promise.resolve([]);
+      }
+      return Promise.resolve([]);
+    });
+
+    try {
+      await expect(buildScriptCommand('win-margin-methods-predictions', {
+        startYear: 2026,
+        winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+        marginMethodsPath: 'data/models/win/optimal_margin_methods_trained_to_2024.json',
+        predictorId: 8
+      })).rejects.toThrow('marginMethodsPath is not compatible with winModelPath');
+
+      await expect(buildScriptCommand('win-margin-methods-predictions', {
+        startYear: 2026,
+        winModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+        marginMethodsPath: 'data/models/win/optimal_margin_methods_trained_to_2024.json',
+        predictorId: 8,
+        allowModelMismatch: true
+      })).resolves.toEqual(expect.objectContaining({
+        command: 'python3'
+      }));
+    } finally {
+      readdirSpy.mockRestore();
+    }
+  });
 });
 
 describe('Admin Script Runner - win margin methods optimize command builder', () => {
@@ -333,15 +402,14 @@ describe('Admin Script Runner - additional command builder coverage', () => {
     ]));
   });
 
-  test('builds win-train command with optional params and margin methods artifacts', async () => {
+  test('builds win-train command with automatic margin adapter fitting', async () => {
     const commandSpec = await buildScriptCommand('win-train', {
       startYear: 1990,
       endYear: 2025,
       noTuneParameters: true,
       cvFolds: 5,
       maxCombinations: 1200,
-      paramsFile: 'data/models/win/optimal_elo_params_win_trained_to_2024.json',
-      marginParams: 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+      paramsFile: 'data/models/win/optimal_elo_params_win_trained_to_2024.json'
     });
 
     expect(commandSpec.command).toBe('python3');
@@ -351,16 +419,14 @@ describe('Admin Script Runner - additional command builder coverage', () => {
       '--end-year', '2025',
       '--cv-folds', '5',
       '--max-combinations', '1200',
+      '--margin-methods-n-calls', '100',
+      '--margin-methods-random-seed', '42',
       '--no-tune-parameters',
-      '--params-file', 'data/models/win/optimal_elo_params_win_trained_to_2024.json',
-      '--margin-params', 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+      '--params-file', 'data/models/win/optimal_elo_params_win_trained_to_2024.json'
     ]));
-  });
-
-  test('rejects non-margin-methods artifacts for win-train marginParams', async () => {
-    await expect(buildScriptCommand('win-train', {
-      marginParams: 'data/models/win/optimal_elo_params_win_trained_to_2025.json'
-    })).rejects.toThrow('marginParams must reference an optimal_margin_methods artifact');
+    expect(commandSpec.normalizedParams.marginMethodsNCalls).toBe(100);
+    expect(commandSpec.normalizedParams.marginMethodsRandomSeed).toBe(42);
+    expect(commandSpec.normalizedParams.marginParams).toBeUndefined();
   });
 
   test('accepts string boolean form inputs for margin predictions', async () => {
@@ -952,8 +1018,43 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
       })
     ]));
     expect(metadata.outputCatalog.outputs).toEqual(expect.any(Array));
+    expect(metadata.predictionProfiles.winFirst).toEqual(expect.objectContaining({
+      mode: 'winFirst',
+      scriptKey: 'win-margin-methods-predictions',
+      label: 'Win-first model',
+      predictorId: 8,
+      outputDir: 'data/predictions/win',
+      isCompatible: true,
+      produces: ['home_win_probability', 'predicted_margin'],
+      winModel: expect.objectContaining({
+        path: 'data/models/win/afl_elo_win_trained_to_2025.json'
+      }),
+      marginMethods: expect.objectContaining({
+        path: 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+      }),
+      adaptersByWinModelPath: expect.objectContaining({
+        'data/models/win/afl_elo_win_trained_to_2025.json': expect.objectContaining({
+          isCompatible: true,
+          marginMethods: expect.objectContaining({
+            path: 'data/models/win/optimal_margin_methods_trained_to_2025.json'
+          })
+        })
+      })
+    }));
+    expect(metadata.predictionProfiles.marginFirst).toEqual(expect.objectContaining({
+      mode: 'marginFirst',
+      scriptKey: 'margin-predictions',
+      label: 'Margin-first model',
+      predictorId: 1,
+      outputDir: 'data/predictions/margin',
+      produces: ['home_win_probability', 'predicted_margin'],
+      model: expect.objectContaining({
+        path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json'
+      })
+    }));
     expect(metadata.recommendedBundles.predictions.primary).toEqual(expect.objectContaining({
       scriptKey: 'win-margin-methods-predictions',
+      label: 'Win-first model',
       predictorId: 8,
       winModel: expect.objectContaining({
         path: 'data/models/win/afl_elo_win_trained_to_2025.json'
@@ -964,6 +1065,7 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
     }));
     expect(metadata.recommendedBundles.predictions.marginOnly).toEqual(expect.objectContaining({
       scriptKey: 'margin-predictions',
+      label: 'Margin-first model',
       predictorId: 1,
       model: expect.objectContaining({
         path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json'
@@ -987,6 +1089,52 @@ describe('Admin Script Runner - metadata and log edge cases', () => {
     expect(metadata.modelFiles.win).toEqual([]);
     expect(metadata.modelFiles.margin).toEqual([]);
     expect(metadata.defaults.predictorId).toBe(6);
+  });
+
+  test('getScriptMetadata does not auto-select an incompatible win-first adapter', async () => {
+    const { getQuery } = require('../../models/db');
+
+    readdirSpy.mockImplementation((directoryPath) => {
+      const directory = String(directoryPath);
+      if (directory.endsWith('data/models/win')) {
+        return Promise.resolve([
+          { name: 'afl_elo_win_trained_to_2025.json', isFile: () => true },
+          { name: 'optimal_margin_methods_trained_to_2024.json', isFile: () => true }
+        ]);
+      }
+      if (directory.endsWith('data/models/margin')) {
+        return Promise.resolve([
+          { name: 'afl_elo_margin_only_trained_to_2025.json', isFile: () => true }
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    getQuery.mockResolvedValue([
+      { predictor_id: 8, display_name: 'Testing Predictor' }
+    ]);
+
+    const metadata = await adminScriptRunner.getScriptMetadata();
+
+    expect(metadata.predictionProfiles.winFirst).toEqual(expect.objectContaining({
+      isCompatible: false,
+      winModel: null,
+      marginMethods: null,
+      warnings: expect.arrayContaining([
+        'No compatible win-first ratings and margin adapter pair could be inferred from metadata.'
+      ])
+    }));
+    expect(metadata.predictionProfiles.winFirst.fallbackWinModel).toEqual(expect.objectContaining({
+      path: 'data/models/win/afl_elo_win_trained_to_2025.json'
+    }));
+    expect(metadata.predictionProfiles.winFirst.fallbackMarginMethods).toEqual(expect.objectContaining({
+      path: 'data/models/win/optimal_margin_methods_trained_to_2024.json'
+    }));
+    expect(metadata.predictionProfiles.winFirst.adaptersByWinModelPath).toEqual(expect.objectContaining({
+      'data/models/win/afl_elo_win_trained_to_2025.json': expect.objectContaining({
+        isCompatible: false,
+        marginMethods: null
+      })
+    }));
   });
 
   test('buildScriptCommand rejects paths outside the project root', async () => {

@@ -30,18 +30,16 @@ function buildAdminScriptsDom() {
 
     <form class="script-run-form" data-script-key="guided-predictions">
       <select id="guidedPredictionMode" name="predictionMode">
-        <option value="recommended" selected>Recommended bundle</option>
-        <option value="marginOnly">Margin-only</option>
+        <option value="winFirst" selected>Win-first model</option>
+        <option value="marginFirst">Margin-first model</option>
       </select>
       <input id="guidedPredictionYear" name="startYear" value="">
       <select id="guidedPredictionPredictorId" name="predictorId"></select>
-      <div data-guided-prediction-mode-panel="recommended" id="guidedRecommendedWinPanel">
+      <div data-guided-prediction-mode-panel="winFirst" id="guidedRecommendedWinPanel">
         <select id="guidedPredictionWinModelPath" name="winModelPath"></select>
       </div>
-      <div data-guided-prediction-mode-panel="recommended" id="guidedRecommendedMethodsPanel">
-        <select id="guidedPredictionMarginMethodsPath" name="marginMethodsPath"></select>
-      </div>
-      <div data-guided-prediction-mode-panel="marginOnly" id="guidedMarginOnlyPanel">
+      <input type="hidden" id="guidedPredictionMarginMethodsPath" name="marginMethodsPath">
+      <div data-guided-prediction-mode-panel="marginFirst" id="guidedMarginOnlyPanel">
         <select id="guidedPredictionMarginModelPath" name="modelPath"></select>
       </div>
       <input type="hidden" id="guidedPredictionSaveToDb" name="saveToDb" value="true">
@@ -54,11 +52,14 @@ function buildAdminScriptsDom() {
         <input id="guidedPredictionOutputDir" name="outputDir" value="">
         <input id="guidedPredictionMethodOverride" name="methodOverride" value="">
       </details>
+      <p id="guidedPredictionProfileWarning" class="is-hidden"></p>
       <div id="guidedPredictionReview">
         <span id="guidedPredictionReviewPredictor"></span>
         <span id="guidedPredictionReviewSeason"></span>
         <span id="guidedPredictionReviewArtifacts"></span>
+        <span id="guidedPredictionReviewMarginAdapter"></span>
         <span id="guidedPredictionReviewOutput"></span>
+        <span id="guidedPredictionReviewProduces"></span>
         <span id="guidedPredictionReviewSafety"></span>
       </div>
       <button type="submit">Run prediction workflow</button>
@@ -125,7 +126,6 @@ function buildAdminScriptsDom() {
       <select id="historyModelPath" name="historyModelPath"></select>
       <select id="combinedMarginModelPath" name="marginModelPath"></select>
       <select id="winTrainParamsFile" name="winTrainParamsFile"></select>
-      <select id="winTrainMarginParams" name="winTrainMarginParams"></select>
       <select id="marginTrainParamsFile" name="marginTrainParamsFile"></select>
       <select id="winMarginMethodsOptimizeEloParamsPath" name="winMarginMethodsOptimizeEloParamsPath"></select>
       <select id="combinedPredictorId" name="combinedPredictorId"></select>
@@ -194,6 +194,7 @@ function buildMetadataResponse() {
         'data/models/win/afl_elo_win_trained_to_2024.json',
         'data/models/win/afl_elo_win_trained_to_2025.json',
         'data/models/win/optimal_elo_params_win_trained_to_2025.json',
+        'data/models/win/optimal_margin_methods_trained_to_2024.json',
         'data/models/win/optimal_margin_methods_trained_to_2025.json'
       ],
       margin: [
@@ -205,6 +206,7 @@ function buildMetadataResponse() {
         'data/models/margin/afl_elo_margin_only_trained_to_2025.json'
       ],
       winMarginMethods: [
+        'data/models/win/optimal_margin_methods_trained_to_2024.json',
         'data/models/win/optimal_margin_methods_trained_to_2025.json'
       ]
     },
@@ -213,17 +215,17 @@ function buildMetadataResponse() {
         {
           path: 'data/models/win/afl_elo_win_trained_to_2024.json',
           kind: 'trained_win_model',
-          kindLabel: 'Win model',
+          kindLabel: 'Win-first ratings',
           trainedThroughYear: 2024,
-          label: 'Win model - trained through 2024 - Brier 0.2028 (afl_elo_win_trained_to_2024.json)',
+          label: 'Win-first ratings - trained through 2024 - Brier 0.2028 (afl_elo_win_trained_to_2024.json)',
           detail: 'training through 2024 | Brier 0.2028'
         },
         {
           path: 'data/models/win/afl_elo_win_trained_to_2025.json',
           kind: 'trained_win_model',
-          kindLabel: 'Win model',
+          kindLabel: 'Win-first ratings',
           trainedThroughYear: 2025,
-          label: 'Win model - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)',
+          label: 'Win-first ratings - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)',
           detail: 'training through 2025 | Brier 0.2027'
         },
         {
@@ -235,27 +237,35 @@ function buildMetadataResponse() {
           detail: 'training through 2025 | Log loss 0.2184'
         },
         {
+          path: 'data/models/win/optimal_margin_methods_trained_to_2024.json',
+          kind: 'win_margin_methods',
+          kindLabel: 'Win-first margin adapter',
+          trainedThroughYear: 2024,
+          label: 'Win-first margin adapter - trained 1990-2024 - MAE 32.01 (optimal_margin_methods_trained_to_2024.json)',
+          detail: 'training 1990-2024 | requires win model through 2024'
+        },
+        {
           path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
           kind: 'win_margin_methods',
-          kindLabel: 'Win margin methods',
+          kindLabel: 'Win-first margin adapter',
           trainedThroughYear: 2025,
-          label: 'Win margin methods - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)',
+          label: 'Win-first margin adapter - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)',
           detail: 'training 1990-2025 | requires win model through 2025'
         },
         {
           path: 'data/models/margin/afl_elo_margin_only_trained_to_2024.json',
           kind: 'trained_margin_model',
-          kindLabel: 'Margin model',
+          kindLabel: 'Margin-first model',
           trainedThroughYear: 2024,
-          label: 'Margin model - trained through 2024 - MAE 29.77 (afl_elo_margin_only_trained_to_2024.json)',
+          label: 'Margin-first model - trained through 2024 - MAE 29.77 (afl_elo_margin_only_trained_to_2024.json)',
           detail: 'training through 2024 | MAE 29.77'
         },
         {
           path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
           kind: 'trained_margin_model',
-          kindLabel: 'Margin model',
+          kindLabel: 'Margin-first model',
           trainedThroughYear: 2025,
-          label: 'Margin model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)',
+          label: 'Margin-first model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)',
           detail: 'training through 2025 | MAE 29.85'
         },
         {
@@ -273,16 +283,83 @@ function buildMetadataResponse() {
         {
           path: 'data/predictions/margin/margin_elo_predictions_2026_2026.csv',
           kind: 'margin_predictions',
-          kindLabel: 'Margin predictions',
-          label: 'Margin predictions - 2026 - 207 rows (margin_elo_predictions_2026_2026.csv)',
+          kindLabel: 'Margin-first predictions',
+          label: 'Margin-first predictions - 2026 - 207 rows (margin_elo_predictions_2026_2026.csv)',
           detail: ''
         }
       ]
+    },
+    predictionProfiles: {
+      winFirst: {
+        mode: 'winFirst',
+        scriptKey: 'win-margin-methods-predictions',
+        label: 'Win-first model',
+        predictorId: 7,
+        season: 2026,
+        outputDir: 'data/predictions/win',
+        saveToDb: true,
+        futureOnly: true,
+        overrideCompleted: false,
+        allowModelMismatch: false,
+        isCompatible: true,
+        produces: ['home_win_probability', 'predicted_margin'],
+        warnings: [],
+        winModel: {
+          path: 'data/models/win/afl_elo_win_trained_to_2025.json',
+          label: 'Win-first ratings - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)'
+        },
+        marginMethods: {
+          path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+          label: 'Win-first margin adapter - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)'
+        },
+        adaptersByWinModelPath: {
+          'data/models/win/afl_elo_win_trained_to_2024.json': {
+            isCompatible: true,
+            winModel: {
+              path: 'data/models/win/afl_elo_win_trained_to_2024.json',
+              label: 'Win-first ratings - trained through 2024 - Brier 0.2028 (afl_elo_win_trained_to_2024.json)'
+            },
+            marginMethods: {
+              path: 'data/models/win/optimal_margin_methods_trained_to_2024.json',
+              label: 'Win-first margin adapter - trained 1990-2024 - MAE 32.01 (optimal_margin_methods_trained_to_2024.json)'
+            }
+          },
+          'data/models/win/afl_elo_win_trained_to_2025.json': {
+            isCompatible: true,
+            winModel: {
+              path: 'data/models/win/afl_elo_win_trained_to_2025.json',
+              label: 'Win-first ratings - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)'
+            },
+            marginMethods: {
+              path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
+              label: 'Win-first margin adapter - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)'
+            }
+          }
+        }
+      },
+      marginFirst: {
+        mode: 'marginFirst',
+        scriptKey: 'margin-predictions',
+        label: 'Margin-first model',
+        predictorId: 6,
+        season: 2026,
+        outputDir: 'data/predictions/margin',
+        saveToDb: true,
+        overrideCompleted: false,
+        isCompatible: true,
+        produces: ['home_win_probability', 'predicted_margin'],
+        warnings: [],
+        model: {
+          path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
+          label: 'Margin-first model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)'
+        }
+      }
     },
     recommendedBundles: {
       predictions: {
         primary: {
           scriptKey: 'win-margin-methods-predictions',
+          label: 'Win-first model',
           predictorId: 7,
           season: 2026,
           outputDir: 'data/predictions/win',
@@ -292,15 +369,16 @@ function buildMetadataResponse() {
           allowModelMismatch: false,
           winModel: {
             path: 'data/models/win/afl_elo_win_trained_to_2025.json',
-            label: 'Win model - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)'
+            label: 'Win-first ratings - trained through 2025 - Brier 0.2027 (afl_elo_win_trained_to_2025.json)'
           },
           marginMethods: {
             path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
-            label: 'Win margin methods - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)'
+            label: 'Win-first margin adapter - trained 1990-2025 - MAE 31.76 (optimal_margin_methods_trained_to_2025.json)'
           }
         },
         marginOnly: {
           scriptKey: 'margin-predictions',
+          label: 'Margin-first model',
           predictorId: 6,
           season: 2026,
           outputDir: 'data/predictions/margin',
@@ -308,7 +386,7 @@ function buildMetadataResponse() {
           overrideCompleted: false,
           model: {
             path: 'data/models/margin/afl_elo_margin_only_trained_to_2025.json',
-            label: 'Margin model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)'
+            label: 'Margin-first model - trained through 2025 - MAE 29.85 (afl_elo_margin_only_trained_to_2025.json)'
           }
         }
       }
@@ -333,6 +411,13 @@ function makeWritableSelectValue(element, initialValue = '') {
   });
 }
 
+function selectOption(element, value) {
+  Array.from(element.options || []).forEach((option) => {
+    option.selected = String(option.value) === String(value);
+  });
+  element.value = String(value);
+}
+
 function getRefreshLoopCallback() {
   const intervalCall = global.setInterval.mock.calls[0];
   return intervalCall ? intervalCall[0] : null;
@@ -350,7 +435,8 @@ describe('public/js/admin-scripts.js', () => {
 
     dom = createDom(buildAdminScriptsDom(), { url: 'https://example.test/admin/models' });
     restoreDomGlobals = installDomGlobals(dom);
-    makeWritableSelectValue(dom.window.document.getElementById('guidedPredictionMode'), 'recommended');
+    makeWritableSelectValue(dom.window.document.getElementById('guidedPredictionMode'), 'winFirst');
+    makeWritableSelectValue(dom.window.document.getElementById('guidedPredictionPredictorId'), '');
     makeWritableSelectValue(dom.window.document.getElementById('trainOptimizationTarget'), 'win');
     makeWritableSelectValue(dom.window.document.getElementById('catalogScopeFilter'), 'models');
 
@@ -430,24 +516,33 @@ describe('public/js/admin-scripts.js', () => {
       .toContain('Brier 0.2027');
     expect(document.getElementById('guidedPredictionMarginMethodsPath').value)
       .toBe('data/models/win/optimal_margin_methods_trained_to_2025.json');
+    expect(document.getElementById('guidedPredictionMarginMethodsPath').type).toBe('hidden');
     expect(document.getElementById('guidedPredictionMarginModelPath').value)
       .toBe('data/models/margin/afl_elo_margin_only_trained_to_2025.json');
     expect(document.getElementById('marginTrainParamsFile').value)
       .toBe('data/models/margin/optimal_margin_only_elo_params_trained_to_2025.json');
-    expect(document.getElementById('guidedPredictionPredictorId').value).toBe('7');
+    expect(document.getElementById('guidedPredictionPredictorId').value).toBe('');
+    expect(document.getElementById('guidedPredictionPredictorId').options[0].textContent)
+      .toBe('Select target predictor');
+    expect(document.getElementById('guidedPredictionReviewPredictor').textContent).toBe('-');
     expect(document.getElementById('guidedPredictionReviewArtifacts').textContent)
-      .toContain('Win model - trained through 2025');
+      .toContain('Win-first ratings - trained through 2025');
+    expect(document.getElementById('guidedPredictionReviewMarginAdapter').textContent)
+      .toContain('optimal_margin_methods_trained_to_2025.json');
     expect(document.getElementById('guidedPredictionReviewOutput').textContent)
       .toContain('data/predictions/win');
+    expect(document.getElementById('guidedPredictionReviewProduces').textContent)
+      .toContain('home_win_probability + predicted_margin');
     expect(document.getElementById('guidedPredictionReviewSafety').textContent)
       .toContain('left untouched');
+    expect(document.getElementById('guidedPredictionProfileWarning').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('guidedPredictionAdvanced').hasAttribute('open')).toBe(false);
     expect(document.getElementById('catalogPanel').hasAttribute('open')).toBe(false);
-    expect(document.getElementById('catalogResultCount').textContent).toBe('7/7 artifacts');
+    expect(document.getElementById('catalogResultCount').textContent).toBe('8/8 artifacts');
     expect(document.getElementById('catalogList').textContent)
       .toContain('trained through 2025 - MAE 29.85');
     expect(document.getElementById('catalogKindFilter').textContent)
-      .toContain('Margin model');
+      .toContain('Margin-first model');
 
     document.getElementById('catalogScopeFilter').value = 'outputs';
     document.getElementById('catalogScopeFilter').dispatchEvent(new window.Event('change', { bubbles: true }));
@@ -472,7 +567,17 @@ describe('public/js/admin-scripts.js', () => {
     expect(document.getElementById('predictionsWorkflow').classList.contains('is-hidden')).toBe(true);
     expect(document.getElementById('trainingWorkflow').classList.contains('is-hidden')).toBe(false);
 
-    document.getElementById('guidedPredictionMode').value = 'marginOnly';
+    const guidedWinModelSelect = document.getElementById('guidedPredictionWinModelPath');
+    Array.from(guidedWinModelSelect.options)
+      .find((option) => option.value === 'data/models/win/afl_elo_win_trained_to_2024.json')
+      .selected = true;
+    guidedWinModelSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    expect(document.getElementById('guidedPredictionMarginMethodsPath').value)
+      .toBe('data/models/win/optimal_margin_methods_trained_to_2024.json');
+    expect(document.getElementById('guidedPredictionReviewMarginAdapter').textContent)
+      .toContain('optimal_margin_methods_trained_to_2024.json');
+
+    document.getElementById('guidedPredictionMode').value = 'marginFirst';
     document.getElementById('guidedPredictionMode').dispatchEvent(new window.Event('change', { bubbles: true }));
     expect(document.getElementById('guidedPredictionWinModelPath').required).toBe(false);
     expect(document.getElementById('guidedPredictionMarginModelPath').required).toBe(true);
@@ -537,13 +642,13 @@ describe('public/js/admin-scripts.js', () => {
     await flushPromises();
 
     const modeSelect = document.getElementById('guidedPredictionMode');
-    modeSelect.value = 'marginOnly';
+    modeSelect.value = 'marginFirst';
     modeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     document.getElementById('guidedPredictionYear').value = '2026';
     document.getElementById('guidedPredictionMarginModelPath').value =
       'data/models/margin/afl_elo_margin_only_trained_to_2025.json';
-    document.getElementById('guidedPredictionPredictorId').value = '6';
+    selectOption(document.getElementById('guidedPredictionPredictorId'), '6');
     document.getElementById('guidedPredictionDbPath').value = 'data/database/afl_predictions.db';
     document.getElementById('guidedPredictionOutputDir').value = 'data/predictions/margin';
 
@@ -881,12 +986,10 @@ describe('public/js/admin-scripts.js', () => {
     await flushPromises();
     await flushPromises();
 
-    document.getElementById('guidedPredictionMode').value = 'recommended';
+    document.getElementById('guidedPredictionMode').value = 'winFirst';
     document.getElementById('guidedPredictionWinModelPath').value =
       'data/models/win/afl_elo_win_trained_to_2025.json';
-    document.getElementById('guidedPredictionMarginMethodsPath').value =
-      'data/models/win/optimal_margin_methods_trained_to_2025.json';
-    document.getElementById('guidedPredictionPredictorId').value = '7';
+    selectOption(document.getElementById('guidedPredictionPredictorId'), '7');
     document.getElementById('guidedPredictionDbPath').value = 'data/database/afl_predictions.db';
     document.getElementById('guidedPredictionOutputDir').value = 'data/predictions/win';
     document.getElementById('guidedPredictionMethodOverride').value = 'simple';

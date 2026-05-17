@@ -6,7 +6,7 @@ const { logger } = require('../../utils/logger');
 
 /**
  * Run ELO predictions for matches that haven't started.
- * Daily automation now uses the margin-only model for Dad's AI (predictor 6).
+ * Daily automation uses the margin-first model for Dad's AI (predictor 6).
  */
 async function runEloPredictions() {
   const currentYear = new Date().getFullYear();
@@ -15,7 +15,7 @@ async function runEloPredictions() {
   logger.info(`Starting ELO predictions for year ${currentYear}`);
   
   try {
-    // Step 1: Run Python margin-only ELO prediction script (writes directly to database)
+    // Step 1: Run Python margin-first ELO prediction script (writes directly to database)
     // Get project root directory (two levels up from automation folder)
     const projectRoot = path.join(__dirname, '../..');
     const marginModelPath = path.join(projectRoot, 'data/models/margin/afl_elo_margin_only_trained_to_2025.json');

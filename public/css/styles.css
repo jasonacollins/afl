@@ -796,6 +796,10 @@ textarea {
   color: #a50e0e;
 }
 
+.warning-text {
+  color: #8a5a00;
+}
+
 .script-workflow-group {
   margin-top: 1.5rem;
 }

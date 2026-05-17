@@ -15,9 +15,11 @@ from core.elo_core import AFLEloModel
 import elo_margin_methods_predict as margin_methods_module
 from elo_margin_methods_predict import (
     AFLOptimalMarginPredictor,
+    file_sha256,
     filter_future_predictions,
     normalize_margin_methods_artifact,
     run_predictions,
+    source_model_path,
 )
 
 
@@ -173,6 +175,49 @@ def test_compatibility_guard_rejects_mismatch_without_override():
 
         with pytest.raises(ValueError, match='Win model parameter mismatch'):
             AFLOptimalMarginPredictor(model_path, artifact_path)
+
+
+def test_compatibility_guard_rejects_model_file_hash_mismatch():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        model_path = os.path.join(temp_dir, 'afl_elo_win_trained_to_2025.json')
+        artifact_path = os.path.join(temp_dir, 'optimal_margin_methods_trained_to_2025.json')
+
+        model_data = build_win_model_data()
+        write_json(model_path, model_data)
+
+        artifact = build_margin_artifact(parameter_signature=model_data['parameters'])
+        artifact['required_win_model']['model_file_sha256'] = 'not-the-saved-model-hash'
+        write_json(artifact_path, artifact)
+
+        with pytest.raises(ValueError, match='Win model file hash mismatch'):
+            AFLOptimalMarginPredictor(model_path, artifact_path)
+
+
+def test_compatibility_guard_rejects_model_path_mismatch_without_hash():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        model_path = os.path.join(temp_dir, 'afl_elo_win_trained_to_2025.json')
+        artifact_path = os.path.join(temp_dir, 'optimal_margin_methods_trained_to_2025.json')
+
+        model_data = build_win_model_data()
+        write_json(model_path, model_data)
+
+        artifact = build_margin_artifact(parameter_signature=model_data['parameters'])
+        artifact['required_win_model']['model_path'] = 'data/models/win/different_model.json'
+        write_json(artifact_path, artifact)
+
+        with pytest.raises(ValueError, match='Win model path mismatch'):
+            AFLOptimalMarginPredictor(model_path, artifact_path)
+
+
+def test_source_model_path_and_hash_helpers_handle_missing_paths(tmp_path, monkeypatch):
+    model_path = tmp_path / 'afl_elo_win_trained_to_2025.json'
+    model_path.write_text('{"model_type":"win_elo"}', encoding='utf-8')
+
+    monkeypatch.chdir(tmp_path)
+
+    assert source_model_path(model_path) == 'afl_elo_win_trained_to_2025.json'
+    assert len(file_sha256(model_path)) == 64
+    assert file_sha256(tmp_path / 'missing.json') is None
 
 
 def test_allow_model_mismatch_bypasses_guard():

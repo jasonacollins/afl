@@ -6,11 +6,11 @@ versioned testing artifact with compatibility metadata.
 """
 
 import argparse
-import json
+import hashlib
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Tuple
+from typing import Dict
 
 import numpy as np
 
@@ -51,6 +51,34 @@ def _parse_train_end_year_from_path(model_path: str):
 
 def _build_default_output_path(end_year: int) -> str:
     return os.path.join('data/models/win', f'optimal_margin_methods_trained_to_{end_year}.json')
+
+
+def _source_model_path(model_path: str) -> str:
+    raw_path = str(model_path or '')
+    if not raw_path:
+        return raw_path
+
+    try:
+        absolute_path = os.path.abspath(raw_path)
+        cwd = os.path.abspath(os.getcwd())
+        relative_path = os.path.relpath(absolute_path, cwd)
+        if not relative_path.startswith('..') and not os.path.isabs(relative_path):
+            return relative_path.replace(os.sep, '/')
+    except ValueError:
+        pass
+
+    return raw_path.replace(os.sep, '/')
+
+
+def _file_sha256(file_path: str):
+    try:
+        digest = hashlib.sha256()
+        with open(file_path, 'rb') as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
 
 
 def _build_signature(params: Dict) -> Dict:
@@ -120,14 +148,38 @@ def _sample_linear_candidates(
 
 
 def _validate_ranges(args):
-    if args.n_calls < 1:
+    _validate_range_values(
+        args.n_calls,
+        args.simple_min,
+        args.simple_max,
+        args.diminishing_beta_min,
+        args.diminishing_beta_max,
+        args.linear_slope_min,
+        args.linear_slope_max,
+        args.linear_intercept_min,
+        args.linear_intercept_max
+    )
+
+
+def _validate_range_values(
+    n_calls,
+    simple_min,
+    simple_max,
+    diminishing_beta_min,
+    diminishing_beta_max,
+    linear_slope_min,
+    linear_slope_max,
+    linear_intercept_min,
+    linear_intercept_max
+):
+    if n_calls < 1:
         raise ValueError('--n-calls must be >= 1')
 
     pairs = [
-        ('simple range', args.simple_min, args.simple_max),
-        ('diminishing beta range', args.diminishing_beta_min, args.diminishing_beta_max),
-        ('linear slope range', args.linear_slope_min, args.linear_slope_max),
-        ('linear intercept range', args.linear_intercept_min, args.linear_intercept_max)
+        ('simple range', simple_min, simple_max),
+        ('diminishing beta range', diminishing_beta_min, diminishing_beta_max),
+        ('linear slope range', linear_slope_min, linear_slope_max),
+        ('linear intercept range', linear_intercept_min, linear_intercept_max)
     ]
 
     for label, lower, upper in pairs:
@@ -135,76 +187,69 @@ def _validate_ranges(args):
             raise ValueError(f'{label} requires min < max')
 
 
-def main():
+def optimize_margin_methods_for_model(
+    elo_params_path: str,
+    db_path: str = 'data/database/afl_predictions.db',
+    start_year: int = 1990,
+    end_year: int = 2024,
+    n_calls: int = 100,
+    random_seed: int = 42,
+    output_path: str = None,
+    simple_min: float = 0.05,
+    simple_max: float = 0.25,
+    diminishing_beta_min: float = 0.015,
+    diminishing_beta_max: float = 0.08,
+    linear_slope_min: float = 0.05,
+    linear_slope_max: float = 0.25,
+    linear_intercept_min: float = -8.0,
+    linear_intercept_max: float = 8.0,
+    generated_by: str = 'elo_margin_methods_optimize.py'
+):
     from core.data_io import fetch_afl_data, load_parameters, save_optimization_results
     from core.optimise import evaluate_margin_method_walkforward
 
-    parser = argparse.ArgumentParser(description='Optimize AFL win-model margin derivation methods')
-    parser.add_argument('--elo-params', type=str, required=True,
-                        help='Path to trained win ELO model JSON (or params JSON with parameters key)')
-    parser.add_argument('--db-path', type=str, default='data/database/afl_predictions.db',
-                        help='Path to database (default: data/database/afl_predictions.db)')
-    parser.add_argument('--start-year', type=int, default=1990,
-                        help='Start year for optimization data (default: 1990)')
-    parser.add_argument('--end-year', type=int, default=2024,
-                        help='End year for optimization data (default: 2024)')
-    parser.add_argument('--n-calls', type=int, default=100,
-                        help='Number of sampled candidates per method (default: 100)')
-    parser.add_argument('--random-seed', type=int, default=42,
-                        help='Random seed for candidate sampling (default: 42)')
-    parser.add_argument('--output-path', type=str, default=None,
-                        help='Output path for optimized parameters (default: versioned path by end year)')
+    _validate_range_values(
+        n_calls,
+        simple_min,
+        simple_max,
+        diminishing_beta_min,
+        diminishing_beta_max,
+        linear_slope_min,
+        linear_slope_max,
+        linear_intercept_min,
+        linear_intercept_max
+    )
 
-    parser.add_argument('--simple-min', type=float, default=0.05,
-                        help='Minimum simple scale factor (default: 0.05)')
-    parser.add_argument('--simple-max', type=float, default=0.25,
-                        help='Maximum simple scale factor (default: 0.25)')
-    parser.add_argument('--diminishing-beta-min', type=float, default=0.015,
-                        help='Minimum diminishing beta (default: 0.015)')
-    parser.add_argument('--diminishing-beta-max', type=float, default=0.08,
-                        help='Maximum diminishing beta (default: 0.08)')
-    parser.add_argument('--linear-slope-min', type=float, default=0.05,
-                        help='Minimum linear slope (default: 0.05)')
-    parser.add_argument('--linear-slope-max', type=float, default=0.25,
-                        help='Maximum linear slope (default: 0.25)')
-    parser.add_argument('--linear-intercept-min', type=float, default=-8.0,
-                        help='Minimum linear intercept (default: -8.0)')
-    parser.add_argument('--linear-intercept-max', type=float, default=8.0,
-                        help='Maximum linear intercept (default: 8.0)')
+    rng = np.random.default_rng(random_seed)
 
-    args = parser.parse_args()
-    _validate_ranges(args)
-
-    rng = np.random.default_rng(args.random_seed)
-
-    loaded = load_parameters(args.elo_params)
+    loaded = load_parameters(elo_params_path)
     elo_params = loaded['parameters'] if isinstance(loaded, dict) and 'parameters' in loaded else loaded
 
-    train_end_year_from_path = _parse_train_end_year_from_path(args.elo_params)
-    output_path = args.output_path or _build_default_output_path(args.end_year)
+    train_end_year_from_path = _parse_train_end_year_from_path(elo_params_path)
+    output_path = output_path or _build_default_output_path(end_year)
 
     print('Loaded win ELO parameters:')
     for key, value in elo_params.items():
         print(f'  {key}: {value}')
 
-    print(f"\nLoading match data from {args.start_year} to {args.end_year}...")
-    matches_df = fetch_afl_data(args.db_path, args.start_year, args.end_year)
+    print(f"\nLoading match data from {start_year} to {end_year}...")
+    matches_df = fetch_afl_data(db_path, start_year, end_year)
     print(f'Loaded {len(matches_df)} matches')
 
     methods = {
-        'simple': _sample_simple_candidates(args.n_calls, args.simple_min, args.simple_max, rng),
+        'simple': _sample_simple_candidates(n_calls, simple_min, simple_max, rng),
         'diminishing_returns': _sample_diminishing_candidates(
-            args.n_calls,
-            args.diminishing_beta_min,
-            args.diminishing_beta_max,
+            n_calls,
+            diminishing_beta_min,
+            diminishing_beta_max,
             rng
         ),
         'linear': _sample_linear_candidates(
-            args.n_calls,
-            args.linear_slope_min,
-            args.linear_slope_max,
-            args.linear_intercept_min,
-            args.linear_intercept_max,
+            n_calls,
+            linear_slope_min,
+            linear_slope_max,
+            linear_intercept_min,
+            linear_intercept_max,
             rng
         )
     }
@@ -305,24 +350,26 @@ def main():
         'artifact_version': 2,
         'artifact_type': 'win_margin_methods',
         'created_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+        'generated_by': generated_by,
+        'produces': ['home_win_probability', 'predicted_margin'],
         'train_window': {
-            'start_year': int(args.start_year),
-            'end_year': int(args.end_year)
+            'start_year': int(start_year),
+            'end_year': int(end_year)
         },
         'optimization_settings': {
             'selection_metric': 'global_match_weighted_mae',
-            'n_calls': int(args.n_calls),
-            'random_seed': int(args.random_seed),
+            'n_calls': int(n_calls),
+            'random_seed': int(random_seed),
             'search_space': {
                 'simple': {
-                    'scale_factor': [float(args.simple_min), float(args.simple_max)]
+                    'scale_factor': [float(simple_min), float(simple_max)]
                 },
                 'diminishing_returns': {
-                    'beta': [float(args.diminishing_beta_min), float(args.diminishing_beta_max)]
+                    'beta': [float(diminishing_beta_min), float(diminishing_beta_max)]
                 },
                 'linear': {
-                    'slope': [float(args.linear_slope_min), float(args.linear_slope_max)],
-                    'intercept': [float(args.linear_intercept_min), float(args.linear_intercept_max)]
+                    'slope': [float(linear_slope_min), float(linear_slope_max)],
+                    'intercept': [float(linear_intercept_min), float(linear_intercept_max)]
                 }
             }
         },
@@ -335,13 +382,72 @@ def main():
         'required_win_model': {
             'model_type': 'win_elo',
             'train_end_year': train_end_year_from_path,
-            'parameter_signature': _build_signature(elo_params)
+            'parameter_signature': _build_signature(elo_params),
+            'model_path': _source_model_path(elo_params_path),
+            'model_file_sha256': _file_sha256(elo_params_path)
         },
         'elo_params_used': elo_params
     }
 
     save_optimization_results(output_data, output_path)
     print(f'\nSaved optimized margin methods to: {output_path}')
+
+    return output_data, output_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Optimize AFL win-model margin derivation methods')
+    parser.add_argument('--elo-params', type=str, required=True,
+                        help='Path to trained win ELO model JSON (or params JSON with parameters key)')
+    parser.add_argument('--db-path', type=str, default='data/database/afl_predictions.db',
+                        help='Path to database (default: data/database/afl_predictions.db)')
+    parser.add_argument('--start-year', type=int, default=1990,
+                        help='Start year for optimization data (default: 1990)')
+    parser.add_argument('--end-year', type=int, default=2024,
+                        help='End year for optimization data (default: 2024)')
+    parser.add_argument('--n-calls', type=int, default=100,
+                        help='Number of sampled candidates per method (default: 100)')
+    parser.add_argument('--random-seed', type=int, default=42,
+                        help='Random seed for candidate sampling (default: 42)')
+    parser.add_argument('--output-path', type=str, default=None,
+                        help='Output path for optimized parameters (default: versioned path by end year)')
+
+    parser.add_argument('--simple-min', type=float, default=0.05,
+                        help='Minimum simple scale factor (default: 0.05)')
+    parser.add_argument('--simple-max', type=float, default=0.25,
+                        help='Maximum simple scale factor (default: 0.25)')
+    parser.add_argument('--diminishing-beta-min', type=float, default=0.015,
+                        help='Minimum diminishing beta (default: 0.015)')
+    parser.add_argument('--diminishing-beta-max', type=float, default=0.08,
+                        help='Maximum diminishing beta (default: 0.08)')
+    parser.add_argument('--linear-slope-min', type=float, default=0.05,
+                        help='Minimum linear slope (default: 0.05)')
+    parser.add_argument('--linear-slope-max', type=float, default=0.25,
+                        help='Maximum linear slope (default: 0.25)')
+    parser.add_argument('--linear-intercept-min', type=float, default=-8.0,
+                        help='Minimum linear intercept (default: -8.0)')
+    parser.add_argument('--linear-intercept-max', type=float, default=8.0,
+                        help='Maximum linear intercept (default: 8.0)')
+
+    args = parser.parse_args()
+    _validate_ranges(args)
+    optimize_margin_methods_for_model(
+        args.elo_params,
+        db_path=args.db_path,
+        start_year=args.start_year,
+        end_year=args.end_year,
+        n_calls=args.n_calls,
+        random_seed=args.random_seed,
+        output_path=args.output_path,
+        simple_min=args.simple_min,
+        simple_max=args.simple_max,
+        diminishing_beta_min=args.diminishing_beta_min,
+        diminishing_beta_max=args.diminishing_beta_max,
+        linear_slope_min=args.linear_slope_min,
+        linear_slope_max=args.linear_slope_max,
+        linear_intercept_min=args.linear_intercept_min,
+        linear_intercept_max=args.linear_intercept_max
+    )
 
 
 if __name__ == '__main__':

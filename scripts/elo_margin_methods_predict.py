@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -74,6 +75,34 @@ def parse_train_end_year_from_path(path_value):
     if not match:
         return None
     return int(match.group(1))
+
+
+def source_model_path(path_value):
+    raw_path = str(path_value or '')
+    if not raw_path:
+        return raw_path
+
+    try:
+        absolute_path = os.path.abspath(raw_path)
+        cwd = os.path.abspath(os.getcwd())
+        relative_path = os.path.relpath(absolute_path, cwd)
+        if not relative_path.startswith('..') and not os.path.isabs(relative_path):
+            return relative_path.replace(os.sep, '/')
+    except ValueError:
+        pass
+
+    return raw_path.replace(os.sep, '/')
+
+
+def file_sha256(path_value):
+    try:
+        digest = hashlib.sha256()
+        with open(path_value, 'rb') as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
 
 
 def normalize_margin_methods_artifact(raw_artifact):
@@ -216,6 +245,19 @@ class AFLOptimalMarginPredictor:
                 f'Win model train cutoff mismatch: artifact requires {required_train_end}, '
                 f'but model path resolves to {model_train_end}'
             )
+
+        required_hash = required.get('model_file_sha256')
+        if required_hash:
+            actual_hash = file_sha256(self.elo_model_path)
+            if actual_hash and actual_hash != required_hash:
+                raise ValueError('Win model file hash mismatch for margin methods artifact')
+        else:
+            required_path = required.get('model_path')
+            if required_path and source_model_path(self.elo_model_path) != source_model_path(required_path):
+                raise ValueError(
+                    f'Win model path mismatch: artifact requires {required_path}, '
+                    f'but model path is {source_model_path(self.elo_model_path)}'
+                )
 
         signature = required.get('parameter_signature')
         if isinstance(signature, dict):

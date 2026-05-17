@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const crypto = require('crypto');
 const { logger } = require('../utils/logger');
 
 const PROJECT_ROOT = path.join(__dirname, '..');
@@ -18,19 +19,19 @@ const OUTPUT_DIRECTORIES = [
 ];
 
 const ARTIFACT_KIND_LABELS = {
-  trained_win_model: 'Win model',
-  trained_margin_model: 'Margin model',
+  trained_win_model: 'Win-first ratings',
+  trained_margin_model: 'Margin-first model',
   win_params: 'Win params',
   margin_params: 'Margin params',
-  win_margin_methods: 'Win margin methods',
+  win_margin_methods: 'Win-first margin adapter',
   unknown_model_artifact: 'Model artifact'
 };
 
 const OUTPUT_KIND_LABELS = {
-  win_predictions: 'Win predictions',
-  win_training_predictions: 'Win training predictions',
-  win_margin_method_predictions: 'Win margin-method predictions',
-  margin_predictions: 'Margin predictions',
+  win_predictions: 'Win-first predictions',
+  win_training_predictions: 'Win-first training predictions',
+  win_margin_method_predictions: 'Win-first predictions',
+  margin_predictions: 'Margin-first predictions',
   combined_predictions: 'Combined predictions',
   rating_history: 'Rating history',
   elo_history: 'ELO history',
@@ -285,6 +286,25 @@ async function readJson(relativePath) {
   }
 }
 
+async function readModelJsonMetadata(relativePath) {
+  try {
+    const raw = await fs.readFile(resolveRepoPath(relativePath), 'utf8');
+    return {
+      data: JSON.parse(raw),
+      fileSha256: crypto.createHash('sha256').update(raw).digest('hex')
+    };
+  } catch (error) {
+    logger.warn('Unable to read catalog JSON file', {
+      path: relativePath,
+      error: error.message
+    });
+    return {
+      data: null,
+      fileSha256: null
+    };
+  }
+}
+
 async function statPath(relativePath) {
   try {
     return await fs.stat(resolveRepoPath(relativePath));
@@ -322,10 +342,11 @@ async function listModelFiles() {
 }
 
 async function buildModelArtifactEntry(relativePath) {
-  const [modelData, stat] = await Promise.all([
-    readJson(relativePath),
+  const [modelJson, stat] = await Promise.all([
+    readModelJsonMetadata(relativePath),
     statPath(relativePath)
   ]);
+  const modelData = modelJson.data;
   const data = modelData || {};
   const kind = inferArtifactKind(relativePath, data);
   const trainWindow = inferTrainWindow(data, relativePath);
@@ -341,8 +362,11 @@ async function buildModelArtifactEntry(relativePath) {
     trainedThroughYear: trainWindow?.endYear || extractTrainedToYearFromPath(relativePath),
     metrics,
     compatibility: {
-      requiredWinModelTrainEndYear: parseYear(data.required_win_model?.train_end_year)
+      requiredWinModelTrainEndYear: parseYear(data.required_win_model?.train_end_year),
+      requiredWinModelPath: data.required_win_model?.model_path || null,
+      requiredWinModelFileSha256: data.required_win_model?.model_file_sha256 || null
     },
+    fileSha256: modelJson.fileSha256,
     createdAt: data.created_at || null,
     modifiedAt: stat ? stat.mtime.toISOString() : null,
     sizeBytes: stat ? stat.size : null,

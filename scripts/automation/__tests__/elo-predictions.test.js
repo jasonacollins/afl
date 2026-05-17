@@ -49,7 +49,7 @@ describe('elo-predictions automation', () => {
     jest.clearAllMocks();
   });
 
-  test('runs the margin-only prediction script and reports saved prediction counts', async () => {
+  test('runs the margin-first prediction script and reports saved prediction counts', async () => {
     const currentYear = new Date().getFullYear();
 
     fs.existsSync.mockReturnValue(false);

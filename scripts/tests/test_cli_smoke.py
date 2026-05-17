@@ -55,6 +55,7 @@ def test_win_train_cli_writes_model_and_predictions(afl_cli_workspace, monkeypat
             '--db-path', afl_cli_workspace['db_path'],
             '--output-dir', output_dir,
             '--no-tune-parameters',
+            '--margin-methods-n-calls', '2',
         ],
         monkeypatch,
         workspace,
@@ -62,6 +63,13 @@ def test_win_train_cli_writes_model_and_predictions(afl_cli_workspace, monkeypat
 
     assert exit_code == 0
     assert (output_dir / 'afl_elo_win_trained_to_2025.json').exists()
+    margin_methods_path = output_dir / 'optimal_margin_methods_trained_to_2025.json'
+    assert margin_methods_path.exists()
+    margin_methods = json.loads(margin_methods_path.read_text(encoding='utf-8'))
+    assert margin_methods['required_win_model']['train_end_year'] == 2025
+    assert margin_methods['required_win_model']['model_path'].endswith('afl_elo_win_trained_to_2025.json')
+    assert margin_methods['required_win_model']['model_file_sha256']
+    assert margin_methods['produces'] == ['home_win_probability', 'predicted_margin']
     assert (workspace / 'data' / 'predictions' / 'win' / 'afl_elo_win_trained_to_2025_predictions.csv').exists()
 
 
@@ -78,6 +86,7 @@ def test_win_train_cli_supports_explicit_params_and_margin_model(afl_cli_workspa
             '--output-dir', output_dir,
             '--params-file', afl_cli_workspace['win_params_path'],
             '--margin-params', afl_cli_workspace['margin_optimization_path'],
+            '--margin-methods-n-calls', '2',
         ],
         monkeypatch,
         workspace,
@@ -85,6 +94,7 @@ def test_win_train_cli_supports_explicit_params_and_margin_model(afl_cli_workspa
 
     assert exit_code == 0
     assert (output_dir / 'afl_elo_win_trained_to_2025.json').exists()
+    assert (output_dir / 'optimal_margin_methods_trained_to_2025.json').exists()
     assert (output_dir / 'afl_elo_win_margin_model_trained_to_2025.json').exists()
 
 
@@ -188,6 +198,9 @@ def test_margin_methods_optimize_cli_writes_compatibility_artifact(afl_cli_works
     assert output_data['artifact_type'] == 'win_margin_methods'
     assert output_data['best_method'] in output_data['all_methods']
     assert output_data['required_win_model']['model_type'] == 'win_elo'
+    assert output_data['required_win_model']['model_path'].endswith('afl_elo_win_trained_to_2025.json')
+    assert output_data['required_win_model']['model_file_sha256']
+    assert output_data['produces'] == ['home_win_probability', 'predicted_margin']
 
 
 def test_win_predict_cli_saves_future_predictions_to_database(afl_cli_workspace, monkeypatch):

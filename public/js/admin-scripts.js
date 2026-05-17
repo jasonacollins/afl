@@ -68,7 +68,7 @@
       .replace(/'/g, '&#039;');
   }
 
-  function populateSelect(selectId, options, selectedValue, includeEmpty = false) {
+  function populateSelect(selectId, options, selectedValue, includeEmpty = false, emptyLabel = 'None') {
     const select = getEl(selectId);
     if (!select) return;
 
@@ -77,7 +77,8 @@
     if (includeEmpty) {
       const emptyOption = document.createElement('option');
       emptyOption.value = '';
-      emptyOption.textContent = 'None';
+      emptyOption.textContent = emptyLabel;
+      emptyOption.selected = selectedValue === undefined || selectedValue === null || selectedValue === '';
       select.appendChild(emptyOption);
     }
 
@@ -114,6 +115,83 @@
 
   function getPredictionBundle(bundleName) {
     return scriptMetadata?.recommendedBundles?.predictions?.[bundleName] || null;
+  }
+
+  function getPredictionProfile(profileName) {
+    if (scriptMetadata?.predictionProfiles?.[profileName]) {
+      return scriptMetadata.predictionProfiles[profileName];
+    }
+
+    if (profileName === 'winFirst') {
+      return getPredictionBundle('primary');
+    }
+    if (profileName === 'marginFirst') {
+      return getPredictionBundle('marginOnly');
+    }
+    return null;
+  }
+
+  function normalizeGuidedPredictionMode(mode) {
+    return ['marginFirst', 'marginOnly'].includes(mode) ? 'marginFirst' : 'winFirst';
+  }
+
+  function getWinFirstAdapterRecord(winModelPath) {
+    const profile = getPredictionProfile('winFirst');
+    const selectedPath = String(winModelPath || getEl('guidedPredictionWinModelPath')?.value || '');
+    if (!selectedPath) {
+      return null;
+    }
+
+    const mapped = profile?.adaptersByWinModelPath?.[selectedPath];
+    if (mapped) {
+      return mapped;
+    }
+
+    if (profile?.winModel?.path === selectedPath) {
+      return {
+        winModel: profile.winModel,
+        marginMethods: profile.marginMethods || null,
+        isCompatible: Boolean(profile.marginMethods)
+      };
+    }
+
+    return null;
+  }
+
+  function getDerivedWinFirstMarginMethods() {
+    const profile = getPredictionProfile('winFirst');
+    const selectedPath = getEl('guidedPredictionWinModelPath')?.value || '';
+    const allowMismatch = Boolean(getEl('guidedPredictionAllowModelMismatch')?.checked);
+    const record = getWinFirstAdapterRecord(selectedPath);
+
+    if (record?.marginMethods) {
+      return {
+        artifact: record.marginMethods,
+        isMismatchFallback: false
+      };
+    }
+
+    if (allowMismatch && profile?.fallbackMarginMethods) {
+      return {
+        artifact: profile.fallbackMarginMethods,
+        isMismatchFallback: true
+      };
+    }
+
+    return {
+      artifact: null,
+      isMismatchFallback: false
+    };
+  }
+
+  function syncGuidedPredictionMarginMethods() {
+    const hiddenInput = getEl('guidedPredictionMarginMethodsPath');
+    const derived = getDerivedWinFirstMarginMethods();
+    const derivedPath = derived.artifact?.path || '';
+    if (hiddenInput) {
+      hiddenInput.value = derivedPath;
+    }
+    return derived;
   }
 
   function getSelectLabel(selectId) {
@@ -348,7 +426,7 @@
   }
 
   function getGuidedPredictionMode() {
-    return getEl('guidedPredictionMode')?.value === 'marginOnly' ? 'marginOnly' : 'recommended';
+    return normalizeGuidedPredictionMode(getEl('guidedPredictionMode')?.value);
   }
 
   function setWorkflowPanel(targetId) {
@@ -375,13 +453,14 @@
   }
 
   function setGuidedPredictionModePanel(mode) {
-    const normalizedMode = mode === 'marginOnly' ? 'marginOnly' : 'recommended';
+    const normalizedMode = normalizeGuidedPredictionMode(mode);
     document.querySelectorAll('[data-guided-prediction-mode-panel]').forEach((panel) => {
       const panelModes = (panel.getAttribute('data-guided-prediction-mode-panel') || '')
         .split(',')
         .map((value) => value.trim())
         .filter(Boolean);
-      setElementHidden(panel, !panelModes.includes(normalizedMode));
+      const normalizedPanelModes = panelModes.map(normalizeGuidedPredictionMode);
+      setElementHidden(panel, !normalizedPanelModes.includes(normalizedMode));
     });
 
     const winModelSelect = getEl('guidedPredictionWinModelPath');
@@ -389,13 +468,13 @@
     const marginModelSelect = getEl('guidedPredictionMarginModelPath');
 
     if (winModelSelect) {
-      winModelSelect.required = normalizedMode === 'recommended';
+      winModelSelect.required = normalizedMode === 'winFirst';
     }
     if (marginMethodsSelect) {
-      marginMethodsSelect.required = normalizedMode === 'recommended';
+      marginMethodsSelect.required = false;
     }
     if (marginModelSelect) {
-      marginModelSelect.required = normalizedMode === 'marginOnly';
+      marginModelSelect.required = normalizedMode === 'marginFirst';
     }
 
     const defaults = scriptMetadata?.defaults || {};
@@ -405,18 +484,7 @@
       const recommendedDefault = defaults.winMarginMethodsOutputDir || 'data/predictions/win';
       const currentValue = outputDirInput.value.trim();
       if (!currentValue || [marginDefault, recommendedDefault, defaults.combinedOutputDir].includes(currentValue)) {
-        outputDirInput.value = normalizedMode === 'marginOnly' ? marginDefault : recommendedDefault;
-      }
-    }
-
-    const predictorSelect = getEl('guidedPredictionPredictorId');
-    const primaryPredictorId = getPredictionBundle('primary')?.predictorId || defaults.winMarginMethodsPredictorId;
-    const marginPredictorId = getPredictionBundle('marginOnly')?.predictorId || defaults.marginPredictorId;
-    const targetPredictorId = normalizedMode === 'marginOnly' ? marginPredictorId : primaryPredictorId;
-    const alternatePredictorId = normalizedMode === 'marginOnly' ? primaryPredictorId : marginPredictorId;
-    if (predictorSelect && targetPredictorId) {
-      if (!predictorSelect.value || String(predictorSelect.value) === String(alternatePredictorId)) {
-        setSelectSelectedValue(predictorSelect, targetPredictorId);
+        outputDirInput.value = normalizedMode === 'marginFirst' ? marginDefault : recommendedDefault;
       }
     }
 
@@ -425,16 +493,23 @@
 
   function updateGuidedPredictionReview() {
     const mode = getGuidedPredictionMode();
+    const profile = getPredictionProfile(mode);
     const season = getEl('guidedPredictionYear')?.value || '-';
     const predictorId = getEl('guidedPredictionPredictorId')?.value || '';
     const outputDir = getEl('guidedPredictionOutputDir')?.value || '-';
     const overrideCompleted = Boolean(getEl('guidedPredictionOverrideCompleted')?.checked);
+    const allowModelMismatch = Boolean(getEl('guidedPredictionAllowModelMismatch')?.checked);
+    const derivedMarginMethods = syncGuidedPredictionMarginMethods();
+    const adapterRecord = getWinFirstAdapterRecord();
 
     const predictorReview = getEl('guidedPredictionReviewPredictor');
     const seasonReview = getEl('guidedPredictionReviewSeason');
     const artifactsReview = getEl('guidedPredictionReviewArtifacts');
+    const marginAdapterReview = getEl('guidedPredictionReviewMarginAdapter');
     const outputReview = getEl('guidedPredictionReviewOutput');
+    const producesReview = getEl('guidedPredictionReviewProduces');
     const safetyReview = getEl('guidedPredictionReviewSafety');
+    const profileWarning = getEl('guidedPredictionProfileWarning');
 
     if (predictorReview) {
       predictorReview.textContent = getPredictorLabel(predictorId);
@@ -443,18 +518,40 @@
       seasonReview.textContent = season;
     }
     if (artifactsReview) {
-      artifactsReview.textContent = mode === 'marginOnly'
+      artifactsReview.textContent = mode === 'marginFirst'
         ? getSelectLabel('guidedPredictionMarginModelPath')
-        : `${getSelectLabel('guidedPredictionWinModelPath')} + ${getSelectLabel('guidedPredictionMarginMethodsPath')}`;
+        : getSelectLabel('guidedPredictionWinModelPath');
+    }
+    if (marginAdapterReview) {
+      const adapterLabel = derivedMarginMethods.artifact?.label || derivedMarginMethods.artifact?.path || 'No matching margin adapter';
+      marginAdapterReview.textContent = derivedMarginMethods.isMismatchFallback
+        ? `${adapterLabel} (mismatch bypass)`
+        : adapterLabel;
     }
     if (outputReview) {
-      outputReview.textContent = `${outputDir}; publish to DB; normal CSV output`;
+      outputReview.textContent = `${outputDir}; publish to DB; write normal CSV output`;
+    }
+    if (producesReview) {
+      producesReview.textContent = 'home_win_probability + predicted_margin';
     }
     if (safetyReview) {
       safetyReview.textContent = overrideCompleted
         ? 'Completed or already-started matches may be overwritten.'
         : 'Completed or already-started matches are left untouched.';
       safetyReview.classList.toggle('danger-text', overrideCompleted);
+    }
+    if (profileWarning) {
+      const warnings = Array.isArray(profile?.warnings) ? [...profile.warnings] : [];
+      if (mode === 'winFirst' && !derivedMarginMethods.artifact) {
+        warnings.push('No compatible margin adapter is available for the selected win-first ratings. Retrain the win-first model or run the advanced adapter backfill.');
+      } else if (mode === 'winFirst' && derivedMarginMethods.isMismatchFallback) {
+        warnings.push('Model mismatch bypass is enabled; the latest available margin adapter will be used even though it does not match the selected win-first ratings.');
+      } else if (mode === 'winFirst' && adapterRecord && adapterRecord.isCompatible === false && !allowModelMismatch) {
+        warnings.push(adapterRecord.warning || 'No compatible margin adapter is available for the selected win-first ratings.');
+      }
+      const uniqueWarnings = [...new Set(warnings)];
+      profileWarning.textContent = uniqueWarnings.join(' ');
+      setElementHidden(profileWarning, uniqueWarnings.length === 0);
     }
   }
 
@@ -470,10 +567,10 @@
       'guidedPredictionYear',
       'guidedPredictionPredictorId',
       'guidedPredictionWinModelPath',
-      'guidedPredictionMarginMethodsPath',
       'guidedPredictionMarginModelPath',
       'guidedPredictionOutputDir',
-      'guidedPredictionOverrideCompleted'
+      'guidedPredictionOverrideCompleted',
+      'guidedPredictionAllowModelMismatch'
     ].forEach((id) => {
       const element = getEl(id);
       if (!element) return;
@@ -813,15 +910,22 @@
     const defaultMarginModelPath = chooseLatestTrainedMarginModel(marginModelOptions);
     const defaultWinModelPath = chooseLatestTrainedWinModel(winModelOptions);
     const defaultHistoryModelPath = defaultMarginModelPath || (historyModelOptions[0] ? historyModelOptions[0].value : null);
-    const primaryBundle = getPredictionBundle('primary');
-    const marginOnlyBundle = getPredictionBundle('marginOnly');
-    const recommendedWinModelPath = primaryBundle?.winModel?.path || defaultWinModelPath;
-    const recommendedMarginMethodsPath = primaryBundle?.marginMethods?.path
-      || (winMarginMethodsOptions[0] ? winMarginMethodsOptions[0].value : null);
-    const recommendedMarginModelPath = marginOnlyBundle?.model?.path || defaultMarginModelPath;
+    const winFirstProfile = getPredictionProfile('winFirst');
+    const marginFirstProfile = getPredictionProfile('marginFirst');
+    const winFirstCompatible = Boolean(winFirstProfile?.isCompatible);
+    const recommendedWinModelPath = winFirstCompatible
+      ? winFirstProfile?.winModel?.path
+      : null;
+    const recommendedMarginModelPath = marginFirstProfile?.model?.path || defaultMarginModelPath;
 
     populateSelect('optimizedWinModelPath', winModelOptions, defaultWinModelPath);
-    populateSelect('guidedPredictionWinModelPath', winModelOptions, recommendedWinModelPath);
+    populateSelect(
+      'guidedPredictionWinModelPath',
+      winModelOptions,
+      recommendedWinModelPath,
+      !winFirstCompatible,
+      'Select win-first ratings'
+    );
     populateSelect(
       'winMarginMethodsOptimizeEloParamsPath',
       winModelOrParamsOptions,
@@ -830,12 +934,10 @@
     populateSelect('historyModelPath', historyModelOptions, defaultHistoryModelPath);
     populateSelect('combinedMarginModelPath', marginModelOptions, defaultMarginModelPath);
     populateSelect('optimizedMarginMethodsPath', winMarginMethodsOptions, winMarginMethodsOptions[0] ? winMarginMethodsOptions[0].value : null);
-    populateSelect('guidedPredictionMarginMethodsPath', winMarginMethodsOptions, recommendedMarginMethodsPath);
     populateSelect('guidedPredictionMarginModelPath', marginModelOptions, recommendedMarginModelPath);
     populateSelect('simModelPath', marginModelOptions, defaultMarginModelPath);
     populateSelect('simWinModelPath', winModelOptions, null, true);
     populateSelect('winTrainParamsFile', winParamsOptions, (winParamsOptions[0] || {}).value, true);
-    populateSelect('winTrainMarginParams', winMarginMethodsOptions, (winMarginMethodsOptions[0] || {}).value, true);
     populateSelect(
       'marginTrainParamsFile',
       marginParamsOptions,
@@ -852,9 +954,12 @@
     populateSelect(
       'guidedPredictionPredictorId',
       predictorOptions,
-      primaryBundle?.predictorId || defaults.winMarginMethodsPredictorId || defaults.predictorId
+      null,
+      true,
+      'Select target predictor'
     );
     setGuidedPredictionModePanel(getGuidedPredictionMode());
+    syncGuidedPredictionMarginMethods();
     renderCatalogBrowser();
   }
 
@@ -1042,10 +1147,10 @@
       const params = getFormParams(form);
 
       if (baseScriptKey === 'guided-predictions') {
-        const predictionMode = params.predictionMode === 'marginOnly' ? 'marginOnly' : 'recommended';
+        const predictionMode = normalizeGuidedPredictionMode(params.predictionMode);
         delete params.predictionMode;
 
-        if (predictionMode === 'marginOnly') {
+        if (predictionMode === 'marginFirst') {
           scriptKey = 'margin-predictions';
           delete params.winModelPath;
           delete params.marginMethodsPath;
@@ -1054,6 +1159,11 @@
           delete params.allowModelMismatch;
         } else {
           scriptKey = 'win-margin-methods-predictions';
+          const derivedMarginMethods = syncGuidedPredictionMarginMethods();
+          if (!derivedMarginMethods.artifact?.path) {
+            throw new Error('No compatible margin adapter is available for the selected win-first ratings. Retrain the win-first model or run the advanced adapter backfill.');
+          }
+          params.marginMethodsPath = derivedMarginMethods.artifact.path;
           delete params.modelPath;
         }
       }

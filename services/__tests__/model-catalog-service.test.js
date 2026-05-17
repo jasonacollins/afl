@@ -53,7 +53,11 @@ describe('model-catalog-service', () => {
           artifact_type: 'win_margin_methods',
           train_window: { start_year: 1990, end_year: 2025 },
           best_score: 31.76,
-          required_win_model: { train_end_year: 2025 }
+          required_win_model: {
+            train_end_year: 2025,
+            model_path: 'data/models/win/afl_elo_win_trained_to_2025.json',
+            model_file_sha256: 'abc123'
+          }
         }));
       }
       return Promise.reject(new Error('not found'));
@@ -75,7 +79,7 @@ describe('model-catalog-service', () => {
       expect.objectContaining({
         path: 'data/models/win/afl_elo_win_trained_to_2025.json',
         kind: 'trained_win_model',
-        kindLabel: 'Win model',
+        kindLabel: 'Win-first ratings',
         trainedThroughYear: 2025,
         label: expect.stringContaining('Brier 0.2027')
       }),
@@ -89,8 +93,11 @@ describe('model-catalog-service', () => {
         path: 'data/models/win/optimal_margin_methods_trained_to_2025.json',
         kind: 'win_margin_methods',
         compatibility: expect.objectContaining({
-          requiredWinModelTrainEndYear: 2025
-        })
+          requiredWinModelTrainEndYear: 2025,
+          requiredWinModelPath: 'data/models/win/afl_elo_win_trained_to_2025.json',
+          requiredWinModelFileSha256: 'abc123'
+        }),
+        fileSha256: expect.any(String)
       })
     ]));
     expect(catalog.byKind.trained_win_model).toHaveLength(1);
@@ -134,6 +141,7 @@ describe('model-catalog-service', () => {
       expect.objectContaining({
         path: 'data/predictions/margin/margin_elo_predictions_2026_2026.csv',
         kind: 'margin_predictions',
+        kindLabel: 'Margin-first predictions',
         rowCount: 2,
         label: expect.stringContaining('2 rows')
       }),

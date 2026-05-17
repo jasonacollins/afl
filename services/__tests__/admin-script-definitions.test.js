@@ -25,7 +25,7 @@ describe('Admin Script Definitions', () => {
     const definition = getScriptDefinition('win-margin-methods-optimize');
 
     expect(definition).toBeTruthy();
-    expect(definition.label).toBe('Optimise Win Margin Methods (Testing)');
+    expect(definition.label).toBe('Fit win-first margin adapter');
 
     const fieldNames = definition.fields.map((field) => field.name);
     expect(fieldNames).toEqual(expect.arrayContaining([
@@ -46,7 +46,7 @@ describe('Admin Script Definitions', () => {
     const definition = getScriptDefinition('win-margin-methods-predictions');
 
     expect(definition).toBeTruthy();
-    expect(definition.label).toBe('Win + Optimised Margin');
+    expect(definition.label).toBe('Win-first predictions');
 
     const fieldNames = definition.fields.map((field) => field.name);
     expect(fieldNames).toEqual(expect.arrayContaining([
@@ -66,6 +66,7 @@ describe('Admin Script Definitions', () => {
     const marginMethodsField = definition.fields.find((field) => field.name === 'marginMethodsPath');
     expect(winModelField.optionSource).toBe('modelFiles.winModels');
     expect(marginMethodsField.optionSource).toBe('modelFiles.winMarginMethods');
+    expect(marginMethodsField.required).toBe(false);
   });
 
   test('catalog resolves dynamic year max for new script', () => {
@@ -106,7 +107,6 @@ describe('Admin Script Definitions', () => {
       'eloParamsPath',
       'marginMethodsPath',
       'marginModelPath',
-      'marginParams',
       'modelPath',
       'output',
       'outputDir',

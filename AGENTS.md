@@ -79,12 +79,14 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 - Job orchestration lives in `services/admin-script-runner.js`.
 - Model/output catalogue discovery lives in `services/model-catalog-service.js` and should stay read-only.
 - Admin routes are exposed from `routes/admin.js`.
-- Keep `/admin/models` focused on model workflows and `/admin/data` focused on data maintenance actions.
+- Keep model workflows under `/admin/models` and data maintenance actions under `/admin/data`.
 - Guided browser choices should map to existing script keys and params; do not add multi-script orchestration unless explicitly requested.
 - Only one admin script run may be active at a time.
 - Run metadata is stored in `admin_script_runs`.
 - Log files are stored under `logs/admin-scripts/`.
-- `/admin/api/script-metadata` supplies workflow defaults, recommended prediction bundles, active predictors, and catalogue entries. Keep recommendations derived from existing artifacts rather than hard-coded filenames.
+- `/admin/api/script-metadata` supplies workflow defaults, prediction profiles, compatibility aliases, active predictors, and catalogue entries. Keep recommendations derived from existing artifacts rather than hard-coded filenames.
+- Keep `/admin/models` output-oriented: visible prediction families are win-first and margin-first, and both produce win probability plus predicted margin.
+- In the normal win-first prediction flow, derive the margin adapter from the selected win ratings artifact. Do not expose a separate adapter choice except in dangerous or repair/backfill paths.
 - Preserve the fixture-sync contract: `sync-games` bootstraps missing fixtures, while `api-refresh` only updates existing ones.
 - Keep the admin warning path intact when API data exists for a season with no matching DB fixtures.
 
@@ -93,6 +95,7 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 - Treat any model, predictor, artifact, automation path, or DB rows not explicitly named in the request as protected.
 - New experiments must use isolated predictors and artifacts unless the user explicitly asks for promotion or replacement.
 - Do not repoint automation defaults or overwrite existing model outputs unless explicitly requested.
+- Training a win-first model must create the matching margin adapter by default and record compatibility metadata that lets prediction workflows verify the pair.
 - Do not replace a production database to publish experiment output unless explicitly requested; back up first if that case arises.
 
 ### ELO Replay Consistency

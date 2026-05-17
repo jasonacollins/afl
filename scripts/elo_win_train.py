@@ -17,6 +17,7 @@ from core.data_io import (
 from core.elo_core import AFLEloModel, train_elo_model
 from core.optimise import parameter_tuning_grid_search
 from core.scoring import evaluate_predictions, format_scoring_summary
+from elo_margin_methods_optimize import optimize_margin_methods_for_model
 
 # AFLEloModel class removed - using core AFLEloModel from elo_core.py instead
 
@@ -85,6 +86,14 @@ def main():
                         help='Load parameters from JSON file (from optimization)')
     parser.add_argument('--margin-params', type=str, default=None,
                         help='Load margin parameters from JSON file (from margin optimization)')
+    parser.add_argument('--margin-methods-n-calls', type=int, default=100,
+                        help='Number of sampled candidates per margin adapter method (default: 100)')
+    parser.add_argument('--margin-methods-random-seed', type=int, default=42,
+                        help='Random seed for margin adapter fitting (default: 42)')
+    parser.add_argument('--margin-methods-output-path', type=str, default=None,
+                        help='Output path for the matching margin adapter')
+    parser.add_argument('--skip-margin-methods', action='store_true',
+                        help='Skip fitting the matching margin adapter')
 
     args = parser.parse_args()
     
@@ -226,6 +235,25 @@ def main():
         }
     
     save_model(model_data, model_file)
+
+    if not args.skip_margin_methods:
+        margin_methods_output_path = args.margin_methods_output_path or os.path.join(
+            args.output_dir,
+            f"optimal_margin_methods_trained_to_{args.end_year}.json"
+        )
+        print("\nFitting matching win-first margin adapter...")
+        print(f"  Win model: {model_file}")
+        print(f"  Adapter output: {margin_methods_output_path}")
+        optimize_margin_methods_for_model(
+            model_file,
+            db_path=args.db_path,
+            start_year=args.start_year,
+            end_year=args.end_year,
+            n_calls=args.margin_methods_n_calls,
+            random_seed=args.margin_methods_random_seed,
+            output_path=margin_methods_output_path,
+            generated_by='elo_win_train.py'
+        )
 
     # Train margin model if margin parameters provided
     margin_model = None

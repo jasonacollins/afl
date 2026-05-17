@@ -86,6 +86,16 @@ function isWinTrainedModelFile(filePath) {
   return /afl_elo_win_trained_to_\d{4}\.json$/i.test(path.posix.basename(filePath));
 }
 
+function extractTrainedToYearFromPath(filePath) {
+  const match = String(filePath || '').match(/trained_to_(\d{4})/i);
+  if (!match) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
 function trimToNull(value) {
   if (value === undefined || value === null) {
     return null;
@@ -259,6 +269,7 @@ function summarizeCatalogArtifact(artifact) {
     kind: artifact.kind,
     kindLabel: artifact.kindLabel,
     trainedThroughYear: artifact.trainedThroughYear || null,
+    fileSha256: artifact.fileSha256 || null,
     compatibility: artifact.compatibility || {}
   };
 }
@@ -273,22 +284,132 @@ function getCatalogArtifactsByKind(modelCatalog, kind) {
   return artifacts.filter((artifact) => artifact.kind === kind);
 }
 
+function getCatalogArtifactByPath(modelCatalog, artifactPath) {
+  const artifacts = Array.isArray(modelCatalog?.artifacts) ? modelCatalog.artifacts : [];
+  return artifacts.find((artifact) => artifact.path === artifactPath) || null;
+}
+
+function normalizeCatalogPathForComparison(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+function isCompatibleWinFirstPair(winModel, marginMethods) {
+  if (!winModel || !marginMethods) {
+    return false;
+  }
+
+  const compatibility = marginMethods.compatibility || {};
+  const requiredPath = normalizeCatalogPathForComparison(compatibility.requiredWinModelPath);
+  if (requiredPath && requiredPath !== normalizeCatalogPathForComparison(winModel.path)) {
+    return false;
+  }
+
+  const requiredHash = compatibility.requiredWinModelFileSha256;
+  if (requiredHash && winModel.fileSha256 && requiredHash !== winModel.fileSha256) {
+    return false;
+  }
+
+  const requiredYear = compatibility.requiredWinModelTrainEndYear;
+  if (requiredYear) {
+    return requiredYear === winModel.trainedThroughYear;
+  }
+
+  return Boolean(marginMethods.trainedThroughYear && marginMethods.trainedThroughYear === winModel.trainedThroughYear);
+}
+
 function getCompatibleMarginMethodsForWinModel(modelCatalog, winModel) {
   if (!winModel) {
     return null;
   }
 
-  return getLatestCatalogArtifact(modelCatalog, 'win_margin_methods', (artifact) => {
-    const requiredYear = artifact.compatibility?.requiredWinModelTrainEndYear;
-    return requiredYear
-      ? requiredYear === winModel.trainedThroughYear
-      : artifact.trainedThroughYear === winModel.trainedThroughYear;
-  });
+  return getLatestCatalogArtifact(modelCatalog, 'win_margin_methods', (artifact) =>
+    isCompatibleWinFirstPair(winModel, artifact)
+  );
 }
 
-function getRecommendedPredictionBundles(modelCatalog, activePredictors, currentYear) {
+function buildWinFirstAdaptersByModelPath(modelCatalog) {
+  return getCatalogArtifactsByKind(modelCatalog, 'trained_win_model').reduce((map, winModel) => {
+    const marginMethods = getCompatibleMarginMethodsForWinModel(modelCatalog, winModel);
+    map[winModel.path] = {
+      winModel: summarizeCatalogArtifact(winModel),
+      marginMethods: summarizeCatalogArtifact(marginMethods),
+      isCompatible: Boolean(marginMethods),
+      warning: marginMethods ? null : 'No compatible margin adapter is available for this win-first model.'
+    };
+    return map;
+  }, {});
+}
+
+async function getCurrentModelCatalog() {
+  const modelFiles = await getModelFiles();
+  const modelCatalog = await modelCatalogService.getModelCatalog({ modelFiles });
+  return { modelFiles, modelCatalog };
+}
+
+function buildFallbackArtifact(relativePath, kind) {
+  if (!relativePath) {
+    return null;
+  }
+
+  return {
+    path: relativePath,
+    kind,
+    trainedThroughYear: extractTrainedToYearFromPath(relativePath),
+    compatibility: {}
+  };
+}
+
+async function resolveCompatibleMarginMethodsPath(winModelPath, allowModelMismatch = false) {
+  const { modelFiles, modelCatalog } = await getCurrentModelCatalog();
+  const winModel = getCatalogArtifactByPath(modelCatalog, winModelPath)
+    || buildFallbackArtifact(winModelPath, 'trained_win_model');
+  const compatibleMarginMethods = getCompatibleMarginMethodsForWinModel(modelCatalog, winModel);
+
+  if (compatibleMarginMethods) {
+    return compatibleMarginMethods.path;
+  }
+
+  if (allowModelMismatch) {
+    const latestMarginMethods = getLatestCatalogArtifact(modelCatalog, 'win_margin_methods');
+    if (latestMarginMethods) {
+      return latestMarginMethods.path;
+    }
+    if (Array.isArray(modelFiles.winMarginMethods) && modelFiles.winMarginMethods.length > 0) {
+      return modelFiles.winMarginMethods[0];
+    }
+  }
+
+  throw new Error(
+    'No compatible margin adapter is available for the selected win-first model. '
+    + 'Retrain the win-first model or run the adapter backfill before generating predictions.'
+  );
+}
+
+async function assertCompatibleWinFirstArtifacts(winModelPath, marginMethodsPath, allowModelMismatch = false) {
+  if (allowModelMismatch) {
+    return;
+  }
+
+  const { modelCatalog } = await getCurrentModelCatalog();
+  const winModel = getCatalogArtifactByPath(modelCatalog, winModelPath)
+    || buildFallbackArtifact(winModelPath, 'trained_win_model');
+  const marginMethods = getCatalogArtifactByPath(modelCatalog, marginMethodsPath)
+    || buildFallbackArtifact(marginMethodsPath, 'win_margin_methods');
+
+  if (isCompatibleWinFirstPair(winModel, marginMethods)) {
+    return;
+  }
+
+  throw new Error(
+    'marginMethodsPath is not compatible with winModelPath. '
+    + 'Use the matching margin adapter for the selected win-first model or enable allowModelMismatch.'
+  );
+}
+
+function getPredictionProfiles(modelCatalog, activePredictors, currentYear) {
   const latestWinModel = getLatestCatalogArtifact(modelCatalog, 'trained_win_model');
-  let selectedWinModel = latestWinModel;
+  const adaptersByWinModelPath = buildWinFirstAdaptersByModelPath(modelCatalog);
+  let selectedWinModel = null;
   let compatibleMarginMethods = null;
   for (const winModel of getCatalogArtifactsByKind(modelCatalog, 'trained_win_model')) {
     const marginMethods = getCompatibleMarginMethodsForWinModel(modelCatalog, winModel);
@@ -300,41 +421,70 @@ function getRecommendedPredictionBundles(modelCatalog, activePredictors, current
   }
 
   const latestMarginMethods = getLatestCatalogArtifact(modelCatalog, 'win_margin_methods');
-  const selectedMarginMethods = compatibleMarginMethods || latestMarginMethods;
   const latestMarginModel = getLatestCatalogArtifact(modelCatalog, 'trained_margin_model');
+  const winFirstWarnings = [];
+  if (!compatibleMarginMethods) {
+    if (latestWinModel && latestMarginMethods) {
+      winFirstWarnings.push('No compatible win-first ratings and margin adapter pair could be inferred from metadata.');
+    } else if (latestWinModel && !latestMarginMethods) {
+      winFirstWarnings.push('No margin adapter artifact is available for the latest win-first ratings.');
+    } else if (!latestWinModel) {
+      winFirstWarnings.push('No trained win-first ratings artifact is available.');
+    }
+  }
 
+  return {
+    winFirst: {
+      mode: 'winFirst',
+      scriptKey: 'win-margin-methods-predictions',
+      label: 'Win-first model',
+      description: 'Trained win-first ratings plus a compatible margin adapter. Produces win probability and predicted margin.',
+      season: currentYear,
+      predictorId: chooseDefaultPredictorId(activePredictors, 8),
+      outputDir: DEFAULTS.winMarginMethodsOutputDir,
+      saveToDb: true,
+      futureOnly: true,
+      overrideCompleted: false,
+      allowModelMismatch: false,
+      winModel: summarizeCatalogArtifact(selectedWinModel),
+      marginMethods: summarizeCatalogArtifact(compatibleMarginMethods),
+      adaptersByWinModelPath,
+      fallbackWinModel: summarizeCatalogArtifact(latestWinModel),
+      fallbackMarginMethods: summarizeCatalogArtifact(latestMarginMethods),
+      isCompatible: Boolean(selectedWinModel && compatibleMarginMethods),
+      produces: ['home_win_probability', 'predicted_margin'],
+      warnings: winFirstWarnings
+    },
+    marginFirst: {
+      mode: 'marginFirst',
+      scriptKey: 'margin-predictions',
+      label: 'Margin-first model',
+      description: 'Trained margin-first model that derives win probability from margin output. Produces predicted margin and win probability.',
+      season: currentYear,
+      predictorId: chooseDefaultPredictorId(activePredictors, 7),
+      outputDir: DEFAULTS.marginPredictionsOutputDir,
+      saveToDb: true,
+      overrideCompleted: false,
+      model: summarizeCatalogArtifact(latestMarginModel),
+      isCompatible: Boolean(latestMarginModel),
+      produces: ['home_win_probability', 'predicted_margin'],
+      warnings: latestMarginModel ? [] : ['No trained margin-first model artifact is available.']
+    }
+  };
+}
+
+function getRecommendedPredictionBundles(predictionProfiles) {
   return {
     predictions: {
       primary: {
+        ...predictionProfiles.winFirst,
         mode: 'recommended',
-        scriptKey: 'win-margin-methods-predictions',
-        label: 'Recommended bundle',
-        description: 'Latest trained win model with matching margin-method output.',
-        season: currentYear,
-        predictorId: chooseDefaultPredictorId(activePredictors, 8),
-        outputDir: DEFAULTS.winMarginMethodsOutputDir,
-        saveToDb: true,
-        futureOnly: true,
-        overrideCompleted: false,
-        allowModelMismatch: false,
-        winModel: summarizeCatalogArtifact(selectedWinModel),
-        marginMethods: summarizeCatalogArtifact(selectedMarginMethods),
-        isCompatible: Boolean(selectedWinModel && compatibleMarginMethods),
-        warnings: selectedWinModel && selectedMarginMethods && !compatibleMarginMethods
-          ? ['No compatible win model and margin-method pair could be inferred from metadata.']
-          : []
+        label: 'Win-first model'
       },
       marginOnly: {
+        ...predictionProfiles.marginFirst,
         mode: 'marginOnly',
-        scriptKey: 'margin-predictions',
-        label: 'Margin-only',
-        description: 'Latest trained margin model, deriving win probability from margin output.',
-        season: currentYear,
-        predictorId: chooseDefaultPredictorId(activePredictors, 7),
-        outputDir: DEFAULTS.marginPredictionsOutputDir,
-        saveToDb: true,
-        overrideCompleted: false,
-        model: summarizeCatalogArtifact(latestMarginModel)
+        label: 'Margin-first model'
       }
     }
   };
@@ -388,13 +538,15 @@ async function getScriptMetadata() {
   const currentYear = new Date().getFullYear();
   const defaultMarginOptimizeEndYear = getDefaultMarginOptimizeEndYear();
   const defaultWinMarginMethodsOptimizeEndYear = getDefaultWinMarginMethodsOptimizeEndYear();
+  const predictionProfiles = getPredictionProfiles(modelCatalog, activePredictors, currentYear);
 
   return {
     scripts: getScriptCatalog(),
     modelFiles,
     modelCatalog,
     outputCatalog,
-    recommendedBundles: getRecommendedPredictionBundles(modelCatalog, activePredictors, currentYear),
+    predictionProfiles,
+    recommendedBundles: getRecommendedPredictionBundles(predictionProfiles),
     workflows: getWorkflowMetadata(currentYear),
     activePredictors,
     defaults: {
@@ -654,7 +806,7 @@ async function buildScriptCommand(scriptKey, params = {}) {
   if (scriptKey === 'combined-predictions') {
     const startYear = toInteger(params.startYear, 'startYear', { required: true, min: YEAR_MIN, max: yearMax });
     const winModelPath = normalizeRepoPath(params.winModelPath, 'winModelPath');
-    if (isWinParamsFile(winModelPath) || isWinMarginMethodsFile(winModelPath)) {
+    if (!isWinTrainedModelFile(winModelPath)) {
       throw new Error('winModelPath must reference a trained win model artifact');
     }
     const marginModelPath = normalizeRepoPath(params.marginModelPath, 'marginModelPath');
@@ -757,10 +909,14 @@ async function buildScriptCommand(scriptKey, params = {}) {
     if (isWinParamsFile(winModelPath) || isWinMarginMethodsFile(winModelPath)) {
       throw new Error('winModelPath must reference a trained win model artifact');
     }
-    const marginMethodsPath = normalizeRepoPath(params.marginMethodsPath, 'marginMethodsPath');
+    const allowModelMismatch = normalizeBoolean(params.allowModelMismatch, false);
+    const suppliedMarginMethodsPath = normalizeOptionalRepoPath(params.marginMethodsPath, 'marginMethodsPath');
+    const marginMethodsPath = suppliedMarginMethodsPath
+      || await resolveCompatibleMarginMethodsPath(winModelPath, allowModelMismatch);
     if (!isWinMarginMethodsFile(marginMethodsPath)) {
       throw new Error('marginMethodsPath must reference an optimal_margin_methods artifact');
     }
+    await assertCompatibleWinFirstArtifacts(winModelPath, marginMethodsPath, allowModelMismatch);
     const predictorId = toInteger(params.predictorId, 'predictorId', {
       required: true,
       min: 1,
@@ -777,7 +933,6 @@ async function buildScriptCommand(scriptKey, params = {}) {
     const saveToDb = normalizeBoolean(params.saveToDb, true);
     const futureOnly = normalizeBoolean(params.futureOnly, false);
     const overrideCompleted = normalizeBoolean(params.overrideCompleted, false);
-    const allowModelMismatch = normalizeBoolean(params.allowModelMismatch, false);
     const methodOverrideRaw = trimToNull(params.methodOverride);
     const allowedMethodOverrides = new Set(['simple', 'linear', 'diminishing_returns']);
     const methodOverride = methodOverrideRaw ? methodOverrideRaw.toLowerCase() : null;
@@ -899,12 +1054,14 @@ async function buildScriptCommand(scriptKey, params = {}) {
     const cvFolds = toInteger(params.cvFolds, 'cvFolds', { required: false, min: 2, max: 10 }) || 3;
     const maxCombinations = toInteger(params.maxCombinations, 'maxCombinations', { required: false, min: 1, max: 5000 }) || 500;
     const paramsFile = normalizeOptionalRepoPath(params.paramsFile, 'paramsFile');
-    const marginParams = normalizeOptionalRepoPath(params.marginParams, 'marginParams');
+    const marginMethodsNCalls = toInteger(params.marginMethodsNCalls, 'marginMethodsNCalls', { required: false, min: 1, max: 5000 }) || 100;
+    const marginMethodsRandomSeed = toInteger(
+      params.marginMethodsRandomSeed,
+      'marginMethodsRandomSeed',
+      { required: false, min: Number.MIN_SAFE_INTEGER, max: Number.MAX_SAFE_INTEGER }
+    ) ?? 42;
     if (paramsFile && (isWinTrainedModelFile(paramsFile) || isWinMarginMethodsFile(paramsFile))) {
       throw new Error('paramsFile must reference an optimal_elo_params_win artifact');
-    }
-    if (marginParams && !isWinMarginMethodsFile(marginParams)) {
-      throw new Error('marginParams must reference an optimal_margin_methods artifact');
     }
 
     normalizedParams.startYear = startYear;
@@ -915,7 +1072,8 @@ async function buildScriptCommand(scriptKey, params = {}) {
     normalizedParams.cvFolds = cvFolds;
     normalizedParams.maxCombinations = maxCombinations;
     normalizedParams.paramsFile = paramsFile;
-    normalizedParams.marginParams = marginParams;
+    normalizedParams.marginMethodsNCalls = marginMethodsNCalls;
+    normalizedParams.marginMethodsRandomSeed = marginMethodsRandomSeed;
 
     const args = [
       'scripts/elo_win_train.py',
@@ -924,7 +1082,9 @@ async function buildScriptCommand(scriptKey, params = {}) {
       '--db-path', dbPath,
       '--output-dir', outputDir,
       '--cv-folds', String(cvFolds),
-      '--max-combinations', String(maxCombinations)
+      '--max-combinations', String(maxCombinations),
+      '--margin-methods-n-calls', String(marginMethodsNCalls),
+      '--margin-methods-random-seed', String(marginMethodsRandomSeed)
     ];
 
     if (noTuneParameters) {
@@ -932,9 +1092,6 @@ async function buildScriptCommand(scriptKey, params = {}) {
     }
     if (paramsFile) {
       args.push('--params-file', paramsFile);
-    }
-    if (marginParams) {
-      args.push('--margin-params', marginParams);
     }
 
     return {

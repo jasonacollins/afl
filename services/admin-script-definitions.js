@@ -36,12 +36,12 @@ const SCRIPT_DEFINITIONS = {
   },
   'combined-predictions': {
     key: 'combined-predictions',
-    label: 'Predictions',
-    description: 'Run win + margin ELO predictions and write to database.',
+    label: 'Combined predictions',
+    description: 'Run separate win and margin ELO models to produce win probability and predicted margin.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
-      { name: 'winModelPath', label: 'Win Model', type: 'select', required: true, optionSource: 'modelFiles.winModels' },
-      { name: 'marginModelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
+      { name: 'winModelPath', label: 'Win-first Ratings', type: 'select', required: true, optionSource: 'modelFiles.winModels' },
+      { name: 'marginModelPath', label: 'Margin-first Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
       { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
       { name: 'futureOnly', label: 'Future Games Only', type: 'boolean', required: false },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
@@ -51,11 +51,11 @@ const SCRIPT_DEFINITIONS = {
   },
   'margin-predictions': {
     key: 'margin-predictions',
-    label: 'Margin Predictions',
-    description: 'Run margin-only ELO predictions and derive win probabilities.',
+    label: 'Margin-first predictions',
+    description: 'Run margin-first ELO predictions that produce predicted margins and derived win probabilities.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
-      { name: 'modelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
+      { name: 'modelPath', label: 'Margin-first Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
       { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
       { name: 'outputDir', label: 'Output Directory', type: 'text', required: false },
@@ -65,12 +65,12 @@ const SCRIPT_DEFINITIONS = {
   },
   'win-margin-methods-predictions': {
     key: 'win-margin-methods-predictions',
-    label: 'Win + Optimised Margin',
-    description: 'Run win ELO predictions with optimized margin derivation methods.',
+    label: 'Win-first predictions',
+    description: 'Run win-first ELO predictions with the matching fitted margin adapter.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
-      { name: 'winModelPath', label: 'Win Model', type: 'select', required: true, optionSource: 'modelFiles.winModels' },
-      { name: 'marginMethodsPath', label: 'Margin Methods', type: 'select', required: true, optionSource: 'modelFiles.winMarginMethods' },
+      { name: 'winModelPath', label: 'Win-first Ratings', type: 'select', required: true, optionSource: 'modelFiles.winModels' },
+      { name: 'marginMethodsPath', label: 'Margin Adapter', type: 'select', required: false, optionSource: 'modelFiles.winMarginMethods' },
       { name: 'predictorId', label: 'Predictor', type: 'select', required: true, optionSource: 'activePredictors' },
       { name: 'futureOnly', label: 'Future Games Only', type: 'boolean', required: false },
       { name: 'overrideCompleted', label: 'Override Completed', type: 'boolean', required: false },
@@ -83,10 +83,10 @@ const SCRIPT_DEFINITIONS = {
   },
   'win-margin-methods-optimize': {
     key: 'win-margin-methods-optimize',
-    label: 'Optimise Win Margin Methods (Testing)',
-    description: 'Optimise margin derivation methods for a win ELO model and write a testing artifact.',
+    label: 'Fit win-first margin adapter',
+    description: 'Fit margin derivation methods for a win-first ELO model and write an adapter artifact.',
     fields: [
-      { name: 'eloParamsPath', label: 'Win Model / Params', type: 'select', required: true, optionSource: 'modelFiles.winModelOrParams' },
+      { name: 'eloParamsPath', label: 'Win-first Ratings / Params', type: 'select', required: true, optionSource: 'modelFiles.winModelOrParams' },
       { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'endYear', label: 'End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'nCalls', label: 'N Calls', type: 'number', required: false, min: 1, max: 5000 },
@@ -97,8 +97,8 @@ const SCRIPT_DEFINITIONS = {
   },
   'win-train': {
     key: 'win-train',
-    label: 'Train Win Model',
-    description: 'Train the standard win ELO model.',
+    label: 'Train win-first model',
+    description: 'Train win-first ELO ratings and the matching margin adapter.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'endYear', label: 'End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
@@ -107,14 +107,13 @@ const SCRIPT_DEFINITIONS = {
       { name: 'noTuneParameters', label: 'Skip Parameter Tuning', type: 'boolean', required: false },
       { name: 'cvFolds', label: 'CV Folds', type: 'number', required: false, min: 2, max: 10 },
       { name: 'maxCombinations', label: 'Max Combinations', type: 'number', required: false, min: 1, max: 5000 },
-      { name: 'paramsFile', label: 'Params File', type: 'select', required: false, optionSource: 'modelFiles.winParams' },
-      { name: 'marginParams', label: 'Margin Params File', type: 'select', required: false, optionSource: 'modelFiles.winMarginMethods' }
+      { name: 'paramsFile', label: 'Params File', type: 'select', required: false, optionSource: 'modelFiles.winParams' }
     ]
   },
   'margin-optimize': {
     key: 'margin-optimize',
     label: 'Optimise Margin Params',
-    description: 'Optimise margin-only ELO parameters.',
+    description: 'Optimise margin-first ELO parameters.',
     fields: [
       { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
       { name: 'endYear', label: 'End Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
@@ -125,8 +124,8 @@ const SCRIPT_DEFINITIONS = {
   },
   'margin-train': {
     key: 'margin-train',
-    label: 'Train Margin Model',
-    description: 'Train the margin-only ELO model.',
+    label: 'Train margin-first model',
+    description: 'Train the margin-first ELO model.',
     fields: [
       { name: 'paramsFile', label: 'Params File', type: 'select', required: true, optionSource: 'modelFiles.margin' },
       { name: 'startYear', label: 'Start Year', type: 'number', required: false, min: YEAR_MIN, maxDynamic: 'yearMax' },
@@ -159,8 +158,8 @@ const SCRIPT_DEFINITIONS = {
     description: 'Run Monte Carlo season simulation and write JSON output.',
     fields: [
       { name: 'year', label: 'Year', type: 'number', required: true, min: YEAR_MIN, maxDynamic: 'yearMax' },
-      { name: 'modelPath', label: 'Margin Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
-      { name: 'winModelPath', label: 'Win Model (Combined Mode)', type: 'select', required: false, optionSource: 'modelFiles.winModels' },
+      { name: 'modelPath', label: 'Margin-first Model', type: 'select', required: true, optionSource: 'modelFiles.margin' },
+      { name: 'winModelPath', label: 'Win-first Ratings (Combined Mode)', type: 'select', required: false, optionSource: 'modelFiles.winModels' },
       { name: 'dbPath', label: 'DB Path', type: 'text', required: false },
       { name: 'numSimulations', label: 'Simulations', type: 'number', required: false, min: 1000, max: 200000 },
       { name: 'fromScratch', label: 'From Scratch', type: 'boolean', required: false },
