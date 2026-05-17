@@ -333,6 +333,44 @@ describe('predictions routes', () => {
     });
   });
 
+  test('POST /save rejects 50 percent predictions without a tipped team', async () => {
+    getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .send({ matchId: 44, probability: 50 });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({
+      errorCode: 'VALIDATION_ERROR',
+      message: 'A tipped team is required for 50 percent predictions'
+    }));
+    expect(predictionService.savePrediction).not.toHaveBeenCalled();
+  });
+
+  test('POST /save rejects 50 percent predictions with an invalid tipped team', async () => {
+    getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
+
+    const app = createRouterTestApp(predictionsRouter, {
+      sessionData: { user: { id: 5 }, isAdmin: false }
+    });
+
+    const response = await request(app)
+      .post('/save')
+      .send({ matchId: 44, probability: 50, tippedTeam: 'draw' });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({
+      errorCode: 'VALIDATION_ERROR',
+      message: 'A tipped team is required for 50 percent predictions'
+    }));
+    expect(predictionService.savePrediction).not.toHaveBeenCalled();
+  });
+
   test('POST /save deletes predictions when probability is blank', async () => {
     getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
 
@@ -365,7 +403,7 @@ describe('predictions routes', () => {
     expect(response.body).toEqual({ success: true, action: 'deleted' });
   });
 
-  test('POST /save defaults non-numeric probabilities to 50', async () => {
+  test('POST /save rejects non-numeric probabilities that would become 50 without a tipped team', async () => {
     getOne.mockResolvedValue({ match_date: '2099-03-01T12:00:00.000Z' });
 
     const app = createRouterTestApp(predictionsRouter, {
@@ -376,11 +414,12 @@ describe('predictions routes', () => {
       .post('/save')
       .send({ matchId: 44, probability: 'abc' });
 
-    expect(response.status).toBe(200);
-    expect(predictionService.savePrediction).toHaveBeenCalledWith(44, 5, 50, {
-      tippedTeam: undefined
-    });
-    expect(response.body).toEqual({ success: true });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({
+      errorCode: 'VALIDATION_ERROR',
+      message: 'A tipped team is required for 50 percent predictions'
+    }));
+    expect(predictionService.savePrediction).not.toHaveBeenCalled();
   });
 
   test('POST /save clamps probability before saving', async () => {

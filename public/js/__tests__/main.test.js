@@ -239,6 +239,35 @@ describe('public/js/main.js', () => {
     expect(document.querySelector('.save-prediction[data-match-id="22"]').textContent.trim()).toBe('Saved');
   });
 
+  test('renderMatches keeps stored 50 percent away tips selected', () => {
+    window.userPredictions = {
+      22: {
+        probability: 50,
+        tipped_team: 'away'
+      }
+    };
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 22,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const saveButton = document.querySelector('.save-prediction[data-match-id="22"]');
+    expect(saveButton.dataset.tippedTeam).toBe('away');
+    expect(document.querySelector('#team-selection-22 .away-team-button').classList.contains('selected')).toBe(true);
+    expect(document.querySelector('#team-selection-22 .home-team-button').classList.contains('selected')).toBe(false);
+  });
+
   test('savePrediction posts CSRF-protected JSON and updates stored prediction state', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     document.getElementById('matches-container').innerHTML = `
@@ -358,7 +387,13 @@ describe('public/js/main.js', () => {
     expect(button.disabled).toBe(false);
   });
 
-  test('prediction inputs manage 50 percent team selection and delete state transitions', () => {
+  test('prediction inputs manage 50 percent team selection and delete state transitions', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+    window.fetch = global.fetch;
+
     loadBrowserScript('main.js');
 
     window.renderMatches([
@@ -386,10 +421,18 @@ describe('public/js/main.js', () => {
     expect(awayInput.value).toBe('50');
     expect(saveButton.textContent).toBe('Update Prediction');
     expect(document.getElementById('team-selection-22')).not.toBeNull();
-    expect(saveButton.dataset.tippedTeam).toBe('home');
+    expect(saveButton.dataset.tippedTeam || '').toBe('');
+    expect(document.querySelector('#team-selection-22 .home-team-button').classList.contains('selected')).toBe(false);
+    expect(document.querySelector('#team-selection-22 .away-team-button').classList.contains('selected')).toBe(false);
 
     document.querySelector('#team-selection-22 .away-team-button').click();
+    await flushPromises();
     expect(saveButton.dataset.tippedTeam).toBe('away');
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      matchId: '22',
+      probability: 50,
+      tippedTeam: 'away'
+    });
 
     homeInput.value = '';
     homeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
@@ -398,6 +441,48 @@ describe('public/js/main.js', () => {
     expect(saveButton.textContent).toBe('Clear Prediction');
     expect(saveButton.classList.contains('delete-state')).toBe(true);
     expect(document.getElementById('team-selection-22')).toBeNull();
+  });
+
+  test('clicking a team button persists a new 50 percent tiebreak selection', async () => {
+    document.querySelector('.round-buttons').innerHTML = '';
+    window.userPredictions = {};
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+    window.fetch = global.fetch;
+
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: 44,
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: 'MCG',
+        home_team: 'Cats',
+        away_team: 'Swans',
+        hscore: null,
+        ascore: null,
+        isLocked: false
+      }
+    ]);
+
+    const homeInput = document.querySelector('.home-prediction[data-match-id="44"]');
+    homeInput.value = '50';
+    homeInput.dispatchEvent(new window.Event('input', { bubbles: true }));
+    document.querySelector('#team-selection-44 .away-team-button').click();
+    await flushPromises();
+
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
+      matchId: '44',
+      probability: 50,
+      tippedTeam: 'away'
+    });
+    expect(window.userPredictions['44']).toEqual({
+      probability: 50,
+      tippedTeam: 'away',
+      isMissed: false
+    });
   });
 
   test('prediction inputs blur on wheel to avoid accidental number changes while scrolling', () => {
@@ -456,7 +541,7 @@ describe('public/js/main.js', () => {
     expect(global.alert).toHaveBeenCalledWith('Please select which team you think will win');
   });
 
-  test('savePrediction defaults 50 percent submissions to a home-team tip when no tiebreaker is selected', async () => {
+  test('savePrediction refuses 50 percent submissions when no tiebreaker is selected', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     document.getElementById('matches-container').innerHTML = `
       <div class="match-card">
@@ -477,11 +562,8 @@ describe('public/js/main.js', () => {
     window.savePrediction('44', '50', button);
     await flushPromises();
 
-    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
-      matchId: '44',
-      probability: 50,
-      tippedTeam: 'home'
-    });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.alert).toHaveBeenCalledWith('Please select which team you think will win');
   });
 
   test('renderMatches shows partial draw accuracy for non-50 admin tips', () => {
@@ -898,7 +980,7 @@ describe('public/js/main.js', () => {
     expect(document.querySelector('.admin-metrics-display').textContent).toContain('Tip: 1 | Brier: 0.1234 | Bits: 0.5678');
   });
 
-  test('blur auto-saves an initial valid prediction and defaults 50 percent to the home team', async () => {
+  test('blur does not auto-save an initial 50 percent prediction before team selection', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -922,20 +1004,13 @@ describe('public/js/main.js', () => {
     ]);
 
     const input = document.querySelector('.home-prediction[data-match-id="30"]');
-    const button = document.querySelector('.save-prediction[data-match-id="30"]');
-
     input.value = '50';
     input.dispatchEvent(new window.Event('input', { bubbles: true }));
     input.dispatchEvent(new window.Event('blur', { bubbles: true }));
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith('/predictions/save', expect.any(Object));
-    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({
-      matchId: '30',
-      probability: 50,
-      tippedTeam: 'home'
-    });
-    expect(button.textContent).toBe('Saved');
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(document.getElementById('team-selection-30')).not.toBeNull();
   });
 
   test('savePrediction restores the original value when the probability is invalid', () => {

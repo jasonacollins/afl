@@ -97,6 +97,10 @@ function getStoredPrediction(matchId) {
   };
 }
 
+function isValidTippedTeam(tippedTeam) {
+  return tippedTeam === 'home' || tippedTeam === 'away';
+}
+
 function canBypassPredictionLocks() {
   return window.canOverridePredictionLocks === true;
 }
@@ -507,7 +511,7 @@ function initPredictionInputs() {
         if (!isNaN(numericProb) && numericProb >= 0 && numericProb <= 100) {
           const saveButton = document.querySelector(`.save-prediction[data-match-id="${matchId}"]`);
           if (saveButton) {
-            // If it's 50%, ensure saveButton.dataset.tippedTeam is set if team selection UI is present
+            // Brand-new 50% predictions wait for an explicit team click.
             if (numericProb === 50) {
                 const teamSelectionContainer = document.getElementById(`team-selection-${matchId}`);
                 if (teamSelectionContainer && !saveButton.dataset.tippedTeam) {
@@ -515,13 +519,13 @@ function initPredictionInputs() {
                     if (selectedTeamButton) {
                         saveButton.dataset.tippedTeam = selectedTeamButton.dataset.team;
                     } else {
-                        // addTeamSelection defaults to 'home' and selects it, so this should be set.
-                        // If not, savePrediction will default to 'home'.
-                        saveButton.dataset.tippedTeam = 'home'; 
+                        return;
                     }
                 } else if (!teamSelectionContainer && !saveButton.dataset.tippedTeam) {
-                    // If UI not yet added but it's 50, default for auto-save
-                    saveButton.dataset.tippedTeam = 'home';
+                    return;
+                }
+                if (!isValidTippedTeam(saveButton.dataset.tippedTeam)) {
+                    return;
                 }
             }
             // Call the global savePrediction function (could be admin version)
@@ -602,21 +606,9 @@ function addTeamSelection(matchId, homeTeam, awayTeam, saveButton) {
   // Add event listeners to team buttons
   const homeButton = teamSelection.querySelector('.home-team-button');
   const awayButton = teamSelection.querySelector('.away-team-button');
-  
-  homeButton.addEventListener('click', function() {
-    homeButton.classList.add('selected');
-    awayButton.classList.remove('selected');
-    saveButton.dataset.tippedTeam = 'home';
-  });
-  
-  awayButton.addEventListener('click', function() {
-    awayButton.classList.add('selected');
-    homeButton.classList.remove('selected');
-    saveButton.dataset.tippedTeam = 'away';
-  });
-  
-  // Default to home team
-  homeButton.click();
+
+  bindTeamSelectionButton(homeButton);
+  bindTeamSelectionButton(awayButton);
 }
 
 function removeTeamSelection(matchId) {
@@ -624,6 +616,50 @@ function removeTeamSelection(matchId) {
   if (teamSelection) {
     teamSelection.remove();
   }
+}
+
+function bindTeamSelectionButton(button) {
+  if (!button || button.dataset.teamSelectionBound === 'true') {
+    return;
+  }
+
+  button.dataset.teamSelectionBound = 'true';
+  button.addEventListener('click', function() {
+    handleTeamSelectionClick(this);
+  });
+}
+
+function handleTeamSelectionClick(button) {
+  const teamSelection = button.closest('.team-selection');
+  if (!teamSelection || !isValidTippedTeam(button.dataset.team)) return;
+
+  const matchId = teamSelection.id.replace('team-selection-', '');
+  const saveButton = document.querySelector(`.save-prediction[data-match-id="${matchId}"]`);
+  if (!saveButton) return;
+
+  const teamButtons = teamSelection.querySelectorAll('.team-button');
+  teamButtons.forEach(btn => btn.classList.remove('selected'));
+  button.classList.add('selected');
+
+  saveButton.dataset.tippedTeam = button.dataset.team;
+  persistTiebreakSelection(matchId, saveButton);
+}
+
+function persistTiebreakSelection(matchId, saveButton) {
+  const input = document.querySelector(`.home-prediction[data-match-id="${matchId}"]`);
+  if (!input || !isValidTippedTeam(saveButton.dataset.tippedTeam)) {
+    return;
+  }
+
+  const probability = input.value.trim();
+  if (parseInt(probability, 10) !== 50) {
+    return;
+  }
+
+  const saveFn = (typeof window !== 'undefined' && typeof window.savePrediction === 'function')
+    ? window.savePrediction
+    : savePrediction;
+  saveFn(matchId, probability, saveButton);
 }
 
 // Handle save prediction buttons
@@ -654,33 +690,23 @@ function initSavePredictionButtons() {
         // For 50% predictions, ensure a team is selected
         if (!isDeleteAction && probability !== '' && parseInt(probability) === 50) {
           const tippedTeam = this.dataset.tippedTeam;
-          if (!tippedTeam) {
+          if (!isValidTippedTeam(tippedTeam)) {
             alert('Please select which team you think will win');
             return;
           }
         }
         
-        savePrediction(matchId, probability, this);
+        const saveFn = (typeof window !== 'undefined' && typeof window.savePrediction === 'function')
+          ? window.savePrediction
+          : savePrediction;
+        saveFn(matchId, probability, this);
       }
     });
   });
   
   // Also add click handlers for the team selection buttons that may already be in the DOM
   document.querySelectorAll('.team-button').forEach(button => {
-    button.addEventListener('click', function() {
-      const teamSelection = this.closest('.team-selection');
-      if (!teamSelection) return;
-      
-      const matchId = teamSelection.id.replace('team-selection-', '');
-      const saveButton = document.querySelector(`.save-prediction[data-match-id="${matchId}"]`);
-      if (!saveButton) return;
-      
-      const teamButtons = teamSelection.querySelectorAll('.team-button');
-      teamButtons.forEach(btn => btn.classList.remove('selected'));
-      this.classList.add('selected');
-      
-      saveButton.dataset.tippedTeam = this.dataset.team;
-    });
+    bindTeamSelectionButton(button);
   });
 }
 
@@ -713,8 +739,12 @@ function savePrediction(matchId, probability, button) {
     }
     probValue = parsedProb; // Store the valid numeric probability
     if (probValue === 50) {
-      // Get tippedTeam from button's dataset; default to 'home' if not set
-      tippedTeamPayload = button.dataset.tippedTeam || 'home';
+      tippedTeamPayload = button.dataset.tippedTeam;
+      if (!isValidTippedTeam(tippedTeamPayload)) {
+        alert('Please select which team you think will win');
+        button.disabled = false;
+        return;
+      }
     }
   }
 
@@ -900,6 +930,7 @@ if (typeof window !== 'undefined') {
   window.updateRoundButtonStates = updateRoundButtonStates;
   window.addTeamSelection = addTeamSelection;
   window.removeTeamSelection = removeTeamSelection;
+  window.isValidTippedTeam = isValidTippedTeam;
   window.getStoredPrediction = getStoredPrediction;
   window.savePrediction = savePrediction;
   window.updateStoredPrediction = updateStoredPrediction;

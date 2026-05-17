@@ -35,7 +35,7 @@ describe('public/js/predictions.js', () => {
     dom.window.close();
   });
 
-  test('initializes page globals and updates the selected tipped team', () => {
+  test('initializes page globals from the predictions container', () => {
     loadBrowserScript('predictions.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
 
@@ -46,15 +46,9 @@ describe('public/js/predictions.js', () => {
       }
     });
     expect(window.isAdmin).toBe(true);
-
-    document.querySelector('.away-team-button').click();
-
-    expect(document.querySelector('.away-team-button').classList.contains('selected')).toBe(true);
-    expect(document.querySelector('.home-team-button').classList.contains('selected')).toBe(false);
-    expect(document.querySelector('.save-prediction').dataset.tippedTeam).toBe('away');
   });
 
-  test('supports selecting the home team and tolerates missing save buttons', () => {
+  test('initializes empty predictions and non-admin status', () => {
     restoreDomGlobals();
     dom.window.close();
 
@@ -71,14 +65,9 @@ describe('public/js/predictions.js', () => {
 
     expect(window.userPredictions).toEqual({});
     expect(window.isAdmin).toBe(false);
-
-    document.querySelector('.home-team-button').click();
-
-    expect(document.querySelector('.home-team-button').classList.contains('selected')).toBe(true);
-    expect(document.querySelector('.away-team-button').classList.contains('selected')).toBe(false);
   });
 
-  test('skips initialization cleanly when the predictions container is absent', () => {
+  test('does not bind team selection buttons when bootstrapping globals', () => {
     restoreDomGlobals();
     dom.window.close();
 
@@ -96,6 +85,7 @@ describe('public/js/predictions.js', () => {
 
     expect(window.userPredictions).toBeUndefined();
     expect(window.isAdmin).toBeUndefined();
-    expect(document.querySelector('.home-team-button').classList.contains('selected')).toBe(true);
+    expect(document.querySelector('.home-team-button').classList.contains('selected')).toBe(false);
+    expect(document.querySelector('.away-team-button').classList.contains('selected')).toBe(true);
   });
 });

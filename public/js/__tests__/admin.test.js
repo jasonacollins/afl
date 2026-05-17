@@ -419,6 +419,25 @@ describe('public/js/admin.js', () => {
     expect(document.querySelector('.admin-metrics-display').innerHTML).toBe('<p>metrics</p>');
   });
 
+  test('admin savePrediction override refuses 50 percent saves without a tiebreaker', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true })
+    });
+
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    const button = document.querySelector('.save-prediction');
+    window.savePrediction('44', '50', button);
+    await flushPromises();
+
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(global.alert).toHaveBeenCalledWith('Please select which team you think will win');
+    expect(button.textContent).toBe('Save Prediction');
+    expect(button.disabled).toBe(false);
+  });
+
   test('upload form blocks submission when no database file is selected', () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));

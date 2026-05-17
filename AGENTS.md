@@ -44,6 +44,7 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 - `services/scoring-service.js` runs in both Node.js and the browser through `/js/scoring-service.js`.
 - Keep its behavior aligned with `scripts/core/scoring.py`.
 - Do not introduce server-only dependencies into that file.
+- Manual exact 50% predictions must include an explicit `tipped_team` of `home` or `away`; missed-prediction defaults are the only path that may synthesize a 50% home tip.
 
 ### Frontend Security
 

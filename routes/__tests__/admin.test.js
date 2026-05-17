@@ -705,6 +705,42 @@ describe('admin routes', () => {
     expect(response.body).toEqual({ success: true });
   });
 
+  test('POST /predictions/:userId/save rejects 50 percent predictions without a tipped team', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictions/5/save')
+      .set('Accept', 'application/json')
+      .send({ matchId: 11, probability: 50 });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({
+      errorCode: 'VALIDATION_ERROR',
+      message: 'A tipped team is required for 50 percent predictions'
+    }));
+    expect(predictionService.savePrediction).not.toHaveBeenCalled();
+  });
+
+  test('POST /predictions/:userId/save rejects 50 percent predictions with an invalid tipped team', async () => {
+    const app = createRouterTestApp(adminRouter, {
+      sessionData: { user: { id: 1 }, isAdmin: true }
+    });
+
+    const response = await request(app)
+      .post('/predictions/5/save')
+      .set('Accept', 'application/json')
+      .send({ matchId: 11, probability: 50, tippedTeam: 'draw' });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(expect.objectContaining({
+      errorCode: 'VALIDATION_ERROR',
+      message: 'A tipped team is required for 50 percent predictions'
+    }));
+    expect(predictionService.savePrediction).not.toHaveBeenCalled();
+  });
+
   test('POST /predictions/:userId/missed updates only the missed flag', async () => {
     predictionService.updatePredictionMissedFlag.mockResolvedValue({
       changes: 1,

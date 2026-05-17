@@ -6,6 +6,7 @@ AFL Predictions is a Node.js and Express application for AFL forecasting, leader
 
 - Lets users submit probability-based predictions for AFL matches
 - Scores predictors with tip points, Brier score, and bits score
+- Scores exact 50% human predictions using the selected home/away tiebreak team
 - Publishes a public predictions homepage, ELO page, simulation page, and stats page
 - Syncs fixtures and results from Squiggle
 - Provides an admin area for predictor management, user-prediction editing, model workflows, and data operations

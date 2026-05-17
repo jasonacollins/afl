@@ -45,6 +45,10 @@ function getEventTargetElement(event) {
   return event.target.nodeType === Node.ELEMENT_NODE ? event.target : null;
 }
 
+function isValidTippedTeam(tippedTeam) {
+  return tippedTeam === 'home' || tippedTeam === 'away';
+}
+
 // Modal functions
 function showResetPasswordForm(userId, userName) {
   document.getElementById('resetUserName').textContent = userName;
@@ -577,9 +581,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let tippedTeamForPayload = undefined;
     if (numericProb === 50) {
-      // Use tippedTeam from button dataset (set by UI or blur event)
-      // Default to 'home' if not present, though UI should ensure it is.
-      tippedTeamForPayload = button.dataset.tippedTeam || 'home';
+      tippedTeamForPayload = button.dataset.tippedTeam;
+      if (!isValidTippedTeam(tippedTeamForPayload)) {
+        alert('Please select which team you think will win');
+        button.textContent = originalButtonText;
+        button.disabled = false;
+        return;
+      }
     }
 
     fetch(`/admin/predictions/${userId}/save`, {

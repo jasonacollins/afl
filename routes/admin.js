@@ -76,6 +76,10 @@ function buildAdminMetrics(prediction, match) {
   };
 }
 
+function isValidTippedTeam(tippedTeam) {
+  return tippedTeam === 'home' || tippedTeam === 'away';
+}
+
 // API endpoints for managing predictor exclusions
 router.get('/api/excluded-predictors', catchAsync(async (req, res) => {
   const excludedPredictors = await getQuery(
@@ -469,6 +473,10 @@ router.post('/predictions/:userId/save', catchAsync(async (req, res) => {
   if (isNaN(prob)) prob = 50;
   if (prob < 0) prob = 0;
   if (prob > 100) prob = 100;
+
+  if (prob === 50 && !isValidTippedTeam(tippedTeam)) {
+    throw createValidationError('A tipped team is required for 50 percent predictions');
+  }
   
   await predictionService.savePrediction(matchId, userId, prob, {
     adminOverride: true,

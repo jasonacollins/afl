@@ -24,6 +24,10 @@ function buildPredictionViewModel(prediction) {
   };
 }
 
+function isValidTippedTeam(tippedTeam) {
+  return tippedTeam === 'home' || tippedTeam === 'away';
+}
+
 // Get predictions page
 router.get('/', catchAsync(async (req, res) => {
   // Get the user's year_joined to scope available years
@@ -241,6 +245,10 @@ router.post('/save', catchAsync(async (req, res) => {
   if (isNaN(prob)) prob = 50;
   if (prob < 0) prob = 0;
   if (prob > 100) prob = 100;
+
+  if (prob === 50 && !isValidTippedTeam(tippedTeam)) {
+    throw createValidationError('A tipped team is required for 50 percent predictions');
+  }
   
   await predictionService.savePrediction(matchId, predictorId, prob, { tippedTeam });
   
