@@ -1,6 +1,23 @@
 // Main predictions page behavior shared with admin prediction management.
 let currentMatchesData = []; // Store current matches
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sanitizeMetricClass(value) {
+  return ['correct', 'incorrect', 'partial'].includes(value) ? value : 'incorrect';
+}
+
 function bootstrapPredictionsPage() {
   if (isAdminUserPredictionsPage()) {
     window.isAdmin = true;
@@ -137,9 +154,10 @@ function getAdminMissedToggleMarkup(matchId, isMissed) {
     return '';
   }
 
+  const safeMatchId = escapeHtml(matchId);
   return `<button type="button"
             class="toggle-missed-button"
-            data-match-id="${matchId}"
+            data-match-id="${safeMatchId}"
             data-is-missed="${isMissed ? 'true' : 'false'}"
             aria-pressed="${isMissed ? 'true' : 'false'}">Missed: ${isMissed ? 'On' : 'Off'}</button>`;
 }
@@ -258,19 +276,30 @@ function renderMatches(matches) {
     // Add data-abbrev to team divs for easier access in JS if needed
     const homeTeamName = (match.home_team === 'Greater Western Sydney' && match.home_team_abbrev) ? match.home_team_abbrev : match.home_team;
     const awayTeamName = (match.away_team === 'Greater Western Sydney' && match.away_team_abbrev) ? match.away_team_abbrev : match.away_team;
+    const safeMatchId = escapeHtml(match.match_id);
+    const safeMatchDate = escapeHtml(match.match_date);
+    const safeFormattedDate = escapeHtml(formatDateToLocalTimezone(match.match_date));
+    const safeVenue = escapeHtml(match.venue);
+    const safeHomeTeamName = escapeHtml(homeTeamName);
+    const safeAwayTeamName = escapeHtml(awayTeamName);
+    const safeHomeAbbrev = escapeHtml(match.home_team_abbrev || '');
+    const safeAwayAbbrev = escapeHtml(match.away_team_abbrev || '');
+    const safePrediction = escapeHtml(prediction);
+    const safeAwayPrediction = escapeHtml(awayPrediction);
+    const safeTippedTeam = tippedTeam === 'away' ? 'away' : 'home';
 
     html += `
       <div class="match-card ${hasResult ? 'has-result' : ''} ${isLocked ? 'locked' : ''} ${isMissed ? 'missed' : ''}">
         <div class="match-header">
-          <span class="match-date" data-original-date="${match.match_date}">${formatDateToLocalTimezone(match.match_date)}</span>
-          <span class="match-venue">${match.venue}</span>
+          <span class="match-date" data-original-date="${safeMatchDate}">${safeFormattedDate}</span>
+          <span class="match-venue">${safeVenue}</span>
           ${cornerStatusMarkup}
         </div>
 
         <div class="match-teams">
-          <div class="home-team" data-abbrev="${match.home_team_abbrev || ''}">${homeTeamName}</div>
+          <div class="home-team" data-abbrev="${safeHomeAbbrev}">${safeHomeTeamName}</div>
           <div class="vs">vs</div>
-          <div class="away-team" data-abbrev="${match.away_team_abbrev || ''}">${awayTeamName}</div>
+          <div class="away-team" data-abbrev="${safeAwayAbbrev}">${safeAwayTeamName}</div>
         </div>
 
         ${hasResult ? `
@@ -286,10 +315,10 @@ function renderMatches(matches) {
                 <div class="input-with-symbol">
                   <input type="number" 
                          class="prediction-input home-prediction" 
-                         data-match-id="${match.match_id}" 
-                         data-original-value="${prediction}"
+                         data-match-id="${safeMatchId}"
+                         data-original-value="${safePrediction}"
                          min="0" max="100" 
-                         value="${prediction}">
+                         value="${safePrediction}">
                   <span class="input-symbol">%</span>
                 </div>
               </div>
@@ -298,9 +327,9 @@ function renderMatches(matches) {
                 <div class="input-with-symbol">
                   <input type="number" 
                          class="prediction-input away-prediction" 
-                         data-match-id="${match.match_id}" 
+                         data-match-id="${safeMatchId}"
                          min="0" max="100" 
-                         value="${awayPrediction}"
+                         value="${safeAwayPrediction}"
                          readonly
                          tabindex="-1">
                   <span class="input-symbol">%</span>
@@ -309,18 +338,18 @@ function renderMatches(matches) {
             </div>
 
             ${parseInt(prediction) === 50 && hasPrediction ? `
-              <div id="team-selection-${match.match_id}" class="team-selection">
+              <div id="team-selection-${safeMatchId}" class="team-selection">
                 <p>Who do you think will win?</p>
                 <div class="team-buttons">
-                  <button type="button" class="team-button home-team-button ${tippedTeam === 'home' ? 'selected' : ''}" data-team="home">${homeTeamName}</button>
-                  <button type="button" class="team-button away-team-button ${tippedTeam === 'away' ? 'selected' : ''}" data-team="away">${awayTeamName}</button>
+                  <button type="button" class="team-button home-team-button ${safeTippedTeam === 'home' ? 'selected' : ''}" data-team="home">${safeHomeTeamName}</button>
+                  <button type="button" class="team-button away-team-button ${safeTippedTeam === 'away' ? 'selected' : ''}" data-team="away">${safeAwayTeamName}</button>
                 </div>
               </div>
             ` : ''}
 
             <button class="${buttonClass}" 
-                    data-match-id="${match.match_id}"
-                    data-tipped-team="${(parseInt(prediction) === 50 && hasPrediction) ? tippedTeam : ''}">
+                    data-match-id="${safeMatchId}"
+                    data-tipped-team="${(parseInt(prediction) === 50 && hasPrediction) ? safeTippedTeam : ''}">
               ${buttonText}
             </button>
             ${adminMissedToggleMarkup}
@@ -333,9 +362,9 @@ function renderMatches(matches) {
         ` : isLocked ? `
           <div class="prediction-locked">
             ${hasPrediction ? `
-              <p>Your prediction: ${prediction}% for ${homeTeamName}</p>
+              <p>Your prediction: ${safePrediction}% for ${safeHomeTeamName}</p>
               ${parseInt(prediction) === 50 ? `
-                <p>Tipped: ${tippedTeam === 'home' ? homeTeamName : awayTeamName} to win</p>
+                <p>Tipped: ${safeTippedTeam === 'home' ? safeHomeTeamName : safeAwayTeamName} to win</p>
               ` : ''}
             ` : `
               <p>No prediction made</p>
@@ -365,8 +394,13 @@ function calculateAccuracy(match, prediction, tippedTeam) {
   }
 
   if (match.adminMetrics) {
+    const tipClass = sanitizeMetricClass(match.adminMetrics.tipClass);
+    const tipPoints = escapeHtml(match.adminMetrics.tipPoints);
+    const brierScore = escapeHtml(match.adminMetrics.brierScore);
+    const bitsScore = escapeHtml(match.adminMetrics.bitsScore);
+
     return `<div class="metrics-details">
-      <p>Tip: <span class="${match.adminMetrics.tipClass}">${match.adminMetrics.tipPoints}</span> | Brier: ${match.adminMetrics.brierScore} | Bits: ${match.adminMetrics.bitsScore}</p>
+      <p>Tip: <span class="${tipClass}">${tipPoints}</span> | Brier: ${brierScore} | Bits: ${bitsScore}</p>
     </div>`;
   }
 
@@ -592,11 +626,20 @@ function addTeamSelection(matchId, homeTeam, awayTeam, saveButton) {
   const teamSelection = document.createElement('div');
   teamSelection.className = 'team-selection';
   teamSelection.id = `team-selection-${matchId}`;
+  const homeTeamElement = saveButton.closest('.match-card').querySelector('.home-team');
+  const awayTeamElement = saveButton.closest('.match-card').querySelector('.away-team');
+  const homeTeamLabel = (homeTeam === 'Greater Western Sydney' && homeTeamElement.dataset.abbrev)
+    ? homeTeamElement.dataset.abbrev
+    : homeTeam;
+  const awayTeamLabel = (awayTeam === 'Greater Western Sydney' && awayTeamElement.dataset.abbrev)
+    ? awayTeamElement.dataset.abbrev
+    : awayTeam;
+
   teamSelection.innerHTML = `
     <p>Who do you think will win?</p>
     <div class="team-buttons">
-      <button type="button" class="team-button home-team-button" data-team="home">${(homeTeam === 'Greater Western Sydney' && saveButton.closest('.match-card').querySelector('.home-team').dataset.abbrev) ? saveButton.closest('.match-card').querySelector('.home-team').dataset.abbrev : homeTeam}</button>
-      <button type="button" class="team-button away-team-button" data-team="away">${(awayTeam === 'Greater Western Sydney' && saveButton.closest('.match-card').querySelector('.away-team').dataset.abbrev) ? saveButton.closest('.match-card').querySelector('.away-team').dataset.abbrev : awayTeam}</button>
+      <button type="button" class="team-button home-team-button" data-team="home">${escapeHtml(homeTeamLabel)}</button>
+      <button type="button" class="team-button away-team-button" data-team="away">${escapeHtml(awayTeamLabel)}</button>
     </div>
   `;
   

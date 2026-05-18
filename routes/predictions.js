@@ -4,6 +4,7 @@ const { getQuery, getOne } = require('../models/db');
 const { isAuthenticated } = require('./auth');
 const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');
+const roundViewService = require('../services/round-view-service');
 const matchService = require('../services/match-service');
 const predictionService = require('../services/prediction-service');
 const predictorService = require('../services/predictor-service');
@@ -56,92 +57,14 @@ router.get('/', catchAsync(async (req, res) => {
   `;
   const allMatches = await getQuery(allMatchesQuery, [selectedYear]);
   
-  // Group matches by round
-  const matchesByRound = {};
-  allMatches.forEach(match => {
-    if (!matchesByRound[match.round_number]) {
-      matchesByRound[match.round_number] = [];
-    }
-    matchesByRound[match.round_number].push(match);
-  });
-  
-  // Add completion status to rounds and determine current round
-  const roundsWithStatus = allRounds.map(roundObj => {
-    const roundNumber = roundObj.round_number;
-    const roundMatches = matchesByRound[roundNumber] || [];
-    
-    // Check if all matches in this round are completed
-    const allMatchesCompleted = roundMatches.length > 0 && 
-      roundMatches.every(match => match.hscore !== null && match.ascore !== null);
-    
-    return {
-      ...roundObj,
-      isCompleted: allMatchesCompleted
-    };
-  });
-
-  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus, selectedYear);
-  const currentRoundObj = rounds.find(round => !round.isCompleted);
-  const currentRound = currentRoundObj ? currentRoundObj.round_number : null;
+  const rounds = roundViewService.buildDisplayRounds(allRounds, allMatches, selectedYear);
+  const currentRound = roundViewService.getCurrentRound(rounds);
   
   // Resolve default selected round based on fixture dates/results rather than the `complete` flag.
   // This is more reliable when new-season fixtures are imported before Squiggle updates completion values.
   let selectedRound = roundService.normalizeRoundForDisplay(req.query.round || null, selectedYear);
   if (!selectedRound) {
-    const currentDate = new Date();
-    let nextUpcomingMatch = null;
-
-    // First priority: round containing the earliest upcoming, unplayed match.
-    for (const match of allMatches) {
-      if (!match.match_date) {
-        continue;
-      }
-
-      try {
-        const matchDate = new Date(match.match_date);
-        const isUnplayed = match.hscore === null || match.ascore === null;
-
-        if (!isNaN(matchDate.getTime()) && isUnplayed && matchDate > currentDate) {
-          if (!nextUpcomingMatch || matchDate < new Date(nextUpcomingMatch.match_date)) {
-            nextUpcomingMatch = match;
-          }
-        }
-      } catch (err) {
-        logger.error('Error parsing match date for round auto-selection', {
-          matchDate: match.match_date,
-          error: err.message
-        });
-      }
-    }
-
-    if (nextUpcomingMatch) {
-      selectedRound = roundService.normalizeRoundForDisplay(nextUpcomingMatch.round_number, selectedYear);
-    } else {
-      // Second priority: most recently completed round.
-      let mostRecentCompletedMatch = null;
-      for (const match of allMatches) {
-        if (!match.match_date || match.hscore === null || match.ascore === null) {
-          continue;
-        }
-
-        try {
-          const matchDate = new Date(match.match_date);
-          if (!isNaN(matchDate.getTime()) &&
-              (!mostRecentCompletedMatch || matchDate > new Date(mostRecentCompletedMatch.match_date))) {
-            mostRecentCompletedMatch = match;
-          }
-        } catch (err) {
-          logger.error('Error parsing match date for fallback round selection', {
-            matchDate: match.match_date,
-            error: err.message
-          });
-        }
-      }
-
-      if (mostRecentCompletedMatch) {
-        selectedRound = roundService.normalizeRoundForDisplay(mostRecentCompletedMatch.round_number, selectedYear);
-      }
-    }
+    selectedRound = roundViewService.selectDefaultRound(allMatches, allRounds, selectedYear);
   }
 
   // Final fallback: first available round.

@@ -2,102 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { getQuery } = require('../models/db');
 const { isAuthenticated } = require('./auth');
-const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');
+const roundViewService = require('../services/round-view-service');
 const matchService = require('../services/match-service');
 const predictionService = require('../services/prediction-service');
+const predictorStatsService = require('../services/predictor-stats-service');
 const predictorService = require('../services/predictor-service');
 const { catchAsync } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 
 // Require authentication for all matches routes
 router.use(isAuthenticated);
-
-function calculatePredictorStats(predictor, predictionResults) {
-  let tipPoints = 0;
-  let totalBrierScore = 0;
-  let totalBitsScore = 0;
-  const totalPredictions = predictionResults.length;
-  let marginErrorSum = 0;
-  let marginPredictionCount = 0;
-
-  predictionResults.forEach(pred => {
-    const homeWon = pred.hscore > pred.ascore;
-    const tie = pred.hscore === pred.ascore;
-    const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
-
-    totalBrierScore += scoringService.calculateBrierScore(pred.home_win_probability, actualOutcome);
-    totalBitsScore += scoringService.calculateBitsScore(pred.home_win_probability, actualOutcome);
-
-    const tippedTeam = pred.tipped_team || 'home';
-    tipPoints += scoringService.calculateTipPoints(
-      pred.home_win_probability,
-      pred.hscore,
-      pred.ascore,
-      tippedTeam
-    );
-
-    if (pred.predicted_margin !== null && pred.predicted_margin !== undefined) {
-      const actualMargin = pred.hscore - pred.ascore;
-      marginErrorSum += Math.abs(actualMargin - pred.predicted_margin);
-      marginPredictionCount++;
-    }
-  });
-
-  return {
-    id: predictor.predictor_id,
-    name: predictor.name,
-    display_name: predictor.display_name,
-    tipPoints,
-    totalPredictions,
-    tipAccuracy: totalPredictions > 0 ? ((tipPoints / totalPredictions) * 100).toFixed(1) : 0,
-    brierScore: totalPredictions > 0 ? (totalBrierScore / totalPredictions).toFixed(4) : 0,
-    bitsScore: totalPredictions > 0 ? totalBitsScore.toFixed(4) : 0,
-    marginMAE: marginPredictionCount > 0 ? (marginErrorSum / marginPredictionCount).toFixed(2) : null,
-    marginPredictionCount
-  };
-}
-
-function filterPredictionsByRounds(predictionResults, sourceRounds) {
-  if (!Array.isArray(sourceRounds) || sourceRounds.length === 0) {
-    return predictionResults;
-  }
-
-  const selectedRounds = new Set(sourceRounds);
-  return predictionResults.filter(prediction => selectedRounds.has(prediction.round_number));
-}
-
-function buildPredictorStats(predictors, predictorPredictions, options = {}) {
-  const {
-    includeInactiveWithoutPredictions = true,
-    sourceRounds = null
-  } = options;
-
-  return predictors.reduce((stats, predictor) => {
-    const yearPredictions = predictorPredictions.get(predictor.predictor_id) || [];
-    const predictionResults = filterPredictionsByRounds(yearPredictions, sourceRounds);
-
-    if (!includeInactiveWithoutPredictions && predictor.active === 0 && predictionResults.length === 0) {
-      return stats;
-    }
-
-    stats.push(calculatePredictorStats(predictor, predictionResults));
-    return stats;
-  }, []);
-}
-
-function filterAndSortPredictorStats(predictorStats, predictors) {
-  const predictorMap = new Map(
-    predictors.map(predictor => [predictor.predictor_id, predictor])
-  );
-
-  return predictorStats
-    .filter(stat => {
-      const predictor = predictorMap.get(stat.id);
-      return predictor && !predictor.is_admin;
-    })
-    .sort((a, b) => parseFloat(a.brierScore) - parseFloat(b.brierScore));
-}
 
 function getSourceRoundsForSelection(rounds, roundSelection) {
   const selectedRound = rounds.find(round => round.round_number === roundSelection);
@@ -199,30 +114,7 @@ router.get('/stats', catchAsync(async (req, res) => {
   `;
   const allMatches = await getQuery(allMatchesQuery, [selectedYear]);
   
-  // Group matches by round
-  const matchesByRound = {};
-  allMatches.forEach(match => {
-    if (!matchesByRound[match.round_number]) {
-      matchesByRound[match.round_number] = [];
-    }
-    matchesByRound[match.round_number].push(match);
-  });
-  
-  // Add completion status to rounds
-  const roundsWithStatus = allRounds.map(roundObj => {
-    const roundNumber = roundObj.round_number;
-    const roundMatches = matchesByRound[roundNumber] || [];
-    
-    // Check if all matches in this round are completed
-    const allMatchesCompleted = roundMatches.length > 0 && 
-      roundMatches.every(match => match.hscore !== null && match.ascore !== null);
-    
-    return {
-      ...roundObj,
-      isCompleted: allMatchesCompleted
-    };
-  });
-  const rounds = roundService.combineRoundsForDisplay(roundsWithStatus, selectedYear);
+  const rounds = roundViewService.buildDisplayRounds(allRounds, allMatches, selectedYear);
   
   // Get the most recent round with results for default selection
   const mostRecentRound = await matchService.getMostRecentRoundWithResults();
@@ -251,7 +143,7 @@ router.get('/stats', catchAsync(async (req, res) => {
     ]))
   ));
 
-  const predictorStats = buildPredictorStats(predictors, predictorPredictions, {
+  const predictorStats = predictorStatsService.buildPredictorStats(predictors, predictorPredictions, {
     includeInactiveWithoutPredictions: false
   });
   
@@ -275,14 +167,12 @@ router.get('/stats', catchAsync(async (req, res) => {
   });
   
   // Filter out admin users from leaderboard
-  const filteredPredictorStats = filterAndSortPredictorStats(predictorStats, predictors);
+  const filteredPredictorStats = predictorStatsService.filterAndSortPredictorStats(predictorStats, predictors);
 
   // Determine current round (first incomplete round) from the rounds data
   let currentRound = null;
   if (rounds && rounds.length > 0) {
-    // Find first round that's not completed
-    const currentRoundObj = rounds.find(round => !round.isCompleted);
-    currentRound = currentRoundObj ? currentRoundObj.round_number : null;
+    currentRound = roundViewService.getCurrentRound(rounds);
     
     logger.debug('Current round detection:', {
       totalRounds: rounds.length,
@@ -306,14 +196,14 @@ router.get('/stats', catchAsync(async (req, res) => {
     const roundSourceRounds = getSourceRoundsForSelection(rounds, roundToShow);
     const cumulativeSourceRounds = getSourceRoundsThroughSelection(rounds, roundToShow);
 
-    roundPredictorStats = filterAndSortPredictorStats(
-      buildPredictorStats(predictors, predictorPredictions, {
+    roundPredictorStats = predictorStatsService.filterAndSortPredictorStats(
+      predictorStatsService.buildPredictorStats(predictors, predictorPredictions, {
         sourceRounds: roundSourceRounds
       }),
       predictors
     );
-    cumulativePredictorStats = filterAndSortPredictorStats(
-      buildPredictorStats(predictors, predictorPredictions, {
+    cumulativePredictorStats = predictorStatsService.filterAndSortPredictorStats(
+      predictorStatsService.buildPredictorStats(predictors, predictorPredictions, {
         sourceRounds: cumulativeSourceRounds
       }),
       predictors
@@ -398,14 +288,14 @@ router.get('/stats/round/:round', catchAsync(async (req, res) => {
   ));
   const roundSourceRounds = getSourceRoundsForSelection(rounds, roundNumber);
   const cumulativeSourceRounds = getSourceRoundsThroughSelection(rounds, roundNumber);
-  const filteredRoundPredictorStats = filterAndSortPredictorStats(
-    buildPredictorStats(predictors, predictorPredictions, {
+  const filteredRoundPredictorStats = predictorStatsService.filterAndSortPredictorStats(
+    predictorStatsService.buildPredictorStats(predictors, predictorPredictions, {
       sourceRounds: roundSourceRounds
     }),
     predictors
   );
-  const cumulativePredictorStats = filterAndSortPredictorStats(
-    buildPredictorStats(predictors, predictorPredictions, {
+  const cumulativePredictorStats = predictorStatsService.filterAndSortPredictorStats(
+    predictorStatsService.buildPredictorStats(predictors, predictorPredictions, {
       sourceRounds: cumulativeSourceRounds
     }),
     predictors

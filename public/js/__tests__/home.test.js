@@ -177,6 +177,44 @@ describe('public/js/home.js', () => {
     expect(tableText).toContain('Incorrect');
   });
 
+  test('escapes dynamic match fields before rendering the predictions table', async () => {
+    global.fetch.mockResolvedValue({
+      json: async () => ({
+        matches: [
+          {
+            match_id: 44,
+            match_date: '2025-04-10T09:30:00.000Z',
+            venue: '<img src=x onerror=alert(1)>',
+            home_team: '<script>alert(1)</script>',
+            away_team: 'Swans',
+            hscore: 90,
+            ascore: 80,
+            metrics: { correct: true }
+          }
+        ],
+        predictions: {
+          44: {
+            probability: 60,
+            predicted_margin: '<img src=x onerror=alert(1)>'
+          }
+        }
+      })
+    });
+
+    loadBrowserScript('home.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    document.querySelector('.round-button[data-round="1"]').click();
+    await flushPromises();
+    await flushPromises();
+
+    const container = document.getElementById('predictions-table-container');
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.textContent).toContain('<script>alert(1)</script> vs Swans');
+    expect(container.textContent).toContain('<img src=x onerror=alert(1)>');
+  });
+
   test('shows an error message when featured predictions fail to load', async () => {
     global.fetch.mockRejectedValue(new Error('network down'));
 

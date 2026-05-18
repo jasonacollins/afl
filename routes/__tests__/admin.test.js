@@ -25,7 +25,17 @@ jest.mock('../auth', () => ({
 }));
 
 jest.mock('../../services/scoring-service', () => ({
-  calculateTipPoints: jest.fn(() => 1),
+  calculateTipPoints: jest.fn((probability, homeScore, awayScore, tippedTeam = 'home') => {
+    if (homeScore === awayScore) {
+      return 0;
+    }
+    if (probability === 50) {
+      return (homeScore > awayScore && tippedTeam === 'home') ||
+        (awayScore > homeScore && tippedTeam === 'away') ? 1 : 0;
+    }
+    return (homeScore > awayScore && probability > 50) ||
+      (awayScore > homeScore && probability < 50) ? 1 : 0;
+  }),
   calculateBrierScore: jest.fn(() => 0.2),
   calculateBitsScore: jest.fn(() => 0.4)
 }));

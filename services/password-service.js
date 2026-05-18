@@ -70,7 +70,7 @@ const loadCommonPasswordsFromFile = (filePath) => {
   }
 };
 
-const commonPasswordsFilePath = path.join(__dirname, '../data/common-passwords.txt');
+const commonPasswordsFilePath = path.join(__dirname, '../data/config/common-passwords.txt');
 const commonPasswords = loadCommonPasswordsFromFile(commonPasswordsFilePath);
 
 // Export a singleton instance for the app to use
@@ -78,3 +78,4 @@ module.exports = new PasswordService(commonPasswords);
 // Also export the class and loader function for testing purposes
 module.exports.PasswordService = PasswordService;
 module.exports.loadCommonPasswordsFromFile = loadCommonPasswordsFromFile;
+module.exports.commonPasswordsFilePath = commonPasswordsFilePath;

@@ -1,5 +1,18 @@
 // Homepage JavaScript functionality - extracted from inline script for CSP compliance
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function getSelectedSeasonYear() {
   const performanceCard = document.querySelector('.performance-card');
   if (performanceCard && performanceCard.dataset.selectedYear) {
@@ -87,6 +100,10 @@ function renderPredictionsTable(matches, predictions) {
   
   if (matches && matches.length > 0) {
     matches.forEach(match => {
+      const predictionForMatch = predictions[match.match_id];
+      const safeHomeTeam = escapeHtml(match.home_team);
+      const safeAwayTeam = escapeHtml(match.away_team);
+      const safeVenue = escapeHtml(match.venue);
       // Format match date if available
       let matchDate = match.match_date;
       if (matchDate && matchDate.includes('T')) {
@@ -101,11 +118,12 @@ function renderPredictionsTable(matches, predictions) {
           console.error('Error formatting date:', e);
         }
       }
+      const safeMatchDate = escapeHtml(matchDate);
       
       // Get prediction
       let predictionHtml = 'No prediction';
-      if (predictions[match.match_id]) {
-      const prediction = predictions[match.match_id];
+      if (predictionForMatch) {
+      const prediction = predictionForMatch;
       let probability;
       let tippedTeam;
     
@@ -118,12 +136,12 @@ function renderPredictionsTable(matches, predictions) {
       }
     
       if (probability > 50) {
-        predictionHtml = `${probability}% ${match.home_team}`;
+        predictionHtml = `${escapeHtml(probability)}% ${safeHomeTeam}`;
       } else if (probability < 50) {
-        predictionHtml = `${100 - probability}% ${match.away_team}`;
+        predictionHtml = `${escapeHtml(100 - probability)}% ${safeAwayTeam}`;
       } else { // exactly 50%
         if (tippedTeam) {
-          predictionHtml = `50% draw (tipped: ${tippedTeam === 'home' ? match.home_team : match.away_team})`;
+          predictionHtml = `50% draw (tipped: ${tippedTeam === 'home' ? safeHomeTeam : safeAwayTeam})`;
         } else {
          predictionHtml = `50% draw`;
         }
@@ -133,7 +151,7 @@ function renderPredictionsTable(matches, predictions) {
       // Result
       let resultHtml = 'Upcoming';
       if (match.hscore !== null && match.ascore !== null) {
-        resultHtml = `${match.hscore} - ${match.ascore}`;
+        resultHtml = `${escapeHtml(match.hscore)} - ${escapeHtml(match.ascore)}`;
       }
       
       // Win Accuracy
@@ -152,17 +170,20 @@ function renderPredictionsTable(matches, predictions) {
       
       // Predicted margin
       let predictedMarginHtml = '-';
-      if (predictions[match.match_id] && predictions[match.match_id].predicted_margin !== null) {
-        predictedMarginHtml = predictions[match.match_id].predicted_margin;
+      if (predictionForMatch && typeof predictionForMatch === 'object' &&
+          predictionForMatch.predicted_margin !== null &&
+          predictionForMatch.predicted_margin !== undefined) {
+        predictedMarginHtml = escapeHtml(predictionForMatch.predicted_margin);
       }
       
       // Margin error
       let marginErrorHtml = '-';
       if (match.hscore !== null && match.ascore !== null && 
-          predictions[match.match_id] && 
-          predictions[match.match_id].predicted_margin !== null) {
+          predictionForMatch && typeof predictionForMatch === 'object' &&
+          predictionForMatch.predicted_margin !== null &&
+          predictionForMatch.predicted_margin !== undefined) {
         const actualMargin = match.hscore - match.ascore;
-        const predictedMargin = predictions[match.match_id].predicted_margin;
+        const predictedMargin = predictionForMatch.predicted_margin;
         const marginError = Math.abs(actualMargin - predictedMargin);
         marginErrorHtml = marginError.toFixed(1);
       }
@@ -170,9 +191,9 @@ function renderPredictionsTable(matches, predictions) {
       tableHtml += `
         <tr>
           <td class="team-names stack-primary" data-label="Match">
-            <div class="match-info">
-              <div class="teams">${match.home_team} vs ${match.away_team}</div>
-              <div class="match-details">${matchDate} • ${match.venue}</div>
+              <div class="match-info">
+              <div class="teams">${safeHomeTeam} vs ${safeAwayTeam}</div>
+              <div class="match-details">${safeMatchDate} • ${safeVenue}</div>
             </div>
           </td>
           <td class="score" data-label="Result">${resultHtml}</td>

@@ -6,6 +6,7 @@ const scoringService = require('../services/scoring-service');
 const roundService = require('../services/round-service');
 const matchService = require('../services/match-service');
 const predictionService = require('../services/prediction-service');
+const predictorStatsService = require('../services/predictor-stats-service');
 const predictorService = require('../services/predictor-service');
 const passwordService = require('../services/password-service');
 const { AppError, catchAsync, createNotFoundError, createValidationError } = require('../utils/error-handler');
@@ -579,18 +580,14 @@ router.get('/stats', catchAsync(async (req, res) => {
     const match = completedMatches.find(m => m.match_id === prediction.match_id);
     
     if (match) {
-      const homeWon = match.hscore > match.ascore;
-      const awayWon = match.hscore < match.ascore;
-      const tie = match.hscore === match.ascore;
-      
-      const correctPrediction = 
-        (homeWon && prediction.home_win_probability > 50) || 
-        (awayWon && prediction.home_win_probability < 50) || 
-        (tie && prediction.home_win_probability === 50);
-      
+      const metrics = predictorStatsService.calculatePredictionMetrics({
+        ...prediction,
+        hscore: match.hscore,
+        ascore: match.ascore
+      });
       const predictorId = prediction.predictor_id;
       
-      if (correctPrediction) {
+      if (metrics.tipPoints === 1) {
         predictorStats[predictorId].correct++;
       } else {
         predictorStats[predictorId].incorrect++;
@@ -621,99 +618,7 @@ router.get('/export/predictions', catchAsync(async (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename=afl-predictions-export.csv');
   
-  // Create CSV header with new metrics columns
-  let csvData = 'Predictor,Round,Match Number,Match Date,Home Team,Away Team,Home Win %,Away Win %,Tipped Team,Home Score,Away Score,Correct,Tip Points,Brier Score,Bits Score\n';
-  
-  // Add prediction rows
-  predictions.forEach(prediction => {
-    const homeWon = prediction.hscore !== null && prediction.ascore !== null && 
-                  prediction.hscore > prediction.ascore;
-    const awayWon = prediction.hscore !== null && prediction.ascore !== null && 
-                  prediction.hscore < prediction.ascore;
-    const tie = prediction.hscore !== null && prediction.ascore !== null && 
-              prediction.hscore === prediction.ascore;
-    
-    // Default tipped team for 50% predictions if not stored
-    let tippedTeam = prediction.tipped_team || 'home';
-    
-    let correct = '';
-    let tipPoints = 0;
-    let brierScore = '';
-    let bitsScore = '';
-    
-    if (prediction.hscore !== null && prediction.ascore !== null) {
-      const homeWon = prediction.hscore > prediction.ascore;
-      const awayWon = prediction.hscore < prediction.ascore;
-      const tie = prediction.hscore === prediction.ascore;
-      
-      // Default tipped team for 50% predictions if not stored
-      let tippedTeam = prediction.tipped_team || 'home';
-      
-      // Calculate tip points using scoring service
-      tipPoints = scoringService.calculateTipPoints(
-        prediction.home_win_probability, 
-        prediction.hscore, 
-        prediction.ascore, 
-        tippedTeam
-      );
-      
-      // Determine actual outcome for scoring
-      const actualOutcome = homeWon ? 1 : (tie ? 0.5 : 0);
-      
-      // Calculate Brier score
-      brierScore = scoringService.calculateBrierScore(
-        prediction.home_win_probability, 
-        actualOutcome
-      ).toFixed(4);
-      
-      // Calculate Bits score
-      bitsScore = scoringService.calculateBitsScore(
-        prediction.home_win_probability, 
-        actualOutcome
-      ).toFixed(4);
-      
-      // Set correct class
-      correct = tipPoints === 1 ? 'Yes' : 'No';
-    }
-    
-    // Format date for CSV
-    let matchDate = prediction.match_date;
-    try {
-      if (matchDate && matchDate.includes('T')) {
-        const date = new Date(matchDate);
-        matchDate = date.toLocaleDateString('en-AU');
-      }
-    } catch (error) {
-      logger.error('Error formatting date for CSV export', { 
-        matchDate, 
-        error: error.message 
-      });
-    }
-    
-    // Show team name instead of 'home' or 'away'
-    const displayTippedTeam = prediction.home_win_probability === 50 
-      ? (tippedTeam === 'home' ? prediction.home_team : prediction.away_team)
-      : '';
-    
-    csvData += `"${prediction.predictor_name}",`;
-    csvData += `"${prediction.round_number}",`;
-    csvData += `${prediction.match_number},`;
-    csvData += `"${matchDate}",`;
-    csvData += `"${prediction.home_team}",`;
-    csvData += `"${prediction.away_team}",`;
-    csvData += `${prediction.home_win_probability},`;
-    csvData += `${100 - prediction.home_win_probability},`;
-    csvData += `"${displayTippedTeam}",`;
-    csvData += `${prediction.hscore || ''},`;
-    csvData += `${prediction.ascore || ''},`;
-    csvData += `"${correct}",`;
-    csvData += `${tipPoints.toFixed(1)},`;
-    csvData += `${brierScore},`;
-    csvData += `${bitsScore}\n`;
-  });
-  
-  // Send CSV data
-  res.send(csvData);
+  res.send(predictorStatsService.buildPredictionExportCsv(predictions));
 }));
 
 // Password reset route

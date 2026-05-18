@@ -66,6 +66,10 @@ Model workflows are organized around two prediction families: win-first and marg
 
 The app uses Squiggle's API plus the games event stream for live result reconciliation, with `npm run daily-sync` as the scheduled fallback workflow.
 
+### Database Schema
+
+Startup creates the base SQLite schema, then applies versioned migrations recorded in `schema_migrations`. Future schema changes should be added as idempotent migrations in `models/schema-migrations.js`.
+
 ## Core Commands
 
 ### App
@@ -132,7 +136,7 @@ Useful commands:
 
 Prerequisites:
 
-- Node.js 16+
+- Node.js 18+
 - Python 3
 - Git
 
@@ -140,7 +144,7 @@ Setup:
 
 ```bash
 npm install
-cp .env.example .env
+printf 'SESSION_SECRET=%s\nNODE_ENV=development\n' "$(openssl rand -hex 32)" > .env
 npm run import
 npm run dev
 ```

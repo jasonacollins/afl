@@ -980,6 +980,43 @@ describe('public/js/main.js', () => {
     expect(document.querySelector('.admin-metrics-display').textContent).toContain('Tip: 1 | Brier: 0.1234 | Bits: 0.5678');
   });
 
+  test('renderMatches escapes dynamic match and metric fields before inserting HTML', () => {
+    window.isAdmin = true;
+    window.userPredictions = {
+      '22"><img src=x onerror=alert(1)>': {
+        probability: 64,
+        tippedTeam: 'home'
+      }
+    };
+    loadBrowserScript('main.js');
+
+    window.renderMatches([
+      {
+        match_id: '22"><img src=x onerror=alert(1)>',
+        match_date: '2026-04-10T09:30:00.000Z',
+        venue: '<img src=x onerror=alert(1)>',
+        home_team: '<script>alert(1)</script>',
+        away_team: 'Swans',
+        hscore: 80,
+        ascore: 70,
+        isLocked: false,
+        adminMetrics: {
+          tipPoints: '<img src=x onerror=alert(1)>',
+          tipClass: 'correct" onclick="alert(1)',
+          brierScore: '<b>0.1234</b>',
+          bitsScore: '0.5678'
+        }
+      }
+    ]);
+
+    const container = document.getElementById('matches-container');
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(container.textContent).toContain('<script>alert(1)</script>');
+    expect(document.querySelector('.admin-metrics-display').textContent).toContain('<img src=x onerror=alert(1)>');
+    expect(document.querySelector('.admin-metrics-display span').className).toBe('incorrect');
+  });
+
   test('blur does not auto-save an initial 50 percent prediction before team selection', async () => {
     document.querySelector('.round-buttons').innerHTML = '';
     global.fetch = jest.fn().mockResolvedValue({

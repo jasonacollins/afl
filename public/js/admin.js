@@ -22,6 +22,19 @@ function setElementHiddenById(id, hidden) {
   element.classList.toggle('is-hidden', Boolean(hidden));
 }
 
+function setStatusMessage(container, message, type) {
+  if (!container) {
+    return;
+  }
+
+  container.replaceChildren();
+
+  const messageElement = document.createElement('p');
+  messageElement.className = `alert ${type}`;
+  messageElement.textContent = message;
+  container.appendChild(messageElement);
+}
+
 function fetchJsonNoStore(url) {
   return fetch(url, { cache: 'no-store' })
     .then(response => {
@@ -668,7 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const submitButton = this.querySelector('button[type="submit"]');
 
       if (!fileInput.files.length) {
-        statusDiv.innerHTML = '<p class="alert error">Please select a database file.</p>';
+        setStatusMessage(statusDiv, 'Please select a database file.', 'error');
         return;
       }
 
@@ -676,7 +689,7 @@ document.addEventListener('DOMContentLoaded', function() {
       formData.append('databaseFile', fileInput.files[0]);
 
       // Update UI
-      statusDiv.innerHTML = '<p class="alert success">Uploading database, please wait...</p>';
+      setStatusMessage(statusDiv, 'Uploading database, please wait...', 'success');
       submitButton.disabled = true;
 
       // Add CSRF token to form data
@@ -695,18 +708,18 @@ document.addEventListener('DOMContentLoaded', function() {
       })
       .then(data => {
         if (data.success) {
-          statusDiv.innerHTML = '<p class="alert success">' + data.message + '</p>';
+          setStatusMessage(statusDiv, data.message, 'success');
           setTimeout(() => {
             window.location.reload();
           }, 2000);
         } else {
-          statusDiv.innerHTML = '<p class="alert error">' + data.message + '</p>';
+          setStatusMessage(statusDiv, data.message, 'error');
           submitButton.disabled = false;
         }
       })
       .catch(error => {
         console.error('Upload error:', error);
-        statusDiv.innerHTML = '<p class="alert error">Error: ' + error.message + '</p>';
+        setStatusMessage(statusDiv, `Error: ${error.message}`, 'error');
         submitButton.disabled = false;
       });
     });

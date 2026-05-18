@@ -3,6 +3,8 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcrypt');
 const { logger } = require('../utils/logger');
+const { runMigrations } = require('./migration-runner');
+const schemaMigrations = require('./schema-migrations');
 
 const SQLITE_BUSY_TIMEOUT_MS = Number.parseInt(process.env.SQLITE_BUSY_TIMEOUT_MS || '10000', 10);
 const MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY = 'missed_prediction_defaults_enabled_at';
@@ -477,6 +479,8 @@ async function initializeDatabase() {
         FOREIGN KEY (venue_id) REFERENCES venues (venue_id)
       )
     `);
+
+    await runMigrations({ runQuery, getQuery, getOne }, schemaMigrations);
 
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_dates ON venue_aliases(start_date, end_date)');
     await runQuery('CREATE INDEX IF NOT EXISTS idx_venue_aliases_name ON venue_aliases(alias_name)');

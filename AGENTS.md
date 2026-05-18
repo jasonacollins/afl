@@ -73,6 +73,7 @@ The script pushes `main` when local `main` is ahead of `origin/main`, deploys on
 - Server startup must run `initializeDatabase()` before listening.
 - Startup must recover stale queued or running admin script jobs by marking them `interrupted`.
 - Keep SQLite incremental auto-vacuum initialization intact.
+- Future schema changes should use `models/schema-migrations.js` and the `schema_migrations` ledger. Keep migrations idempotent and avoid expanding startup schema initialization for versioned changes.
 
 ### Admin Script Runner
 

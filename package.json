@@ -18,7 +18,7 @@
     "test:coverage": "npm run test:js:coverage && npm run test:python"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.14.0"
   },
   "dependencies": {
     "@types/express": "^5.0.6",

@@ -638,6 +638,27 @@ describe('public/js/admin.js', () => {
     expect(window.location.reload).not.toHaveBeenCalled();
   });
 
+  test('upload form renders server messages as text instead of HTML', async () => {
+    loadBrowserScript('admin.js');
+    document.dispatchEvent(new window.Event('DOMContentLoaded'));
+
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: false, message: '<img src=x onerror=alert(1)>Upload blocked' })
+    });
+
+    const fileInput = document.getElementById('databaseFile');
+    setInputFiles(fileInput, [{ name: 'afl_predictions.db' }]);
+
+    document.getElementById('uploadDatabaseForm')
+      .dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    await flushPromises();
+
+    const status = document.getElementById('uploadStatus');
+    expect(status.querySelector('img')).toBeNull();
+    expect(status.textContent).toContain('<img src=x onerror=alert(1)>Upload blocked');
+  });
+
   test('modal helper functions and delegated actions update the modal state', () => {
     loadBrowserScript('admin.js');
     document.dispatchEvent(new window.Event('DOMContentLoaded'));
