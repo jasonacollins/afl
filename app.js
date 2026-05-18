@@ -4,7 +4,7 @@ const SqliteStore = require('connect-sqlite3')(session);
 const path = require('path');
 const methodOverride = require('method-override');
 const helmet = require('helmet');
-require('dotenv').config({ quiet: process.env.NODE_ENV === 'test' });
+const { getConfig, getValidatedConfig, validateConfig } = require('./config');
 
 // Import utilities
 const { AppError, errorMiddleware } = require('./utils/error-handler');
@@ -27,8 +27,6 @@ const simulationRoutes = require('./routes/simulation');
 const homeRoutes = require('./routes/home');
 const pageRoutes = require('./routes/pages');
 
-const port = Number(process.env.PORT) || 3001;
-
 function createSessionStore() {
   return new SqliteStore({
     db: 'sessions.db',
@@ -36,8 +34,8 @@ function createSessionStore() {
   });
 }
 
-function getSessionSecret(explicitSecret) {
-  return explicitSecret || process.env.SESSION_SECRET;
+function getSessionSecret(explicitSecret, runtimeConfig = getConfig()) {
+  return explicitSecret || runtimeConfig.sessionSecret;
 }
 
 function registerAppRoutes(app) {
@@ -65,13 +63,16 @@ function registerAppRoutes(app) {
 }
 
 function createApp(options = {}) {
-  const sessionSecret = getSessionSecret(options.sessionSecret);
+  const runtimeConfig = options.config || getConfig();
+  const sessionSecret = getSessionSecret(options.sessionSecret, runtimeConfig);
   if (!sessionSecret) {
     throw new Error('SESSION_SECRET environment variable is required');
   }
 
   const app = express();
-  const assetVersion = options.assetVersion || process.env.ASSET_VERSION || Date.now().toString();
+  const assetVersion = options.assetVersion
+    || runtimeConfig.assetVersion
+    || Date.now().toString();
   app.locals.assetVersion = assetVersion;
   app.locals.assetPath = (assetUrl) => `${assetUrl}?v=${encodeURIComponent(assetVersion)}`;
   const sessionStore = options.sessionStore || createSessionStore();
@@ -147,7 +148,7 @@ function createApp(options = {}) {
     saveUninitialized: false,
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
-      secure: process.env.NODE_ENV === 'production' ? 'auto' : false,
+      secure: runtimeConfig.isProduction ? 'auto' : false,
       httpOnly: true,
       sameSite: 'lax'
     }
@@ -174,13 +175,17 @@ function createApp(options = {}) {
 
 async function startServer(options = {}) {
   try {
-    const app = createApp(options);
+    const runtimeConfig = options.config
+      ? validateConfig(options.config)
+      : getValidatedConfig();
+    const app = createApp({ ...options, config: runtimeConfig });
     await initializeDatabase();
     await adminScriptRunner.recoverInterruptedRuns();
     await resultUpdateService.recoverInterruptedJobs();
     resultUpdateService.scheduleWorker();
     await eventSyncService.start();
 
+    const port = options.port ?? runtimeConfig.port;
     app.listen(port, '0.0.0.0', () => {
       logger.info(`Server running on http://0.0.0.0:${port}`);
     });
@@ -191,13 +196,21 @@ async function startServer(options = {}) {
 }
 
 if (require.main === module) {
-  const sessionSecret = getSessionSecret();
+  let runtimeConfig;
+  try {
+    runtimeConfig = getValidatedConfig();
+  } catch (error) {
+    console.error(`ERROR: ${error.message}`);
+    process.exit(1);
+  }
+
+  const sessionSecret = getSessionSecret(undefined, runtimeConfig);
   if (!sessionSecret) {
     console.error('ERROR: SESSION_SECRET environment variable is required');
     process.exit(1);
   }
 
-  startServer({ sessionSecret });
+  startServer({ config: runtimeConfig, sessionSecret });
 }
 
 module.exports = {

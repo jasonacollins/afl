@@ -9,6 +9,7 @@ const predictionService = require('../services/prediction-service');
 const predictorStatsService = require('../services/predictor-stats-service');
 const predictorService = require('../services/predictor-service');
 const passwordService = require('../services/password-service');
+const { getConfig } = require('../config');
 const { AppError, catchAsync, createNotFoundError, createValidationError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const multer = require('multer');
@@ -828,7 +829,7 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
         error: error.message
       });
 
-      if (process.env.NODE_ENV !== 'test') {
+      if (!getConfig().isTest) {
         res.on('finish', () => {
           setImmediate(() => {
             logger.info('Exiting process after fatal database replacement failure');
@@ -852,7 +853,7 @@ router.post('/upload-database', upload.single('databaseFile'), catchAsync(async 
     backupPath: replacementResult.backupPath
   });
 
-  if (process.env.NODE_ENV !== 'test') {
+  if (!getConfig().isTest) {
     res.on('finish', () => {
       setImmediate(() => {
         logger.info('Exiting process for restart after database replacement');

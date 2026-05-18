@@ -5,12 +5,14 @@ const bcrypt = require('bcrypt');
 const { logger } = require('../utils/logger');
 const { runMigrations } = require('./migration-runner');
 const schemaMigrations = require('./schema-migrations');
+const { getConfig } = require('../config');
 
-const SQLITE_BUSY_TIMEOUT_MS = Number.parseInt(process.env.SQLITE_BUSY_TIMEOUT_MS || '10000', 10);
+const runtimeConfig = getConfig();
+const SQLITE_BUSY_TIMEOUT_MS = runtimeConfig.database.sqliteBusyTimeoutMs;
 const MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY = 'missed_prediction_defaults_enabled_at';
 
 // Database path
-const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database/afl_predictions.db');
+const dbPath = runtimeConfig.database.path;
 const projectRoot = path.join(__dirname, '..');
 const adminScriptLogsArchiveDir = path.join(projectRoot, 'logs', 'admin-scripts', 'archive');
 const db = new sqlite3.Database(dbPath, (err) => {

@@ -2,6 +2,8 @@
  * Application error handling utilities
  */
 
+const { getConfig } = require('../config');
+
 class AppError extends Error {
   constructor(message, statusCode = 500, errorCode = 'INTERNAL_ERROR') {
     super(message);
@@ -32,6 +34,8 @@ const createForbiddenError = (message = 'Forbidden') => {
 
 // Global error handler middleware for Express
 const errorMiddleware = (err, req, res, next) => {
+  const runtimeConfig = getConfig();
+
   // Normalize status and code fields from Express and custom errors.
   const normalizedStatusCode = err.statusCode || err.status || 500;
   const normalizedErrorCode = err.errorCode || (
@@ -51,7 +55,7 @@ const errorMiddleware = (err, req, res, next) => {
   }
   
   // Development error response (includes stack trace)
-  if (process.env.NODE_ENV === 'development') {
+  if (runtimeConfig.isDevelopment) {
     return res.status(err.statusCode).json({
       status: 'error',
       errorCode: err.errorCode,
@@ -73,7 +77,7 @@ const errorMiddleware = (err, req, res, next) => {
     if (!wantsJson && req.accepts('html')) {
       // For web requests that accept HTML, render an error page
       return res.status(err.statusCode).render('error', {
-        error: process.env.NODE_ENV === 'production'
+        error: runtimeConfig.isProduction
           ? 'An unexpected error occurred'
           : err.message
       });

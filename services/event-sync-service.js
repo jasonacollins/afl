@@ -1,15 +1,12 @@
 // node-fetch v3 is ESM-only; use dynamic import for CommonJS services.
 let fetchImpl = (...args) => import('node-fetch').then(({ default: nodeFetch }) => nodeFetch(...args));
+const { getConfig } = require('../config');
 const { logger } = require('../utils/logger');
 const { getSquiggleGamesSseConfig } = require('../utils/squiggle-request');
 const resultUpdateService = require('./result-update-service');
 
 const BASE_RECONNECT_DELAY_MS = 5000;
 const MAX_RECONNECT_DELAY_MS = 60000;
-const RECONCILIATION_MIN_INTERVAL_MS = Number.parseInt(
-  process.env.EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS || String(30 * 60 * 1000),
-  10
-);
 
 function parseJsonSafe(value) {
   try {
@@ -102,10 +99,9 @@ class EventSyncService {
   }
 
   async start() {
-    const enabled = process.env.EVENT_SYNC_ENABLED !== '0'
-      && process.env.NODE_ENV !== 'test';
+    const { eventSync } = getConfig();
 
-    if (!enabled) {
+    if (!eventSync.enabled) {
       logger.info('Event sync service is disabled by environment');
       return;
     }
@@ -173,6 +169,7 @@ class EventSyncService {
   }
 
   async maybeReconcileCurrentSeason(source) {
+    const { eventSync } = getConfig();
     const currentYear = new Date().getFullYear();
     const lastReconciliation = await resultUpdateService.getStateValue(
       resultUpdateService.EVENT_SYNC_STATE_KEYS.LAST_RECONCILIATION
@@ -182,13 +179,13 @@ class EventSyncService {
       const lastEpoch = parseEventTimestamp(lastReconciliation.updatedAt);
       if (lastEpoch !== null) {
         const ageMs = Date.now() - lastEpoch;
-        if (ageMs < RECONCILIATION_MIN_INTERVAL_MS) {
+        if (ageMs < eventSync.reconciliationMinIntervalMs) {
           logger.info('Skipping event-sync reconciliation because it ran recently', {
             source,
             currentYear,
             lastReconciliationAt: lastReconciliation.updatedAt,
             ageMs,
-            minIntervalMs: RECONCILIATION_MIN_INTERVAL_MS
+            minIntervalMs: eventSync.reconciliationMinIntervalMs
           });
           return;
         }

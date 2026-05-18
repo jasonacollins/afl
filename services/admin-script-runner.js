@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { spawn } = require('child_process');
 const { runQuery, getQuery, getOne } = require('../models/db');
+const { buildChildProcessEnv } = require('../config');
 const { logger } = require('../utils/logger');
 const modelCatalogService = require('./model-catalog-service');
 const {
@@ -1420,10 +1421,7 @@ async function startScriptRun(scriptKey, params, adminUserId) {
 
   child = spawn(commandSpec.command, spawnArgs, {
     cwd: PROJECT_ROOT,
-    env: {
-      ...process.env,
-      PYTHONUNBUFFERED: '1'
-    },
+    env: buildChildProcessEnv({ PYTHONUNBUFFERED: '1' }),
     stdio: ['ignore', 'pipe', 'pipe']
   });
 

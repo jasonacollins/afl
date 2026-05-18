@@ -5,6 +5,7 @@
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
+const { getConfig } = require('../config');
 const { sanitizeRequestMetadata } = require('./request-log-sanitizer');
 
 // Create logs directory if it doesn't exist
@@ -34,7 +35,7 @@ require('winston-daily-rotate-file');
 
 // Create the logger
 const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: getConfig().isProduction ? 'info' : 'debug',
   transports: [
     // Console transport
     new winston.transports.Console({
