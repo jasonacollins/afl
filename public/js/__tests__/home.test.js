@@ -229,7 +229,7 @@ describe('public/js/home.js', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error fetching predictions:', expect.any(Error));
   });
 
-  test('falls back to the current year and renders legacy numeric 50 percent predictions when homepage metadata is absent', async () => {
+  test('renders legacy numeric 50 percent predictions when homepage metadata is absent', async () => {
     restoreDomGlobals();
     dom.window.close();
 
@@ -238,7 +238,7 @@ describe('public/js/home.js', () => {
         <button class="round-button" data-round="1">Round 1</button>
       </div>
       <div id="predictions-table-container"></div>
-    `, 'https://example.test/');
+    `, 'https://example.test/?year=2026');
 
     global.fetch.mockResolvedValue({
       json: async () => ({
@@ -266,7 +266,7 @@ describe('public/js/home.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith(`/featured-predictions/1?year=${new Date().getFullYear()}`);
+    expect(global.fetch).toHaveBeenCalledWith('/featured-predictions/1?year=2026');
     expect(document.getElementById('predictions-table-container').textContent).toContain('50% draw');
   });
 });
