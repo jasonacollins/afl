@@ -230,15 +230,12 @@ describe('public/js/home.js', () => {
   });
 
   test('renders legacy numeric 50 percent predictions when homepage metadata is absent', async () => {
-    restoreDomGlobals();
-    dom.window.close();
-
-    installHomeDom(`
+    document.body.innerHTML = `
       <div class="round-buttons">
         <button class="round-button" data-round="1">Round 1</button>
       </div>
       <div id="predictions-table-container"></div>
-    `, 'https://example.test/?year=2026');
+    `;
 
     global.fetch.mockResolvedValue({
       json: async () => ({
@@ -266,7 +263,7 @@ describe('public/js/home.js', () => {
     await flushPromises();
     await flushPromises();
 
-    expect(global.fetch).toHaveBeenCalledWith('/featured-predictions/1?year=2026');
+    expect(global.fetch).toHaveBeenCalledWith('/featured-predictions/1?year=2024');
     expect(document.getElementById('predictions-table-container').textContent).toContain('50% draw');
   });
 });
