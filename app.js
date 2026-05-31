@@ -16,6 +16,7 @@ const csrfProtection = require('./middleware/csrf');
 const adminScriptRunner = require('./services/admin-script-runner');
 const eventSyncService = require('./services/event-sync-service');
 const resultUpdateService = require('./services/result-update-service');
+const databaseHealthService = require('./services/database-health-service');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -180,6 +181,7 @@ async function startServer(options = {}) {
       : getValidatedConfig();
     const app = createApp({ ...options, config: runtimeConfig });
     await initializeDatabase();
+    await databaseHealthService.assertDatabaseHealthy({ context: 'startup' });
     await adminScriptRunner.recoverInterruptedRuns();
     await resultUpdateService.recoverInterruptedJobs();
     resultUpdateService.scheduleWorker();

@@ -53,6 +53,9 @@ function loadAppModule(options = {}) {
       recoverInterruptedJobs: jest.fn(),
       scheduleWorker: jest.fn()
     },
+    databaseHealthService: {
+      assertDatabaseHealthy: jest.fn()
+    },
     eventSyncService: {
       start: jest.fn(),
       stop: jest.fn()
@@ -91,6 +94,7 @@ function loadAppModule(options = {}) {
     jest.doMock('../services/admin-script-runner', () => mocks.adminScriptRunner);
     jest.doMock('../services/result-update-service', () => mocks.resultUpdateService);
     jest.doMock('../services/event-sync-service', () => mocks.eventSyncService);
+    jest.doMock('../services/database-health-service', () => mocks.databaseHealthService);
     jest.doMock('../services/featured-predictions', () => mocks.featuredPredictions);
     jest.doMock('../services/prediction-service', () => mocks.predictionService);
     jest.doMock('../services/predictor-service', () => mocks.predictorService);
@@ -493,6 +497,7 @@ describe('app', () => {
     });
 
     mocks.db.initializeDatabase.mockResolvedValue();
+    mocks.databaseHealthService.assertDatabaseHealthy.mockResolvedValue();
     mocks.adminScriptRunner.recoverInterruptedRuns.mockResolvedValue();
     mocks.resultUpdateService.recoverInterruptedJobs.mockResolvedValue(0);
     mocks.eventSyncService.start.mockResolvedValue();
@@ -503,6 +508,7 @@ describe('app', () => {
     });
 
     expect(mocks.db.initializeDatabase).toHaveBeenCalled();
+    expect(mocks.databaseHealthService.assertDatabaseHealthy).toHaveBeenCalledWith({ context: 'startup' });
     expect(mocks.adminScriptRunner.recoverInterruptedRuns).toHaveBeenCalled();
     expect(mocks.resultUpdateService.recoverInterruptedJobs).toHaveBeenCalled();
     expect(mocks.resultUpdateService.scheduleWorker).toHaveBeenCalled();

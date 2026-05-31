@@ -17,15 +17,21 @@ jest.mock('../round-service', () => ({
   expandRoundSelection: jest.fn()
 }));
 
+jest.mock('../database-health-service', () => ({
+  assertDatabaseHealthy: jest.fn()
+}));
+
 const { AppError } = require('../../utils/error-handler');
 const { getQuery, getOne, runQuery } = require('../../models/db');
 const roundService = require('../round-service');
+const databaseHealthService = require('../database-health-service');
 const predictionService = require('../prediction-service');
 
 describe('prediction-service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useRealTimers();
+    databaseHealthService.assertDatabaseHealthy.mockResolvedValue({ integrity: 'ok' });
   });
 
   test('savePrediction updates an existing prediction', async () => {
@@ -34,10 +40,15 @@ describe('prediction-service', () => {
 
     const result = await predictionService.savePrediction(1, 2, 70);
 
+    expect(databaseHealthService.assertDatabaseHealthy).toHaveBeenCalledWith({
+      context: 'saving prediction'
+    });
+    expect(runQuery).toHaveBeenNthCalledWith(1, 'BEGIN IMMEDIATE TRANSACTION');
     expect(runQuery).toHaveBeenCalledWith(
       'UPDATE predictions SET home_win_probability = ?, tipped_team = ? WHERE match_id = ? AND predictor_id = ?',
       [70, 'home', 1, 2]
     );
+    expect(runQuery).toHaveBeenLastCalledWith('COMMIT');
     expect(result).toEqual({ action: 'updated', changes: 1 });
   });
 
@@ -93,11 +104,34 @@ describe('prediction-service', () => {
   });
 
   test('savePrediction wraps unexpected database failures', async () => {
-    getOne.mockRejectedValue(new Error('db write failed'));
+    databaseHealthService.assertDatabaseHealthy.mockRejectedValue(new Error('db write failed'));
 
     await expect(predictionService.savePrediction(1, 2, 50)).rejects.toEqual(
       expect.objectContaining(new AppError('Failed to save prediction', 500, 'DATABASE_ERROR'))
     );
+  });
+
+  test('savePrediction aborts when database health check fails', async () => {
+    databaseHealthService.assertDatabaseHealthy.mockRejectedValue(
+      new AppError('Prediction uniqueness check failed before saving prediction', 500, 'DATABASE_HEALTH_ERROR')
+    );
+
+    await expect(predictionService.savePrediction(1, 2, 50)).rejects.toMatchObject({
+      errorCode: 'DATABASE_HEALTH_ERROR'
+    });
+    expect(getOne).not.toHaveBeenCalled();
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('savePrediction fails if an update touches multiple rows', async () => {
+    getOne.mockResolvedValue({ match_id: 1, predictor_id: 2 });
+    runQuery.mockResolvedValue({ changes: 2 });
+
+    await expect(predictionService.savePrediction(1, 2, 70)).rejects.toMatchObject({
+      errorCode: 'DATABASE_HEALTH_ERROR',
+      message: 'Prediction uniqueness check failed while saving match 1 for predictor 2'
+    });
+    expect(runQuery).toHaveBeenCalledWith('ROLLBACK');
   });
 
   test('deletePrediction raises not found when no row is deleted', async () => {
@@ -142,6 +176,9 @@ describe('prediction-service', () => {
 
     const result = await predictionService.ensureMissedPredictionsForUserAndYear(2, 2026);
 
+    expect(databaseHealthService.assertDatabaseHealthy).toHaveBeenCalledWith({
+      context: 'missed prediction reconciliation'
+    });
     expect(result).toEqual({ created: 1 });
     expect(runQuery).toHaveBeenCalledWith(
       expect.stringContaining('INSERT OR IGNORE INTO predictions'),
@@ -185,6 +222,9 @@ describe('prediction-service', () => {
       2026
     );
 
+    expect(databaseHealthService.assertDatabaseHealthy).toHaveBeenCalledWith({
+      context: 'bulk missed prediction reconciliation'
+    });
     expect(result).toEqual({ created: 3 });
     expect(runQuery).toHaveBeenCalledWith(
       expect.stringContaining('INSERT OR IGNORE INTO predictions'),
@@ -207,6 +247,20 @@ describe('prediction-service', () => {
     const result = await predictionService.ensureMissedPredictionsForPredictorsAndYear([2, 3], 2026);
 
     expect(result).toEqual({ created: 0 });
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  test('ensureMissedPredictionsForPredictorsAndYear aborts when database health check fails', async () => {
+    getOne.mockResolvedValue({ value: '2000-01-01T00:00:00.000Z' });
+    databaseHealthService.assertDatabaseHealthy.mockRejectedValue(
+      new AppError('Prediction uniqueness check failed before bulk missed prediction reconciliation', 500, 'DATABASE_HEALTH_ERROR')
+    );
+
+    await expect(
+      predictionService.ensureMissedPredictionsForPredictorsAndYear([2], 2026)
+    ).rejects.toMatchObject({
+      errorCode: 'DATABASE_HEALTH_ERROR'
+    });
     expect(runQuery).not.toHaveBeenCalled();
   });
 
@@ -266,6 +320,20 @@ describe('prediction-service', () => {
       probability: 61,
       tippedTeam: 'home'
     });
+  });
+
+  test('updatePredictionMissedFlag rolls back if an update touches multiple rows', async () => {
+    getOne.mockResolvedValue({ home_win_probability: 61, tipped_team: 'home' });
+    runQuery
+      .mockResolvedValueOnce({ changes: 0 })
+      .mockResolvedValueOnce({ changes: 2 })
+      .mockResolvedValueOnce({ changes: 0 });
+
+    await expect(predictionService.updatePredictionMissedFlag(1, 2, true)).rejects.toMatchObject({
+      errorCode: 'DATABASE_HEALTH_ERROR',
+      message: 'Prediction uniqueness check failed while updating missed flag for match 1 and predictor 2'
+    });
+    expect(runQuery).toHaveBeenCalledWith('ROLLBACK');
   });
 
   test('updatePredictionMissedFlag creates a default prediction when turning the flag on for a blank card', async () => {

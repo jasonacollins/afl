@@ -27,6 +27,36 @@ def connect_sqlite(db_path: str) -> sqlite3.Connection:
     return conn
 
 
+def assert_prediction_uniqueness_health(conn: sqlite3.Connection) -> None:
+    """Fail closed if SQLite integrity or prediction uniqueness is unhealthy."""
+    integrity_row = conn.execute('PRAGMA integrity_check(1)').fetchone()
+    integrity = integrity_row[0] if integrity_row else None
+    if integrity != 'ok':
+        raise RuntimeError(
+            f"Database integrity check failed before saving predictions: {integrity or 'no result'}"
+        )
+
+    duplicate_pairs, duplicate_rows = conn.execute(
+        """
+        SELECT
+            COUNT(*) AS duplicate_pairs,
+            COALESCE(SUM(extra_rows), 0) AS duplicate_rows
+        FROM (
+            SELECT COUNT(*) - 1 AS extra_rows
+            FROM predictions NOT INDEXED
+            GROUP BY match_id, predictor_id
+            HAVING COUNT(*) > 1
+        )
+        """
+    ).fetchone()
+
+    if duplicate_pairs:
+        raise RuntimeError(
+            "Prediction uniqueness check failed before saving predictions: "
+            f"{duplicate_pairs} duplicate match/predictor pairs ({duplicate_rows} extra rows)"
+        )
+
+
 def atomic_write_text(filepath: str, content: str) -> None:
     """Write a text file via temp file + atomic replace so readers never see partial output."""
     abs_path = os.path.abspath(filepath)
@@ -298,8 +328,11 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
     """
     conn = connect_sqlite(db_path)
     cursor = conn.cursor()
+    transaction_started = False
     
     try:
+        assert_prediction_uniqueness_health(conn)
+
         # Get current time in UTC for comparison
         current_time = datetime.now(timezone.utc)
         
@@ -385,6 +418,7 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
         
         # Acquire the write lock up front so overlapping refreshes serialize cleanly.
         cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        transaction_started = True
         
         # Update first, then insert when missing. Combined with BEGIN IMMEDIATE,
         # overlapping refreshes serialize cleanly even on older SQLite schemas.
@@ -419,6 +453,12 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
                     predictor_id
                 )
             )
+            if cursor.rowcount > 1:
+                raise RuntimeError(
+                    "Prediction uniqueness check failed while saving predictions: "
+                    f"updated {cursor.rowcount} rows for match {pred['match_id']} "
+                    f"and predictor {predictor_id}"
+                )
             if cursor.rowcount == 0:
                 cursor.execute(
                     """INSERT INTO predictions
@@ -439,7 +479,8 @@ def save_predictions_to_database(predictions: List[Dict], db_path: str,
         print(f"Successfully saved {saved_count} predictions to database")
         
     except Exception as e:
-        cursor.execute("ROLLBACK")
+        if transaction_started:
+            cursor.execute("ROLLBACK")
         print(f"Error saving predictions to database: {e}")
         raise
     finally:

@@ -521,6 +521,102 @@ def test_save_predictions_to_database_updates_existing_prediction_rows(afl_test_
     assert rows == [(16, 81, 54, 3.5, 'home')]
 
 
+def test_save_predictions_to_database_rejects_duplicate_prediction_rows(tmp_path):
+    db_path = tmp_path / 'duplicate_predictions.db'
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE predictions (
+                prediction_id INTEGER PRIMARY KEY,
+                match_id INTEGER NOT NULL,
+                predictor_id INTEGER NOT NULL,
+                home_win_probability INTEGER NOT NULL,
+                predicted_margin REAL,
+                prediction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tipped_team TEXT NOT NULL
+            );
+            INSERT INTO predictions (
+                prediction_id, match_id, predictor_id, home_win_probability, tipped_team
+            ) VALUES
+                (1, 16, 82, 55, 'home'),
+                (2, 16, 82, 60, 'home');
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with pytest.raises(RuntimeError, match='Prediction uniqueness check failed before saving predictions'):
+        data_io.save_predictions_to_database(
+            [{
+                'match_id': 16,
+                'match_date': '2099-08-01T19:20:00+00:00',
+                'home_win_probability': 0.62,
+                'predicted_margin': 11.4
+            }],
+            str(db_path),
+            predictor_id=82,
+        )
+
+
+def test_save_predictions_to_database_rolls_back_multirow_update(tmp_path, monkeypatch):
+    db_path = tmp_path / 'duplicate_update.db'
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE predictions (
+                prediction_id INTEGER PRIMARY KEY,
+                match_id INTEGER NOT NULL,
+                predictor_id INTEGER NOT NULL,
+                home_win_probability INTEGER NOT NULL,
+                predicted_margin REAL,
+                prediction_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tipped_team TEXT NOT NULL
+            );
+            INSERT INTO predictions (
+                prediction_id, match_id, predictor_id, home_win_probability, predicted_margin, tipped_team
+            ) VALUES
+                (1, 16, 83, 55, 4.0, 'home'),
+                (2, 16, 83, 60, 6.0, 'home');
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(data_io, 'assert_prediction_uniqueness_health', lambda _conn: None)
+
+    with pytest.raises(RuntimeError, match='updated 2 rows for match 16 and predictor 83'):
+        data_io.save_predictions_to_database(
+            [{
+                'match_id': 16,
+                'match_date': '2099-08-01T19:20:00+00:00',
+                'home_win_probability': 0.62,
+                'predicted_margin': 11.4
+            }],
+            str(db_path),
+            predictor_id=83,
+        )
+
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT prediction_id, home_win_probability, predicted_margin
+            FROM predictions
+            WHERE predictor_id = ?
+            ORDER BY prediction_id
+            """,
+            (83,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert rows == [(1, 55, 4.0), (2, 60, 6.0)]
+
+
 def test_scoring_helpers_support_percentages_draws_and_per_game_results():
     assert scoring.calculate_bits_score(75, 1.0) == pytest.approx(1 + scoring.math.log2(0.75))
     assert scoring.calculate_bits_score(25, 0.0) == pytest.approx(1 + scoring.math.log2(0.75))

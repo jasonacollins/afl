@@ -3,6 +3,7 @@ const { getQuery, getOne, runQuery } = require('../models/db');
 const { AppError, createNotFoundError, createValidationError } = require('../utils/error-handler');
 const { logger } = require('../utils/logger');
 const roundService = require('./round-service');
+const databaseHealthService = require('./database-health-service');
 
 const MISSED_PREDICTION_DEFAULTS_ENABLED_AT_KEY = 'missed_prediction_defaults_enabled_at';
 
@@ -117,6 +118,8 @@ async function getAllPredictionsWithDetails() {
 
 // Save or update prediction
 async function savePrediction(matchId, predictorId, probability, options = {}) {
+  let transactionStarted = false;
+
   try {
     // Validate inputs
     if (!matchId || !predictorId || probability === undefined) {
@@ -130,6 +133,9 @@ async function savePrediction(matchId, predictorId, probability, options = {}) {
     const normalizedTippedTeam = normalizeTippedTeam(probability, options.tippedTeam);
 
     logger.debug(`Saving prediction for match ${matchId}, predictor ${predictorId}: ${probability}%`);
+    await databaseHealthService.assertDatabaseHealthy({ context: 'saving prediction' });
+    await runQuery('BEGIN IMMEDIATE TRANSACTION');
+    transactionStarted = true;
     
     const existing = await getOne(
       'SELECT * FROM predictions WHERE match_id = ? AND predictor_id = ?',
@@ -141,6 +147,17 @@ async function savePrediction(matchId, predictorId, probability, options = {}) {
         'UPDATE predictions SET home_win_probability = ?, tipped_team = ? WHERE match_id = ? AND predictor_id = ?',
         [probability, normalizedTippedTeam, matchId, predictorId]
       );
+
+      if (result.changes > 1) {
+        throw new AppError(
+          `Prediction uniqueness check failed while saving match ${matchId} for predictor ${predictorId}`,
+          500,
+          'DATABASE_HEALTH_ERROR'
+        );
+      }
+
+      await runQuery('COMMIT');
+      transactionStarted = false;
       
       logger.info(`Updated prediction for match ${matchId}, predictor ${predictorId}: ${probability}%`);
       
@@ -150,12 +167,27 @@ async function savePrediction(matchId, predictorId, probability, options = {}) {
         'INSERT INTO predictions (match_id, predictor_id, home_win_probability, tipped_team) VALUES (?, ?, ?, ?)',
         [matchId, predictorId, probability, normalizedTippedTeam]
       );
+
+      await runQuery('COMMIT');
+      transactionStarted = false;
       
       logger.info(`Created new prediction for match ${matchId}, predictor ${predictorId}: ${probability}%`);
       
       return { action: 'created', changes: result.changes };
     }
   } catch (error) {
+    if (transactionStarted) {
+      try {
+        await runQuery('ROLLBACK');
+      } catch (rollbackError) {
+        logger.error('Error rolling back prediction save', {
+          matchId,
+          predictorId,
+          error: rollbackError.message
+        });
+      }
+    }
+
     if (error.isOperational) {
       throw error; // Re-throw validation errors
     }
@@ -240,6 +272,7 @@ async function ensureMissedPredictionsForUserAndYear(predictorId, year) {
     }
 
     const now = new Date();
+    await databaseHealthService.assertDatabaseHealthy({ context: 'missed prediction reconciliation' });
     const candidateMatches = await getQuery(
       `
       SELECT m.match_id, m.match_date
@@ -335,6 +368,7 @@ async function ensureMissedPredictionsForPredictorsAndYear(predictorIds, year) {
     const placeholders = normalizedPredictorIds.map(() => '?').join(', ');
     const nowIso = new Date().toISOString();
     const cutoffIso = cutoffDate.toISOString();
+    await databaseHealthService.assertDatabaseHealthy({ context: 'bulk missed prediction reconciliation' });
     const result = await runQuery(
       `
       INSERT OR IGNORE INTO predictions (
@@ -396,12 +430,18 @@ async function ensureMissedPredictionsForPredictorsAndYear(predictorIds, year) {
 }
 
 async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
+  let transactionStarted = false;
+
   try {
     if (!matchId || !predictorId) {
       throw createValidationError('Match ID and predictor ID are required');
     }
 
     const normalizedIsMissed = normalizeMissedFlag(isMissed);
+    await databaseHealthService.assertDatabaseHealthy({ context: 'updating missed prediction flag' });
+    await runQuery('BEGIN IMMEDIATE TRANSACTION');
+    transactionStarted = true;
+
     const existingPrediction = await getOne(
       'SELECT home_win_probability, tipped_team FROM predictions WHERE match_id = ? AND predictor_id = ?',
       [matchId, predictorId]
@@ -409,6 +449,9 @@ async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
 
     if (!existingPrediction) {
       if (normalizedIsMissed === 0) {
+        await runQuery('COMMIT');
+        transactionStarted = false;
+
         return {
           changes: 0,
           isMissed: false,
@@ -429,6 +472,9 @@ async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
         [matchId, predictorId]
       );
 
+      await runQuery('COMMIT');
+      transactionStarted = false;
+
       logger.info(`Created default missed prediction for match ${matchId}, predictor ${predictorId}`);
       return {
         changes: insertResult.changes,
@@ -444,6 +490,17 @@ async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
       [normalizedIsMissed, matchId, predictorId]
     );
 
+    if (result.changes > 1) {
+      throw new AppError(
+        `Prediction uniqueness check failed while updating missed flag for match ${matchId} and predictor ${predictorId}`,
+        500,
+        'DATABASE_HEALTH_ERROR'
+      );
+    }
+
+    await runQuery('COMMIT');
+    transactionStarted = false;
+
     logger.info(`Updated missed flag for match ${matchId}, predictor ${predictorId}: ${normalizedIsMissed}`);
     return {
       changes: result.changes,
@@ -453,6 +510,18 @@ async function updatePredictionMissedFlag(matchId, predictorId, isMissed) {
       tippedTeam: existingPrediction.tipped_team || normalizeTippedTeam(existingPrediction.home_win_probability)
     };
   } catch (error) {
+    if (transactionStarted) {
+      try {
+        await runQuery('ROLLBACK');
+      } catch (rollbackError) {
+        logger.error('Error rolling back missed prediction flag update', {
+          matchId,
+          predictorId,
+          error: rollbackError.message
+        });
+      }
+    }
+
     if (error.isOperational) {
       throw error;
     }
