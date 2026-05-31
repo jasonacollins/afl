@@ -142,6 +142,11 @@ data/database/*.db
 data/database/*.db-shm
 data/database/*.db-wal
 data/database/backups/*.db
+data/database/backups/*.db-shm
+data/database/backups/*.db-wal
+data/database/backups/**/*.db
+data/database/backups/**/*.db-shm
+data/database/backups/**/*.db-wal
 
 # Temporary data directories  
 data/temp/
