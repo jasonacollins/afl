@@ -24,7 +24,7 @@
     "@types/express": "^5.0.6",
     "bcrypt": "^6.0.0",
     "connect-sqlite3": "^0.9.16",
-    "csv-parse": "^6.2.1",
+    "csv-parse": "^7.0.0",
     "dotenv": "^17.4.2",
     "ejs": "^5.0.2",
     "express": "^5.2.1",
