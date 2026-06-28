@@ -35,6 +35,16 @@ const { getSquiggleGamesSseConfig } = require('../../utils/squiggle-request');
 
 const originalNodeEnv = process.env.NODE_ENV;
 const originalEventSyncEnabled = process.env.EVENT_SYNC_ENABLED;
+const originalStreamInactivityTimeout = process.env.EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS;
+
+function restoreEnvValue(name, value) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
 
 describe('event-sync-service helpers', () => {
   const {
@@ -124,8 +134,9 @@ describe('event-sync-service snapshot handling', () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalNodeEnv;
-    process.env.EVENT_SYNC_ENABLED = originalEventSyncEnabled;
+    restoreEnvValue('NODE_ENV', originalNodeEnv);
+    restoreEnvValue('EVENT_SYNC_ENABLED', originalEventSyncEnabled);
+    restoreEnvValue('EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS', originalStreamInactivityTimeout);
     eventSyncService.stop();
   });
 
@@ -673,6 +684,38 @@ describe('event-sync-service snapshot handling', () => {
     } finally {
       eventSyncService.stop();
       reconnectSpy.mockRestore();
+    }
+  });
+
+  test('consumeStream rejects and reconnects when the SSE stream becomes inactive', async () => {
+    jest.useFakeTimers();
+    process.env.EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS = '1000';
+
+    const stream = new EventEmitter();
+    stream.destroy = jest.fn();
+    const reconnectSpy = jest.spyOn(eventSyncService, 'scheduleReconnect').mockImplementation(() => {});
+    eventSyncService.running = true;
+
+    try {
+      const consumePromise = eventSyncService.consumeStream(stream);
+      const rejectionExpectation = expect(consumePromise).rejects.toThrow(
+        'Squiggle SSE stream inactive for 1000ms'
+      );
+
+      await jest.advanceTimersByTimeAsync(1000);
+
+      await rejectionExpectation;
+      expect(stream.destroy).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'Squiggle SSE stream inactive for 1000ms'
+      }));
+      expect(logger.warn).toHaveBeenCalledWith('Squiggle SSE stream inactive; reconnecting', {
+        inactivityTimeoutMs: 1000
+      });
+      expect(reconnectSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      eventSyncService.stop();
+      reconnectSpy.mockRestore();
+      jest.useRealTimers();
     }
   });
 });

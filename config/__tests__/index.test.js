@@ -36,7 +36,8 @@ describe('runtime config', () => {
       },
       eventSync: {
         enabled: true,
-        reconciliationMinIntervalMs: 30 * 60 * 1000
+        reconciliationMinIntervalMs: 30 * 60 * 1000,
+        streamInactivityTimeoutMs: 10 * 60 * 1000
       }
     });
   });
@@ -53,7 +54,8 @@ describe('runtime config', () => {
       SQUIGGLE_SSE_GAMES_URL: ' https://example.com/sse ',
       SQUIGGLE_USER_AGENT: ' Example App - ops@example.com ',
       EVENT_SYNC_ENABLED: '0',
-      EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS: '120000'
+      EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS: '120000',
+      EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS: '900000'
     });
 
     expect(config).toMatchObject({
@@ -73,7 +75,8 @@ describe('runtime config', () => {
       },
       eventSync: {
         enabled: false,
-        reconciliationMinIntervalMs: 120000
+        reconciliationMinIntervalMs: 120000,
+        streamInactivityTimeoutMs: 900000
       }
     });
   });
@@ -92,9 +95,10 @@ describe('runtime config', () => {
       NODE_ENV: 'production',
       PORT: 'abc',
       SQLITE_BUSY_TIMEOUT_MS: '0',
-      EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS: '-1'
+      EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS: '-1',
+      EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS: '0'
     }))).toThrow(
-      'Invalid runtime configuration: SESSION_SECRET environment variable is required in production; PORT must be a positive integer; SQLITE_BUSY_TIMEOUT_MS must be a positive integer; EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS must be a positive integer'
+      'Invalid runtime configuration: SESSION_SECRET environment variable is required in production; PORT must be a positive integer; SQLITE_BUSY_TIMEOUT_MS must be a positive integer; EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS must be a positive integer; EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS must be a positive integer'
     );
   });
 
@@ -120,6 +124,9 @@ describe('runtime config', () => {
       SQUIGGLE_USER_AGENT: 'Example Agent',
       EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS: String(
         DEFAULTS.eventSyncReconciliationMinIntervalMs
+      ),
+      EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS: String(
+        DEFAULTS.eventSyncStreamInactivityTimeoutMs
       ),
       PYTHONUNBUFFERED: '1'
     }));

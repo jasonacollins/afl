@@ -12,7 +12,8 @@ const DEFAULTS = {
   squiggleApiBaseUrl: 'https://api.squiggle.com.au/',
   squiggleSseGamesUrl: 'https://sse.squiggle.com.au/games',
   squiggleUserAgent: 'AFL Predictions - jason@jasoncollins.me',
-  eventSyncReconciliationMinIntervalMs: 30 * 60 * 1000
+  eventSyncReconciliationMinIntervalMs: 30 * 60 * 1000,
+  eventSyncStreamInactivityTimeoutMs: 10 * 60 * 1000
 };
 
 function normalizeOptionalString(value) {
@@ -67,6 +68,11 @@ function buildConfig(env = process.env) {
         env,
         'EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS',
         DEFAULTS.eventSyncReconciliationMinIntervalMs
+      ),
+      streamInactivityTimeoutMs: parseIntegerEnv(
+        env,
+        'EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS',
+        DEFAULTS.eventSyncStreamInactivityTimeoutMs
       )
     }
   };
@@ -94,6 +100,11 @@ function validateConfig(config = buildConfig()) {
   assertPositiveInteger(
     config.eventSync.reconciliationMinIntervalMs,
     'EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS',
+    errors
+  );
+  assertPositiveInteger(
+    config.eventSync.streamInactivityTimeoutMs,
+    'EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS',
     errors
   );
 
@@ -125,6 +136,9 @@ function buildChildProcessEnv(overrides = {}) {
     SQUIGGLE_USER_AGENT: config.squiggle.userAgent,
     EVENT_SYNC_RECONCILIATION_MIN_INTERVAL_MS: String(
       config.eventSync.reconciliationMinIntervalMs
+    ),
+    EVENT_SYNC_STREAM_INACTIVITY_TIMEOUT_MS: String(
+      config.eventSync.streamInactivityTimeoutMs
     ),
     ...overrides
   };

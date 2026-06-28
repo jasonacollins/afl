@@ -95,6 +95,7 @@ class EventSyncService {
     this.running = false;
     this.abortController = null;
     this.reconnectTimer = null;
+    this.streamInactivityTimer = null;
     this.reconnectDelayMs = BASE_RECONNECT_DELAY_MS;
   }
 
@@ -129,6 +130,11 @@ class EventSyncService {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+
+    if (this.streamInactivityTimer) {
+      clearTimeout(this.streamInactivityTimer);
+      this.streamInactivityTimer = null;
     }
 
     if (this.abortController) {
@@ -249,10 +255,62 @@ class EventSyncService {
   }
 
   async consumeStream(stream) {
+    const { eventSync } = getConfig();
+    const inactivityTimeoutMs = eventSync.streamInactivityTimeoutMs;
     let buffer = '';
 
     return new Promise((resolve, reject) => {
+      let settled = false;
+      let inactivityTimer = null;
+
+      const clearInactivityTimer = () => {
+        if (inactivityTimer) {
+          clearTimeout(inactivityTimer);
+          if (this.streamInactivityTimer === inactivityTimer) {
+            this.streamInactivityTimer = null;
+          }
+          inactivityTimer = null;
+        }
+      };
+
+      const finish = (callback, value) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearInactivityTimer();
+        callback(value);
+      };
+
+      const resetInactivityTimer = () => {
+        clearInactivityTimer();
+        inactivityTimer = setTimeout(() => {
+          const error = new Error(`Squiggle SSE stream inactive for ${inactivityTimeoutMs}ms`);
+          logger.warn('Squiggle SSE stream inactive; reconnecting', {
+            inactivityTimeoutMs
+          });
+
+          if (this.abortController) {
+            this.abortController.abort();
+          }
+
+          if (typeof stream.destroy === 'function') {
+            stream.destroy(error);
+          }
+
+          finish(reject, error);
+        }, inactivityTimeoutMs);
+
+        if (typeof inactivityTimer.unref === 'function') {
+          inactivityTimer.unref();
+        }
+
+        this.streamInactivityTimer = inactivityTimer;
+      };
+
       stream.on('data', (chunk) => {
+        resetInactivityTimer();
         buffer += chunk.toString('utf8').replace(/\r\n/g, '\n');
 
         let boundaryIndex = buffer.indexOf('\n\n');
@@ -268,9 +326,10 @@ class EventSyncService {
         }
       });
 
-      stream.on('end', () => resolve());
-      stream.on('close', () => resolve());
-      stream.on('error', (error) => reject(error));
+      stream.on('end', () => finish(resolve));
+      stream.on('close', () => finish(resolve));
+      stream.on('error', (error) => finish(reject, error));
+      resetInactivityTimer();
     }).finally(() => {
       if (this.running) {
         this.scheduleReconnect();
