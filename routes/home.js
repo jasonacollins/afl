@@ -113,7 +113,9 @@ router.get('/', catchAsync(async (req, res) => {
   const allMatches = await getAllMatchesForYear(currentYear);
   const rounds = roundViewService.buildDisplayRounds(allRounds, allMatches, currentYear);
   const currentRound = roundViewService.getCurrentRound(rounds);
-  let targetRound = roundViewService.selectDefaultRound(allMatches, allRounds, currentYear);
+  let targetRound = roundViewService.selectDefaultRound(allMatches, allRounds, currentYear, {
+    preferTodayCompletedRound: true
+  });
 
   if (!targetRound && allRounds.length > 0) {
     targetRound = 'OR';

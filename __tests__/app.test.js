@@ -135,6 +135,10 @@ describe('app', () => {
     delete process.env.SESSION_SECRET;
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   test('createApp requires a session secret', () => {
     const { createApp } = loadAppModule();
     process.env.SESSION_SECRET = '';
@@ -252,6 +256,64 @@ describe('app', () => {
       marginMAE: '5.00',
       marginPredictionCount: 1
     });
+  });
+
+  test('home route keeps today\'s completed round selected before advancing to the next upcoming round', async () => {
+    const todayMatchDate = new Date();
+    todayMatchDate.setHours(10, 0, 0, 0);
+    const futureMatchDate = new Date(todayMatchDate);
+    futureMatchDate.setDate(futureMatchDate.getDate() + 4);
+    const { createApp, mocks } = loadAppModule();
+
+    mocks.featuredPredictions.getDefaultFeaturedPredictor.mockResolvedValue({
+      predictor_id: 6,
+      display_name: "Dad's AI"
+    });
+    mocks.featuredPredictions.getPredictionYearsForPredictor.mockResolvedValue([
+      { year: '2026' }
+    ]);
+    mocks.roundService.getRoundsForYear.mockResolvedValue([
+      { round_number: '16' },
+      { round_number: '17' }
+    ]);
+    mocks.db.getQuery.mockResolvedValue([
+      {
+        match_id: 1,
+        round_number: '16',
+        match_date: todayMatchDate.toISOString(),
+        hscore: 80,
+        ascore: 29,
+        home_team: 'Fremantle',
+        away_team: 'Gold Coast'
+      },
+      {
+        match_id: 2,
+        round_number: '17',
+        match_date: futureMatchDate.toISOString(),
+        hscore: null,
+        ascore: null,
+        home_team: 'Geelong',
+        away_team: 'Brisbane Lions'
+      }
+    ]);
+    mocks.featuredPredictions.getPredictionsForRound.mockResolvedValue({
+      predictor: { predictor_id: 6, display_name: "Dad's AI" },
+      matches: [{ match_id: 1 }],
+      predictions: {}
+    });
+    mocks.predictionService.getPredictionsWithResultsForYear.mockResolvedValue([]);
+
+    const app = createJsonRenderApp(createApp, {
+      sessionSecret: 'test-secret',
+      sessionStore: new session.MemoryStore()
+    });
+
+    const response = await request(app).get('/?year=2026');
+
+    expect(response.status).toBe(200);
+    expect(mocks.featuredPredictions.getPredictionsForRound).toHaveBeenCalledWith(6, '16', 2026);
+    expect(response.body.locals.selectedRound).toBe('16');
+    expect(response.body.locals.currentRound).toBe('17');
   });
 
   test('home route falls back to round-service year when featured predictor has no prediction years', async () => {

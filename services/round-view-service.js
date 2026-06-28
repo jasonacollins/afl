@@ -99,6 +99,12 @@ function findMostRecentCompletedMatch(matches) {
   return mostRecentCompletedMatch;
 }
 
+function isSameLocalDate(leftDate, rightDate) {
+  return leftDate.getFullYear() === rightDate.getFullYear()
+    && leftDate.getMonth() === rightDate.getMonth()
+    && leftDate.getDate() === rightDate.getDate();
+}
+
 function normalizeMatchRound(match, year) {
   return roundService.normalizeRoundForDisplay(match.round_number, year);
 }
@@ -106,15 +112,23 @@ function normalizeMatchRound(match, year) {
 function selectDefaultRound(matches, rounds, year, options = {}) {
   const {
     now = new Date(),
-    fallbackRound = null
+    fallbackRound = null,
+    preferTodayCompletedRound = false
   } = options;
+
+  const mostRecentCompletedMatch = findMostRecentCompletedMatch(matches);
+  if (preferTodayCompletedRound && mostRecentCompletedMatch) {
+    const completedMatchDate = parseMatchDate(mostRecentCompletedMatch, 'default-round-recent-completed');
+    if (completedMatchDate && isSameLocalDate(completedMatchDate, now)) {
+      return normalizeMatchRound(mostRecentCompletedMatch, year);
+    }
+  }
 
   const nextUpcomingMatch = findNextUpcomingMatch(matches, now);
   if (nextUpcomingMatch) {
     return normalizeMatchRound(nextUpcomingMatch, year);
   }
 
-  const mostRecentCompletedMatch = findMostRecentCompletedMatch(matches);
   if (mostRecentCompletedMatch) {
     return normalizeMatchRound(mostRecentCompletedMatch, year);
   }

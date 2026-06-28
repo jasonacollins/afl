@@ -48,6 +48,37 @@ describe('round-view-service', () => {
     expect(selectedRound).toBe('2');
   });
 
+  test('can keep the most recent completed round selected until the next local day', () => {
+    const completedMatchDate = new Date(2026, 5, 28, 17, 10, 0);
+    const matches = [
+      {
+        round_number: '16',
+        match_date: completedMatchDate.toISOString(),
+        hscore: 80,
+        ascore: 29
+      },
+      {
+        round_number: '17',
+        match_date: '2026-07-02T09:30:00.000Z',
+        hscore: null,
+        ascore: null
+      }
+    ];
+    const rounds = [{ round_number: '16' }, { round_number: '17' }];
+
+    const sameDaySelection = roundViewService.selectDefaultRound(matches, rounds, 2026, {
+      now: new Date(2026, 5, 28, 20, 0, 0),
+      preferTodayCompletedRound: true
+    });
+    const nextDaySelection = roundViewService.selectDefaultRound(matches, rounds, 2026, {
+      now: new Date(2026, 5, 29, 0, 0, 0),
+      preferTodayCompletedRound: true
+    });
+
+    expect(sameDaySelection).toBe('16');
+    expect(nextDaySelection).toBe('17');
+  });
+
   test('falls back to the most recent completed match then first round', () => {
     const completedRound = roundViewService.selectDefaultRound(
       [
